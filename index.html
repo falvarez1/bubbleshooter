@@ -1378,6 +1378,119 @@
             DANGER_LINE: -5
         };
         
+        // Particle Effects Configuration
+        const PARTICLE_CONFIG = {
+            // Performance preset: 'low', 'medium', 'high', 'ultra'
+            preset: 'medium',
+            
+            // Individual settings (override preset)
+            poolSize: 300,              // Total particle pool size
+            
+            // Color Splash Power-Up
+            colorSplash: {
+                waveParticles: 20,      // Main explosion particles (was 50->20)
+                spiralParticles: 4,     // Per-bubble spiral (was 8->4)
+                transformParticles: 8,  // Color change particles (was 20->8)
+                maxClusterSize: 15,     // Max bubbles affected
+                spiralEveryNth: 2,      // Create spiral every N bubbles
+                transformDelay: 80,     // Delay between transforms
+                batchSize: 5            // Transform batch size
+            },
+            
+            // Regular bubble pop
+            bubblePop: {
+                particles: 15,          // Particles per pop
+                size: 0.2,
+                speed: 10,
+                decay: 0.02
+            },
+            
+            // Bomb explosion
+            bombExplosion: {
+                particles: 30,          // Particles for bomb
+                size: 0.3,
+                speed: 15,
+                decay: 0.025
+            },
+            
+            // Lightning effects
+            lightning: {
+                particles: 30,          // Electric burst particles
+                arcSegments: 5,         // Lightning path segments
+                electricArcs: 15        // Destruction effect particles
+            },
+            
+            // Rainbow effects
+            rainbow: {
+                particles: 20,
+                size: 0.15,
+                speed: 8
+            },
+            
+            // Visual quality
+            quality: {
+                particleSegments: 6,    // Sphere segments (6 for performance, 8+ for quality)
+                useLighting: false,     // Use MeshBasicMaterial vs MeshStandardMaterial
+                glowEffects: true,      // Enable glow meshes
+                animateParticles: true  // Animate particle properties
+            }
+        };
+        
+        // Performance presets
+        const PARTICLE_PRESETS = {
+            low: {
+                poolSize: 150,
+                colorSplash: { waveParticles: 10, spiralParticles: 2, transformParticles: 4, maxClusterSize: 10, spiralEveryNth: 3 },
+                bubblePop: { particles: 8 },
+                bombExplosion: { particles: 15 },
+                lightning: { particles: 15, electricArcs: 8 },
+                rainbow: { particles: 10 },
+                quality: { particleSegments: 4, useLighting: false, glowEffects: false }
+            },
+            medium: {
+                poolSize: 300,
+                colorSplash: { waveParticles: 20, spiralParticles: 4, transformParticles: 8, maxClusterSize: 15, spiralEveryNth: 2 },
+                bubblePop: { particles: 15 },
+                bombExplosion: { particles: 30 },
+                lightning: { particles: 30, electricArcs: 15 },
+                rainbow: { particles: 20 },
+                quality: { particleSegments: 6, useLighting: false, glowEffects: true }
+            },
+            high: {
+                poolSize: 500,
+                colorSplash: { waveParticles: 35, spiralParticles: 6, transformParticles: 15, maxClusterSize: 20, spiralEveryNth: 1 },
+                bubblePop: { particles: 20 },
+                bombExplosion: { particles: 40 },
+                lightning: { particles: 40, electricArcs: 20 },
+                rainbow: { particles: 30 },
+                quality: { particleSegments: 8, useLighting: true, glowEffects: true }
+            },
+            ultra: {
+                poolSize: 800,
+                colorSplash: { waveParticles: 50, spiralParticles: 8, transformParticles: 20, maxClusterSize: 30, spiralEveryNth: 1 },
+                bubblePop: { particles: 30 },
+                bombExplosion: { particles: 60 },
+                lightning: { particles: 50, electricArcs: 30 },
+                rainbow: { particles: 40 },
+                quality: { particleSegments: 12, useLighting: true, glowEffects: true }
+            }
+        };
+        
+        // Apply preset
+        function applyParticlePreset(presetName) {
+            const preset = PARTICLE_PRESETS[presetName];
+            if (preset) {
+                Object.assign(PARTICLE_CONFIG, preset);
+                PARTICLE_CONFIG.preset = presetName;
+                console.log(`Applied particle preset: ${presetName}`);
+                
+                // Recreate particle pool with new size if needed (only if gameState exists)
+                if (typeof gameState !== 'undefined' && gameState.particlePool && gameState.particlePool.pool.length !== PARTICLE_CONFIG.poolSize) {
+                    gameState.particlePool = new ParticlePool(PARTICLE_CONFIG.poolSize);
+                }
+            }
+        }
+        
         // Visual Text Display System
         class VisualTextDisplay {
             constructor() {
@@ -2415,7 +2528,7 @@
                 // Find cluster of bubbles around the center - OPTIMIZED
                 const cluster = [centerBubble];
                 const maxDistance = this.clusterSize * CONFIG.HEX_WIDTH;
-                const maxClusterSize = 15; // Limit cluster size for performance
+                const maxClusterSize = PARTICLE_CONFIG.colorSplash.maxClusterSize;
                 
                 for (let y = 0; y < CONFIG.GRID_HEIGHT && cluster.length < maxClusterSize; y++) {
                     for (let x = 0; x < CONFIG.GRID_WIDTH && cluster.length < maxClusterSize; x++) {
@@ -2445,14 +2558,14 @@
                 // Change colors of all bubbles in cluster after delay - OPTIMIZED
                 setTimeout(() => {
                     // Process bubbles in smaller batches
-                    const batchSize = 5;
+                    const batchSize = PARTICLE_CONFIG.colorSplash.batchSize;
                     for (let i = 0; i < cluster.length; i += batchSize) {
                         const batch = cluster.slice(i, i + batchSize);
                         setTimeout(() => {
                             batch.forEach((bubble, batchIndex) => {
                                 setTimeout(() => {
                                     this.transformBubbleColor(bubble, selectedColor);
-                                }, batchIndex * 80); // Increased delay within batch
+                                }, batchIndex * PARTICLE_CONFIG.colorSplash.transformDelay);
                             });
                         }, i * 100); // Delay between batches
                     }
@@ -2525,7 +2638,7 @@
                 gameState.animations.push(ringAnimation);
                 
                 // Create color wave particles - OPTIMIZED
-                const particleCount = 20; // Reduced from 50
+                const particleCount = PARTICLE_CONFIG.colorSplash.waveParticles;
                 for (let i = 0; i < particleCount; i++) {
                     const angle = (Math.PI * 2 * i) / particleCount;
                     const particle = new Particle(
@@ -2576,8 +2689,8 @@
                 
                 // Create spiral effect around each bubble in cluster - OPTIMIZED
                 cluster.forEach((bubble, index) => {
-                    // Only create spiral for every other bubble to reduce particle count
-                    if (index % 2 === 0) {
+                    // Only create spiral for every Nth bubble based on config
+                    if (index % PARTICLE_CONFIG.colorSplash.spiralEveryNth === 0) {
                         setTimeout(() => {
                             this.createSpiralEffect(bubble, targetColor);
                         }, index * 50); // Increased delay
@@ -2587,7 +2700,7 @@
             
             createSpiralEffect(bubble, targetColor) {
                 // Create spiral particles around bubble - OPTIMIZED
-                const spiralCount = 4; // Reduced from 8
+                const spiralCount = PARTICLE_CONFIG.colorSplash.spiralParticles;
                 for (let i = 0; i < spiralCount; i++) {
                     const angle = (Math.PI * 2 * i) / spiralCount;
                     const particle = new Particle(
@@ -2617,7 +2730,7 @@
                 const oldColor = bubble.color;
                 
                 // Create transformation particles - OPTIMIZED
-                for (let i = 0; i < 8; i++) { // Reduced from 20
+                for (let i = 0; i < PARTICLE_CONFIG.colorSplash.transformParticles; i++) {
                     const particle = new Particle(
                         bubble.position.x,
                         bubble.position.y,
@@ -3203,7 +3316,8 @@
                 const size = 0.15;
                 let geometry = this.geometryCache.get(size);
                 if (!geometry) {
-                    geometry = new THREE.SphereGeometry(size, 6, 6); // Reduced segments
+                    const segments = PARTICLE_CONFIG.quality.particleSegments;
+                    geometry = new THREE.SphereGeometry(size, segments, segments);
                     this.geometryCache.set(size, geometry);
                 }
                 
@@ -5220,8 +5334,11 @@
             renderer.render(scene, camera);
         }
         
+        // Apply default particle preset now that gameState exists
+        applyParticlePreset(PARTICLE_CONFIG.preset);
+        
         // Initialize ParticlePool after class is defined
-        gameState.particlePool = new ParticlePool(300);
+        gameState.particlePool = new ParticlePool(PARTICLE_CONFIG.poolSize);
         
         // Initialize game
         createGameBoard();
