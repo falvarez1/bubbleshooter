@@ -3198,6 +3198,12 @@
                 this.connectionScale = 1.0;
                 this.connectionAnimating = false;
                 
+                // Impact physics properties
+                this.impactVelocity = new THREE.Vector3(0, 0, 0);
+                this.impactDamping = 0.45; // Balanced damping
+                this.springConstant = 0.5; // Moderately tight spring
+                this.basePosition = new THREE.Vector3(x, y, 0);
+                
                 // Add subtle floating animation
                 this.floatOffset = Math.random() * Math.PI * 2;
                 this.floatSpeed = 0.5 + Math.random() * 0.5;
@@ -3257,6 +3263,33 @@
                     this.connectionAnimating *= 0.95; // Decay
                     if (this.connectionAnimating < 0.01) {
                         this.connectionAnimating = false;
+                        this.mesh.scale.setScalar(1.0);
+                    }
+                }
+                
+                // Elastic impact physics
+                if (!this.isMoving && this.impactVelocity.length() > 0.001) {
+                    // Apply spring force back to base position
+                    const displacement = new THREE.Vector3().subVectors(this.position, this.basePosition);
+                    const springForce = displacement.multiplyScalar(-this.springConstant);
+                    
+                    // Update impact velocity with spring force and damping
+                    this.impactVelocity.add(springForce);
+                    this.impactVelocity.multiplyScalar(this.impactDamping);
+                    
+                    // Update position based on impact velocity
+                    this.position.add(this.impactVelocity.clone().multiplyScalar(deltaTime * 15));
+                    this.mesh.position.copy(this.position);
+                    
+                    // Add subtle scale pulse
+                    const impactScale = 1.0 + this.impactVelocity.length() * 0.15;
+                    this.mesh.scale.setScalar(impactScale);
+                    
+                    // Reset if velocity is very small
+                    if (this.impactVelocity.length() < 0.001) {
+                        this.impactVelocity.set(0, 0, 0);
+                        this.position.copy(this.basePosition);
+                        this.mesh.position.copy(this.position);
                         this.mesh.scale.setScalar(1.0);
                     }
                 }
@@ -4228,6 +4261,19 @@
                     const distance = current.position.distanceTo(bubble.position);
                     // Use slightly less than 2 radii to ensure proper contact
                     if (distance < CONFIG.BUBBLE_RADIUS * 1.8) {
+                        // Apply impact force to the hit bubble before attachment
+                        const impactDirection = new THREE.Vector3()
+                            .subVectors(bubble.position, current.position)
+                            .normalize();
+                        const impactForce = current.velocity.length() * 0.08; // Subtle direct hit
+                        
+                        // Apply direct hit impact
+                        bubble.impactVelocity.add(impactDirection.clone().multiplyScalar(impactForce));
+                        bubble.connectionAnimating = 1.2;
+                        
+                        // Immediate propagation to all neighbors
+                        propagateImpact(bubble, impactDirection, impactForce * 0.6, 0);
+                        
                         attachBubble(current);
                         return;
                     }
@@ -4244,6 +4290,9 @@
         function attachBubble(bubble) {
             bubble.isMoving = false;
             bubble.velocity.set(0, 0, 0);
+            
+            // Store the attachment velocity for impact calculation
+            const attachmentVelocity = bubble.velocity.clone();
             
             // Find nearest valid grid position
             let bestDistance = Infinity;
@@ -4318,6 +4367,12 @@
                 bubble.gridY = finalY;
                 bubble.mesh.position.copy(bubble.position);
                 
+                // Update base position for spring physics
+                bubble.basePosition.copy(bubble.position);
+                
+                // Restore velocity for impact calculation
+                bubble.velocity = attachmentVelocity;
+                
                 gameState.bubbleGrid[finalY][finalX] = bubble;
                 
                 // Create attachment effect
@@ -4339,16 +4394,17 @@
         // Create attachment effect
         function createAttachmentEffect(bubble) {
             gameManager.soundManager.play('bubbleAttach');
-            // Trigger connection bounce animation
-            bubble.connectionAnimating = 1.0;
             
-            // Animate neighboring bubbles too
-            const neighbors = getNeighbors(bubble.gridX, bubble.gridY);
-            neighbors.forEach(neighbor => {
-                if (neighbor) {
-                    neighbor.connectionAnimating = 0.5; // Less intense for neighbors
-                }
-            });
+            // Calculate impact force based on bubble velocity
+            const impactForce = bubble.velocity.length() * 0.06; // Subtle initial force
+            const impactDirection = bubble.velocity.normalize();
+            
+            // Apply instant impact to the attached bubble
+            bubble.impactVelocity.add(impactDirection.clone().multiplyScalar(impactForce));
+            bubble.connectionAnimating = 1.2;
+            
+            // Create ripple effect through ALL neighboring bubbles immediately
+            propagateImpact(bubble, impactDirection, impactForce, 0);
             
             // Create attachment particles
             for (let i = 0; i < 15; i++) {
@@ -4366,6 +4422,50 @@
                 );
                 gameState.particles.push(particle);
             }
+        }
+        
+        // Propagate impact through bubble grid
+        function propagateImpact(centerBubble, impactDirection, force, depth) {
+            if (depth > 2 || force < 0.02) return; // Limit propagation depth but keep force threshold higher
+            
+            // Get all neighbors
+            const neighbors = getNeighbors(centerBubble.gridX, centerBubble.gridY);
+            
+            // Process ALL neighbors simultaneously for each depth level
+            const impactedNeighbors = [];
+            
+            neighbors.forEach((neighbor) => {
+                if (neighbor) {
+                    // Calculate direction from center to neighbor
+                    const toNeighbor = new THREE.Vector3()
+                        .subVectors(neighbor.position, centerBubble.position)
+                        .normalize();
+                    
+                    // Less angle dependency for wider impact
+                    const dotProduct = Math.max(0.3, impactDirection.dot(toNeighbor));
+                    const falloff = Math.pow(0.6, depth); // 40% force reduction per level
+                    const neighborForce = force * (0.7 + dotProduct * 0.3) * falloff;
+                    
+                    // Store for batch processing
+                    impactedNeighbors.push({ bubble: neighbor, direction: toNeighbor, force: neighborForce });
+                }
+            });
+            
+            // Apply forces to all neighbors at once with minimal delay
+            setTimeout(() => {
+                impactedNeighbors.forEach(({ bubble, direction, force }) => {
+                    // Add impact velocity to neighbor
+                    bubble.impactVelocity.add(direction.multiplyScalar(force * 1.2));
+                    bubble.connectionAnimating = Math.max(bubble.connectionAnimating, 1.0 - depth * 0.2);
+                });
+                
+                // Continue propagation to next level
+                if (depth < 2) {
+                    impactedNeighbors.forEach(({ bubble, direction, force }) => {
+                        propagateImpact(bubble, direction, force, depth + 1);
+                    });
+                }
+            }, depth * 20); // Much faster propagation - 20ms per level
         }
         
         // Check for matches
@@ -4962,6 +5062,8 @@
                         gameState.bubbleGrid[y][x].position.x = (x - CONFIG.GRID_WIDTH / 2 + 0.5) * CONFIG.HEX_WIDTH + (isOddRow ? CONFIG.HEX_WIDTH / 2 : 0);
                         gameState.bubbleGrid[y][x].position.y = 6 - y * CONFIG.HEX_HEIGHT;
                         gameState.bubbleGrid[y][x].mesh.position.copy(gameState.bubbleGrid[y][x].position);
+                        // Update base position for physics
+                        gameState.bubbleGrid[y][x].basePosition.copy(gameState.bubbleGrid[y][x].position);
                     }
                 }
             }
@@ -4981,6 +5083,10 @@
                     bubble.gridY = 0;
                     scene.add(bubble.mesh);
                     gameState.bubbleGrid[0][x] = bubble;
+                    // Set base position for physics
+                    bubble.basePosition.set(xPos, yPos, 0);
+                    // Add a drop-in effect for new row bubbles
+                    bubble.impactVelocity.set(0, -2, 0);
                 } else {
                     gameState.bubbleGrid[0][x] = null;
                 }
