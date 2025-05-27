@@ -1895,7 +1895,7 @@
                 this.hitBubbles.clear();
                 
                 // Get the impact position
-                const impactPos = targetBubble.position;
+                const impactPos = targetBubble; // Corrected: targetBubble itself has x,y,z
                 
                 // Find the bubble at impact position (could be the shot bubble or a grid bubble)
                 let impactBubble = null;
@@ -1963,7 +1963,7 @@
                         bubblesDestroyed.push(target);
                         
                         // Play electric arc sound
-                        soundManager.playWithVariation('electricArc', { volume: 0.8 });
+                        gameManager.soundManager.playWithVariation('electricArc', { volume: 0.8 });
                         
                         // 3. For each primary target, find secondary targets
                         const secondaryTargets = this.findNearestBubbles(
@@ -1986,7 +1986,7 @@
                                 bubblesDestroyed.push(secondaryTarget);
                                 
                                 // Play quieter arc sound for secondary
-                                soundManager.playWithVariation('electricArc', { volume: 0.5, rate: 1.2 });
+                                gameManager.soundManager.playWithVariation('electricArc', { volume: 0.5, rate: 1.2 });
                             }, 50 + secondaryIndex * 30);
                         });
                     }, 100 + index * 50);
@@ -2778,6 +2778,7 @@
             constructor() {
                 this.eventBus = new EventBus();
                 this.powerUpSystem = new PowerUpSystem(this.eventBus);
+                this.soundManager = new SoundManager(); // Initialize SoundManager
                 this.screenShake = { intensity: 0, duration: 0 };
                 
                 // Set up event listeners
@@ -2815,7 +2816,7 @@
                     console.log('Chain Lightning power-up activated at', data.position);
                     visualTextDisplay.showPowerUpText('chainLightning', data.position);
                     // Play main lightning strike sound
-                    soundManager.play('lightningStrike');
+                    this.soundManager.play('lightningStrike');
                 });
                 
                 // Precision aim activation handler
