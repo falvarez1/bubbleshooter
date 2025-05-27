@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio Controls Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #333;
+            font-family: Arial, sans-serif;
+        }
+        
+        .status {
+            color: white;
+            margin-bottom: 20px;
+        }
+        
+        .test-results {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #00ffff;
+            padding: 20px;
+            color: #00ffff;
+            border-radius: 10px;
+            max-width: 600px;
+        }
+        
+        .test-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(0, 255, 255, 0.1);
+            border-radius: 5px;
+        }
+        
+        .success {
+            color: #00ff00;
+        }
+        
+        .error {
+            color: #ff0000;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="status">Testing Audio Controls Visibility</h1>
+    
+    <div class="test-results">
+        <div class="test-item">
+            <strong>Checking for audio controls container...</strong>
+            <div id="container-test"></div>
+        </div>
+        
+        <div class="test-item">
+            <strong>Checking for music toggle button...</strong>
+            <div id="toggle-test"></div>
+        </div>
+        
+        <div class="test-item">
+            <strong>Checking for volume slider...</strong>
+            <div id="slider-test"></div>
+        </div>
+        
+        <div class="test-item">
+            <strong>Checking CSS positioning...</strong>
+            <div id="css-test"></div>
+        </div>
+        
+        <div class="test-item">
+            <strong>Checking visibility...</strong>
+            <div id="visibility-test"></div>
+        </div>
+    </div>
+    
+    <script>
+        // Load the main game page in an iframe to test
+        const iframe = document.createElement('iframe');
+        iframe.src = 'index.html';
+        iframe.style.position = 'fixed';
+        iframe.style.top = '0';
+        iframe.style.left = '0';
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+        iframe.style.zIndex = '-1';
+        document.body.appendChild(iframe);
+        
+        iframe.onload = function() {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            
+            // Test 1: Check for container
+            const container = iframeDoc.querySelector('.music-controls');
+            const containerTest = document.getElementById('container-test');
+            if (container) {
+                containerTest.innerHTML = '<span class="success">✓ Found .music-controls container</span>';
+            } else {
+                containerTest.innerHTML = '<span class="error">✗ .music-controls container not found</span>';
+            }
+            
+            // Test 2: Check for toggle button
+            const toggle = iframeDoc.getElementById('musicToggle');
+            const toggleTest = document.getElementById('toggle-test');
+            if (toggle) {
+                toggleTest.innerHTML = '<span class="success">✓ Found music toggle button</span>';
+            } else {
+                toggleTest.innerHTML = '<span class="error">✗ Music toggle button not found</span>';
+            }
+            
+            // Test 3: Check for volume slider
+            const slider = iframeDoc.getElementById('volumeSlider');
+            const sliderTest = document.getElementById('slider-test');
+            if (slider) {
+                sliderTest.innerHTML = '<span class="success">✓ Found volume slider</span>';
+            } else {
+                sliderTest.innerHTML = '<span class="error">✗ Volume slider not found</span>';
+            }
+            
+            // Test 4: Check CSS positioning
+            const cssTest = document.getElementById('css-test');
+            if (container) {
+                const styles = iframe.contentWindow.getComputedStyle(container);
+                const position = styles.position;
+                const top = styles.top;
+                const right = styles.right;
+                const zIndex = styles.zIndex;
+                
+                cssTest.innerHTML = `
+                    <div>Position: ${position} ${position === 'absolute' ? '<span class="success">✓</span>' : '<span class="error">✗</span>'}</div>
+                    <div>Top: ${top} ${top === '20px' ? '<span class="success">✓</span>' : '<span class="error">✗</span>'}</div>
+                    <div>Right: ${right} ${right === '20px' ? '<span class="success">✓</span>' : '<span class="error">✗</span>'}</div>
+                    <div>Z-index: ${zIndex} ${parseInt(zIndex) >= 1000 ? '<span class="success">✓</span>' : '<span class="error">✗</span>'}</div>
+                `;
+            } else {
+                cssTest.innerHTML = '<span class="error">Cannot check CSS - container not found</span>';
+            }
+            
+            // Test 5: Check visibility
+            const visibilityTest = document.getElementById('visibility-test');
+            if (container) {
+                const rect = container.getBoundingClientRect();
+                const styles = iframe.contentWindow.getComputedStyle(container);
+                const isVisible = rect.width > 0 && rect.height > 0 && 
+                                styles.display !== 'none' && 
+                                styles.visibility !== 'hidden' &&
+                                parseFloat(styles.opacity) > 0;
+                
+                visibilityTest.innerHTML = `
+                    <div>Display: ${styles.display} ${styles.display !== 'none' ? '<span class="success">✓</span>' : '<span class="error">✗</span>'}</div>
+                    <div>Visibility: ${styles.visibility} ${styles.visibility !== 'hidden' ? '<span class="success">✓</span>' : '<span class="error">✗</span>'}</div>
+                    <div>Opacity: ${styles.opacity} ${parseFloat(styles.opacity) > 0 ? '<span class="success">✓</span>' : '<span class="error">✗</span>'}</div>
+                    <div>Dimensions: ${rect.width}x${rect.height} ${rect.width > 0 && rect.height > 0 ? '<span class="success">✓</span>' : '<span class="error">✗</span>'}</div>
+                    <div><strong>Overall visibility: ${isVisible ? '<span class="success">VISIBLE ✓</span>' : '<span class="error">NOT VISIBLE ✗</span>'}</strong></div>
+                `;
+            } else {
+                visibilityTest.innerHTML = '<span class="error">Cannot check visibility - container not found</span>';
+            }
+        };
+    </script>
+</body>
+</html>

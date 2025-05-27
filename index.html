@@ -85,6 +85,242 @@
             transform: scale(1.2);
         }
         
+        /* Settings Icon */
+        .settings-icon {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 40px;
+            height: 40px;
+            background: rgba(0, 20, 40, 0.7);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 16px rgba(0, 255, 255, 0.2),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            z-index: 1000;
+        }
+        
+        .settings-icon:hover {
+            background: rgba(0, 30, 60, 0.8);
+            border-color: rgba(0, 255, 255, 0.5);
+            box-shadow: 0 6px 24px rgba(0, 255, 255, 0.4),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            transform: scale(1.1);
+        }
+        
+        .settings-icon svg {
+            width: 24px;
+            height: 24px;
+            fill: #00ffff;
+            filter: drop-shadow(0 0 4px rgba(0, 255, 255, 0.5));
+        }
+        
+        /* Settings Panel */
+        .settings-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 20, 40, 0.95);
+            backdrop-filter: blur(20px);
+            border: 2px solid rgba(0, 255, 255, 0.5);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 255, 255, 0.4),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            z-index: 2000;
+            min-width: 300px;
+            display: none;
+        }
+        
+        .settings-panel.active {
+            display: block;
+            animation: settingsFadeIn 0.3s ease;
+        }
+        
+        @keyframes settingsFadeIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+        
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .settings-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #00ffff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+        
+        .settings-close {
+            width: 30px;
+            height: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 20px;
+            color: #fff;
+        }
+        
+        .settings-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: scale(1.1);
+        }
+        
+        .settings-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        /* Game Overlay for Pause */
+        .game-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1500;
+            display: none;
+            pointer-events: auto;
+        }
+        
+        .game-overlay.active {
+            display: block;
+        }
+        
+        .pause-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            font-weight: 900;
+            color: #00ffff;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+            text-shadow: 0 0 30px rgba(0, 255, 255, 0.8);
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        .music-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        
+        .music-label {
+            font-size: 12px;
+            color: #00ffff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+        
+        .toggle-button {
+            width: 50px;
+            height: 25px;
+            background: rgba(0, 255, 255, 0.2);
+            border: 1px solid rgba(0, 255, 255, 0.5);
+            border-radius: 25px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .toggle-button.active {
+            background: rgba(0, 255, 255, 0.5);
+        }
+        
+        .toggle-button::after {
+            content: '';
+            position: absolute;
+            width: 21px;
+            height: 21px;
+            background: #00ffff;
+            border-radius: 50%;
+            top: 1px;
+            left: 2px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+        }
+        
+        .toggle-button.active::after {
+            left: 27px;
+        }
+        
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .volume-slider {
+            flex: 1;
+            height: 6px;
+            background: rgba(0, 255, 255, 0.2);
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+            cursor: pointer;
+        }
+        
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #00ffff;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+        }
+        
+        .volume-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #00ffff;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+            border: none;
+        }
+        
+        .volume-value {
+            font-size: 12px;
+            color: #00ffff;
+            min-width: 35px;
+            text-align: right;
+        }
+        
         .power-meter {
             position: absolute;
             bottom: 100px;
@@ -590,6 +826,37 @@
         COMBO x<span id="comboValue">2</span>
     </div>
     
+    <!-- Settings Icon -->
+    <div class="settings-icon" id="settingsIcon">
+        <svg viewBox="0 0 24 24">
+            <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12A3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5a3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97c0-.33-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1c0 .33.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64l-2.11-1.66Z"/>
+        </svg>
+    </div>
+    
+    <!-- Settings Panel -->
+    <div class="settings-panel" id="settingsPanel">
+        <div class="settings-header">
+            <h3 class="settings-title">Settings</h3>
+            <div class="settings-close" id="settingsClose">×</div>
+        </div>
+        <div class="settings-content">
+            <div class="music-toggle">
+                <span class="music-label">Music</span>
+                <div class="toggle-button active" id="musicToggle"></div>
+            </div>
+            <div class="volume-control">
+                <span class="music-label">Volume</span>
+                <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="30">
+                <span class="volume-value" id="volumeValue">30%</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Game Overlay -->
+    <div class="game-overlay" id="gameOverlay">
+        <div class="pause-text">PAUSED</div>
+    </div>
+    
     <div class="power-meter" id="powerMeter">
         <div class="power-fill" id="powerFill"></div>
     </div>
@@ -651,6 +918,15 @@
                 this.ambientVolume = 0.3; // Base ambient volume
                 this.targetAmbientVolume = 0.3;
                 this.volumeTransitionSpeed = 0.02;
+                this.musicTracks = [
+                    'music/music_DeepTheme_Audio_Spring_Hazes_34.mp3',
+                    'music/music_zapsplat_action_break.mp3',
+                    'music/music_zapsplat_and_action_breakbeat.mp3',
+                    'music/music_zapsplat_lets_rock.mp3'
+                ];
+                this.currentTrackIndex = -1;
+                this.musicEnabled = true;
+                this.musicVolume = 0.3;
             }
             
             async initialize() {
@@ -792,14 +1068,90 @@
                 source.start();
             }
             
-            startAmbientAudio() {
-                if (!this.isInitialized || this.ambientSource) return;
+            async startAmbientAudio() {
+                if (!this.isInitialized || this.ambientSource || !this.musicEnabled) return;
                 
-                // Create a more complex ambient sound
-                this.ambientSource = this.createAmbientSound();
-                this.ambientSource.start();
+                // Play a random music track
+                await this.playRandomMusicTrack();
             }
             
+            async playRandomMusicTrack() {
+                if (!this.musicEnabled) return;
+                
+                // Select a random track different from the current one
+                let newIndex;
+                do {
+                    newIndex = Math.floor(Math.random() * this.musicTracks.length);
+                } while (newIndex === this.currentTrackIndex && this.musicTracks.length > 1);
+                
+                this.currentTrackIndex = newIndex;
+                const trackUrl = this.musicTracks[this.currentTrackIndex];
+                
+                try {
+                    // Fetch and decode the audio file
+                    const response = await fetch(trackUrl);
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch audio: ${response.statusText}`);
+                    }
+                    
+                    const arrayBuffer = await response.arrayBuffer();
+                    const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+                    
+                    // Create buffer source
+                    const source = this.audioContext.createBufferSource();
+                    source.buffer = audioBuffer;
+                    source.loop = false; // Don't loop individual tracks
+                    
+                    // Connect to ambient gain for volume control
+                    source.connect(this.ambientGain);
+                    
+                    // When track ends, play another random track
+                    source.onended = () => {
+                        this.ambientSource = null;
+                        if (this.musicEnabled) {
+                            this.playRandomMusicTrack();
+                        }
+                    };
+                    
+                    // Store reference and start playback
+                    this.ambientSource = source;
+                    source.start();
+                    
+                    console.log(`Playing music track: ${trackUrl}`);
+                } catch (error) {
+                    console.error('Failed to load music track:', error);
+                    // Try another track after a delay
+                    setTimeout(() => {
+                        if (this.musicEnabled && !this.ambientSource) {
+                            this.playRandomMusicTrack();
+                        }
+                    }, 1000);
+                }
+            }
+            
+            toggleMusic() {
+                this.musicEnabled = !this.musicEnabled;
+                
+                if (!this.musicEnabled) {
+                    this.stopAmbientAudio();
+                } else if (this.isInitialized) {
+                    if (!this.ambientSource) {
+                        this.startAmbientAudio();
+                    }
+                }
+                
+                return this.musicEnabled;
+            }
+            
+            setMusicVolume(volume) {
+                this.musicVolume = Math.max(0, Math.min(1, volume));
+                this.ambientVolume = this.musicVolume;
+                this.targetAmbientVolume = this.musicVolume;
+                
+                if (this.ambientGain) {
+                    this.ambientGain.gain.value = this.musicVolume;
+                }
+            }
             createAmbientSound() {
                 // Create multiple oscillators for a richer ambient sound
                 const oscillators = [];
@@ -884,8 +1236,12 @@
                 return buffer;
             }
             
-            updateAmbientVolume(targetVolume) {
-                this.targetAmbientVolume = Math.max(0, Math.min(1, targetVolume));
+            updateAmbientVolume(swellFactor) {
+                // Apply swell factor to the user-set music volume
+                // swellFactor is between 0 and 1, where 0 is normal and 1 is maximum swell
+                const baseVolume = this.musicVolume;
+                const maxVolume = Math.min(this.musicVolume * 2, 1); // Don't exceed 100%
+                this.targetAmbientVolume = baseVolume + (maxVolume - baseVolume) * swellFactor;
             }
             
             update() {
@@ -902,7 +1258,15 @@
             
             stopAmbientAudio() {
                 if (this.ambientSource) {
-                    this.ambientSource.stop();
+                    // Handle both procedural and external audio sources
+                    if (this.ambientSource.stop) {
+                        this.ambientSource.stop();
+                    } else if (this.ambientSource.oscillators) {
+                        // Procedural audio with multiple oscillators
+                        this.ambientSource.oscillators.forEach(osc => {
+                            if (osc && osc.stop) osc.stop();
+                        });
+                    }
                     this.ambientSource = null;
                 }
             }
@@ -918,6 +1282,76 @@
                 audioSystem.startAmbientAudio();
             }
         }, { once: true });
+        
+        // Settings and Music control event listeners
+        const settingsIcon = document.getElementById('settingsIcon');
+        const settingsPanel = document.getElementById('settingsPanel');
+        const settingsClose = document.getElementById('settingsClose');
+        const gameOverlay = document.getElementById('gameOverlay');
+        const musicToggle = document.getElementById('musicToggle');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+        
+        // Settings panel functionality
+        function openSettings() {
+            settingsPanel.classList.add('active');
+            gameOverlay.classList.add('active');
+            gameState.isPaused = true;
+        }
+        
+        function closeSettings() {
+            settingsPanel.classList.remove('active');
+            gameOverlay.classList.remove('active');
+            gameState.isPaused = false;
+        }
+        
+        settingsIcon.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openSettings();
+        });
+        
+        settingsClose.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeSettings();
+        });
+        
+        // Close settings when clicking overlay
+        gameOverlay.addEventListener('click', (e) => {
+            if (e.target === gameOverlay) {
+                closeSettings();
+            }
+        });
+        
+        // Prevent clicks on settings panel from propagating
+        settingsPanel.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+        
+        // Prevent mouse events from propagating through settings
+        settingsPanel.addEventListener('mousemove', (e) => {
+            e.stopPropagation();
+        });
+        
+        settingsPanel.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+        });
+        
+        settingsPanel.addEventListener('mouseup', (e) => {
+            e.stopPropagation();
+        });
+        
+        // Music controls
+        musicToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isEnabled = audioSystem.toggleMusic();
+            musicToggle.classList.toggle('active', isEnabled);
+        });
+        
+        volumeSlider.addEventListener('input', (e) => {
+            const volume = parseInt(e.target.value) / 100;
+            audioSystem.setMusicVolume(volume);
+            volumeValue.textContent = `${e.target.value}%`;
+        });
         
         // Game Configuration
         const CONFIG = {
@@ -1885,78 +2319,136 @@
             }
             
             executeLightningStrike(position, targetType) {
-                const lightningBubble = position; // Rename for clarity
+                const lightningBubble = position; 
+
+                // Defensive checks for the lightningBubble and its grid properties
+                if (!lightningBubble || typeof lightningBubble.gridY !== 'number' || typeof lightningBubble.gridX !== 'number') {
+                    console.error("Lightning Strike: Invalid lightningBubble or its grid properties.", lightningBubble);
+                    // Since the power-up failed, create a new shooting bubble
+                    setTimeout(() => createShootingBubble(), 100);
+                    return; 
+                }
+
                 const gridY = lightningBubble.gridY;
                 const gridX = lightningBubble.gridX;
-
+                
                 console.log("Executing Lightning Strike:", 
-                    "lightningBubble exists:", !!lightningBubble, 
-                    "gridY:", gridY, "type:", typeof gridY,
-                    "gridX:", gridX, "type:", typeof gridX,
-                    "bubbleGrid length:", gameState.bubbleGrid.length);
-        
-                // Add a check to ensure gridY is valid before proceeding
-                if (typeof gridY !== 'number' || gridY < 0 || gridY >= gameState.bubbleGrid.length) {
-                    console.error("Invalid gridY for lightning strike:", gridY, "Bubble:", lightningBubble);
-                    // Potentially return or handle this error gracefully
-                    // For now, let's log and see. If it continues, we might just return.
-                    // If you add a return here, remember to call createShootingBubble() if the power-up fails
-                    // similar to how the cancel button in showLightningSelector does.
-                    // However, this indicates a deeper issue if gridY is invalid.
+                            "gridY:", gridY, "type:", typeof gridY,
+                            "gridX:", gridX, "type:", typeof gridX,
+                            "bubbleGrid length:", gameState.bubbleGrid.length);
+
+                // Check if gridY is a valid index for the outer array gameState.bubbleGrid
+                if (gridY < 0 || gridY >= gameState.bubbleGrid.length || !gameState.bubbleGrid[gridY]) {
+                    console.error(`Lightning Strike: gridY (${gridY}) is out of bounds or row is undefined. bubbleGrid length: ${gameState.bubbleGrid.length}`);
+                    setTimeout(() => createShootingBubble(), 100); // Power-up failed
+                    return;
                 }
+
                 const destroyed = [];
                 
                 if (targetType === 'row') {
-                    // Destroy entire row
                     const isOddRow = gridY % 2 === 1;
                     const bubblesInRow = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
                     
+                    console.log(`Lightning - Destroying Row: gridY=${gridY}, bubblesInRow=${bubblesInRow}`);
+                    
+                    // gameState.bubbleGrid[gridY] should be a valid array here due to the check above
                     for (let x = 0; x < bubblesInRow; x++) {
-                        const bubble = gameState.bubbleGrid[gridY][x];
+                        // Check if x is a valid index for the inner array gameState.bubbleGrid[gridY]
+                        if (x < 0 || x >= gameState.bubbleGrid[gridY].length) {
+                            console.warn(`Lightning Strike - Row: Column index x (${x}) is out of bounds for row ${gridY}. Row length: ${gameState.bubbleGrid[gridY].length}`);
+                            continue; // Skip this iteration
+                        }
+                        const bubble = gameState.bubbleGrid[gridY][x]; 
                         if (bubble) {
                             destroyed.push(bubble);
                         }
                     }
                 } else if (targetType === 'column') {
-                    // Destroy entire column (accounting for hexagonal offset)
+                    console.log(`Lightning - Destroying Column: originating gridX=${gridX}`);
                     for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
+                        // Check if y is a valid index for the outer array gameState.bubbleGrid
+                        if (y < 0 || y >= gameState.bubbleGrid.length || !gameState.bubbleGrid[y]) {
+                            console.warn(`Lightning Strike - Column: Row index y (${y}) is out of bounds or row is undefined. bubbleGrid length: ${gameState.bubbleGrid.length}`);
+                            continue; // Skip this iteration
+                        }
+
                         const isOddRow = y % 2 === 1;
-                        const adjustedX = isOddRow ? gridX : gridX;
-                        
-                        if (adjustedX >= 0 && adjustedX < (isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH)) {
+                        // For column destruction, the effective 'gridX' for the current row 'y' might need adjustment
+                        // based on the original 'gridX' of the lightning bubble.
+                        // This logic assumes 'gridX' refers to the 0-indexed column in a possibly staggered row.
+                        let currentX = gridX; 
+                        // If the lightning bubble was in an even row, and we are now checking an odd row,
+                        // and 'gridX' was the last possible column in an even row, it might be out of bounds for an odd row.
+                        // Or vice-versa.
+                        // However, the original logic for 'adjustedX' was: const adjustedX = isOddRow ? gridX : gridX; which is just gridX.
+                        // Let's re-evaluate this. The column alignment is tricky in hex grids.
+                        // The crucial part is that `gridX` (from the lightningBubble) should be a valid index *for its own row type*.
+                        // When iterating other rows, we need to ensure the x-coordinate is valid for *that* row.
+
+                        const bubblesInCurrentRow = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
+                        let targetColumnX = gridX; // Start with the original column
+
+                        // If the original lightning bubble was in an odd row, its gridX goes up to CONFIG.GRID_WIDTH - 2.
+                        // If the current row 'y' is an even row, its columns go up to CONFIG.GRID_WIDTH - 1.
+                        // If the original lightning bubble was in an even row, its gridX goes up to CONFIG.GRID_WIDTH - 1.
+                        // If the current row 'y' is an odd row, its columns go up to CONFIG.GRID_WIDTH - 2.
+
+                        // This seems more like what you intended with adjustedX, but it was a bit simplified.
+                        // Let's assume 'gridX' is the column index of the lightning bubble.
+                        // We want to clear bubbles in the same "visual" column.
+                        // This logic for adjustedX needs careful thought if it's not behaving.
+                        // For now, let's stick to the logic that was there but ensure 'adjustedX' is valid.
+                        const adjustedX = gridX; // Your original logic before the ternary was removed
+
+                        if (adjustedX >= 0 && adjustedX < bubblesInCurrentRow) {
+                            if (adjustedX < 0 || adjustedX >= gameState.bubbleGrid[y].length) {
+                                console.warn(`Lightning Strike - Column: Column index adjustedX (${adjustedX}) is out of bounds for row ${y}. Row length: ${gameState.bubbleGrid[y].length}`);
+                                continue; // Skip
+                            }
                             const bubble = gameState.bubbleGrid[y][adjustedX];
                             if (bubble) {
                                 destroyed.push(bubble);
                             }
+                        } else {
+                            console.warn(`Lightning Strike - Column: Calculated adjustedX (${adjustedX}) is out of bounds for current row type (y=${y}, bubblesInCurrentRow=${bubblesInCurrentRow})`);
                         }
                     }
                 }
                 
-                // Create lightning effect
-                this.createLightningEffect(destroyed, targetType);
+                // ... (rest of the function: createLightningEffect, updateScore, removeBubble, etc.)
+                // Ensure this part is only reached if no critical errors occurred above.
+                if (destroyed.length > 0 || targetType) { // Ensure we proceed if an action was intended
+                    this.createLightningEffect(destroyed, targetType);
                 
-                // Calculate points
-                let points = destroyed.length * 25; // High points for lightning
-                updateScore(points);
-                updateCombo();
+                    let points = destroyed.length * 25;
+                    updateScore(points);
+                    if (destroyed.length > 0) updateCombo(); // Only update combo if bubbles were destroyed
+                    
+                    if (lightningBubble && typeof lightningBubble.position !== 'undefined') { // Check if lightningBubble and its position exist
+                        createFloatingScore(lightningBubble.position, points);
+                    } else {
+                        createFloatingScore(new THREE.Vector3(0,0,0), points); // Fallback position
+                    }
                 
-                createFloatingScore(position, points);
-                
-                // Remove bubbles with delay for effect
-                destroyed.forEach((bubble, index) => {
+                    destroyed.forEach((bubble, index) => {
+                        setTimeout(() => {
+                            removeBubble(bubble);
+                            this.createLightningParticles(bubble);
+                        }, index * 30);
+                    });
+                    
                     setTimeout(() => {
-                        removeBubble(bubble);
-                        this.createLightningParticles(bubble);
-                    }, index * 30);
-                });
-                
-                // Check for floating bubbles
-                setTimeout(() => {
-                    removeFloatingBubbles();
-                }, destroyed.length * 30 + 200);
-                
-                // Create new bubble
-                setTimeout(() => createShootingBubble(), destroyed.length * 30 + 500);
+                        removeFloatingBubbles();
+                    }, destroyed.length * 30 + 200);
+                    
+                    setTimeout(() => createShootingBubble(), destroyed.length * 30 + 500);
+
+                } else if (!lightningBubble || typeof lightningBubble.gridY !== 'number') {
+                    // This case was handled at the top, but as a fallback if destroyed is empty due to other reasons.
+                    console.warn("Lightning Strike: No bubbles destroyed and initial checks might have passed. Creating new shooting bubble as fallback.");
+                    setTimeout(() => createShootingBubble(), 100);
+                }
             }
             
             createLightningEffect(bubbles, targetType) {
@@ -2163,6 +2655,7 @@
             bestCombo: 0,
             comboTimer: null,
             isGameOver: false,
+            isPaused: false,
             currentBubble: null,
             nextBubbleColor: null,
             shootingPower: 0,
@@ -2973,7 +3466,7 @@
         
         // Calculate trajectory
         function calculateTrajectory() {
-            if (!gameState.currentBubble || gameState.currentBubble.isMoving) return;
+            if (!gameState.currentBubble || gameState.currentBubble.isMoving || gameState.isPaused) return;
             
             gameState.trajectory = [];
             const startPos = gameState.currentBubble.position.clone();
@@ -3896,6 +4389,9 @@
         
         // Mouse/Touch controls
         function handleMouseMove(event) {
+            // Don't process mouse movement if game is paused
+            if (gameState.isPaused) return;
+            
             const rect = renderer.domElement.getBoundingClientRect();
             const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
             const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -3930,7 +4426,7 @@
         }
         
         function handleMouseDown(event) {
-            if (gameState.isGameOver || !gameState.currentBubble || gameState.currentBubble.isMoving) return;
+            if (gameState.isGameOver || gameState.isPaused || !gameState.currentBubble || gameState.currentBubble.isMoving) return;
             
             // Prevent charging while lightning selector is active
             if (gameState.lightningSelecting) return;
@@ -3940,7 +4436,7 @@
         }
         
         function handleMouseUp(event) {
-            if (gameState.isGameOver || !gameState.currentBubble || gameState.currentBubble.isMoving) return;
+            if (gameState.isGameOver || gameState.isPaused || !gameState.currentBubble || gameState.currentBubble.isMoving) return;
             
             // Prevent shooting while lightning selector is active
             if (gameState.lightningSelecting) return;
@@ -3992,7 +4488,7 @@
             const deltaTime = (currentTime - lastTime) / 1000;
             lastTime = currentTime;
             
-            if (!gameState.isGameOver) {
+            if (!gameState.isGameOver && !gameState.isPaused) {
                 // Update current bubble
                 if (gameState.currentBubble) {
                     gameState.currentBubble.update(deltaTime);
@@ -4030,11 +4526,10 @@
                             1 - (bubblesRemaining / 10) :
                             (clearPercentage - 0.8) * 5; // Scale 0.8-1.0 to 0-1
                         
-                        const targetVolume = 0.3 + (0.5 * swellFactor); // 0.3 to 0.8
-                        audioSystem.updateAmbientVolume(targetVolume);
+                        audioSystem.updateAmbientVolume(swellFactor);
                     } else {
                         // Return to normal volume
-                        audioSystem.updateAmbientVolume(0.3);
+                        audioSystem.updateAmbientVolume(0);
                     }
                     
                     audioSystem.update();
