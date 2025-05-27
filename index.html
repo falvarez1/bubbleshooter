@@ -2383,7 +2383,6 @@
         }
         
         // Color Splash Power-Up
-console.log('[Debug STARTUP] ColorSplashPowerUp.activate: "this" is:', this, 'Constructor name:', this ? this.constructor.name : 'N/A');
         class ColorSplashPowerUp extends PowerUp {
             constructor() {
                 super('colorSplash', {
@@ -2467,10 +2466,12 @@ console.log('[Debug STARTUP] ColorSplashPowerUp.activate: "this" is:', this, 'Co
                 
                 // Remove the power-up bubble itself
                 setTimeout(() => {
-                    // const powerUpBubble = gameState.bubbleGrid[targetPosition.gridY][targetPosition.gridX]; // Original problematic line
-                    if (this) { // 'this' refers to the ColorSplashPowerUp instance
-                        removeBubble(this);
-                        createExplosionEffect(this);
+                    // targetPosition is the Bubble instance on the grid that represents this power-up
+                    if (targetPosition && typeof targetPosition.gridX !== 'undefined' && typeof targetPosition.gridY !== 'undefined') {
+                        removeBubble(targetPosition);
+                        createExplosionEffect(targetPosition);
+                    } else {
+                        console.error("ColorSplash: targetPosition is invalid for removal from grid.", targetPosition);
                     }
                 }, 100);
                 
