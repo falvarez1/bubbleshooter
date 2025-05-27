@@ -2984,6 +2984,9 @@
         scene.add(accentLight);
         
         // Game State
+        let DEBUG_MODE = true; // TODO: Make this configurable (e.g., URL param ?debug=true)
+        let FORCED_NEXT_BUBBLE_TYPE = null; // Stores the type forced by debug keys
+
         const gameState = {
             score: 0,
             level: 1,
@@ -3688,31 +3691,67 @@
         
         // Create shooting bubble
         function createShootingBubble() {
-            const color = gameState.nextBubbleColor || 
-                CONFIG.BUBBLE_COLORS[Math.floor(Math.random() * CONFIG.BUBBLE_COLORS.length)];
+            // console.log('[Debug] createShootingBubble called. Initial FORCED_NEXT_BUBBLE_TYPE:', FORCED_NEXT_BUBBLE_TYPE);
+            let color;
+            let powerUpToApply = null;
+            let forcedTypeWasUsed = false;
+
+            if (DEBUG_MODE && FORCED_NEXT_BUBBLE_TYPE !== null) {
+                forcedTypeWasUsed = true;
+                if (typeof FORCED_NEXT_BUBBLE_TYPE === 'number') { // It's a color
+                    color = FORCED_NEXT_BUBBLE_TYPE;
+                    // console.log(`[Debug] Using forced color: ${color.toString(16)}`);
+                } else if (typeof FORCED_NEXT_BUBBLE_TYPE === 'string') { // It's a power-up type
+                    powerUpToApply = FORCED_NEXT_BUBBLE_TYPE;
+                    color = CONFIG.BUBBLE_COLORS[0]; // Base color for power-up, visuals will be overridden
+                    // console.log(`[Debug] Forcing power-up type: ${powerUpToApply}, base color: ${color.toString(16)}`);
+                }
+            } else {
+                color = gameState.nextBubbleColor ||
+                    CONFIG.BUBBLE_COLORS[Math.floor(Math.random() * CONFIG.BUBBLE_COLORS.length)];
+                // console.log(`[Debug] Using random/next color: ${color.toString(16)}`);
+            }
             
             const bubble = new Bubble(0, -6, color);
             bubble.isMoving = false;
             scene.add(bubble.mesh);
             gameState.currentBubble = bubble;
+           
+            let appliedPowerUpDetails = null;
+            if (powerUpToApply) { // A specific power-up string was forced
+                const powerUpInstance = gameManager.powerUpSystem.powerUps.get(powerUpToApply);
+                if (powerUpInstance) {
+                    powerUpInstance.createVisualEffect(bubble);
+                    appliedPowerUpDetails = powerUpInstance;
+                    // console.log(`Debug: Applied forced ${powerUpInstance.type} power-up visuals`);
+                }
+            } else if (!forcedTypeWasUsed) { // No debug type was used (neither color nor power-up string), so apply random power-up
+                 const randomPowerUp = gameManager.powerUpSystem.applyPowerUpToBubble(bubble);
+                 if (randomPowerUp) {
+                    appliedPowerUpDetails = randomPowerUp;
+                    // console.log(`[Debug] Applied random power-up: ${randomPowerUp.type}`);
+                 }
+            }
+
+            if (forcedTypeWasUsed) {
+                FORCED_NEXT_BUBBLE_TYPE = null; // Reset global forced type *after* it has been processed for the current bubble
+            }
             
-            // Apply power-up to shooting bubble
-            const appliedPowerUp = gameManager.powerUpSystem.applyPowerUpToBubble(bubble);
-            
-            // Show power-up indicator if a power-up was applied
-            if (appliedPowerUp) {
+            // Show power-up indicator if a power-up was applied (either forced or random)
+            if (appliedPowerUpDetails) {
                 const indicator = document.getElementById('powerupIndicator');
                 const label = document.getElementById('powerupLabel');
                 indicator.style.display = 'block';
-                label.textContent = appliedPowerUp.name;
-                label.style.color = `#${appliedPowerUp.glowColor.toString(16).padStart(6, '0')}`;
-                indicator.style.borderColor = `#${appliedPowerUp.glowColor.toString(16).padStart(6, '0')}`;
+                label.textContent = appliedPowerUpDetails.name;
+                label.style.color = `#${appliedPowerUpDetails.glowColor.toString(16).padStart(6, '0')}`;
+                indicator.style.borderColor = `#${appliedPowerUpDetails.glowColor.toString(16).padStart(6, '0')}`;
             } else {
                 document.getElementById('powerupIndicator').style.display = 'none';
             }
             
-            // Set next bubble color
+            // Set next bubble color for the UI display. This should always be a new random one.
             gameState.nextBubbleColor = CONFIG.BUBBLE_COLORS[Math.floor(Math.random() * CONFIG.BUBBLE_COLORS.length)];
+            // console.log(`[Debug] Next bubble display color set to: ${gameState.nextBubbleColor.toString(16)}`);
             updateNextBubbleDisplay();
         }
         
@@ -4804,6 +4843,103 @@
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+// Debug Keyboard Listener
+        window.addEventListener('keydown', (event) => {
+            if (!DEBUG_MODE) return;
+
+            const key = event.key;
+            let forcedType = null;
+
+            if (key >= '1' && key <= '7') {
+                const colorIndex = parseInt(key) - 1;
+                if (colorIndex < CONFIG.BUBBLE_COLORS.length) {
+                    forcedType = CONFIG.BUBBLE_COLORS[colorIndex];
+                    console.log(`Debug: Forcing bubble color ${forcedType.toString(16)}`);
+                }
+            } else {
+                switch (key) {
+                    case '8':
+                        forcedType = 'rainbow';
+                        break;
+                    case '9':
+                        forcedType = 'bomb';
+                        break;
+                    case '0':
+                        forcedType = 'chainLightning';
+                        break;
+                    case '-': // Minus key
+                        forcedType = 'precision';
+                        break;
+                    case '=': // Equals key (often next to minus)
+                        forcedType = 'colorSplash';
+                        break;
+                }
+                if (forcedType) {
+                    console.log(`Debug: Forcing power-up ${forcedType}`);
+                }
+            }
+
+            if (forcedType !== null) {
+                // console.log(`[Debug Key] Setting FORCED_NEXT_BUBBLE_TYPE to:`, forcedType);
+                FORCED_NEXT_BUBBLE_TYPE = forcedType;
+                // Immediately create the new shooting bubble to see the effect
+                if (gameState.currentBubble && !gameState.currentBubble.isMoving) {
+                    // console.log('[Debug Key] Replacing current bubble.');
+                    gameState.currentBubble.destroy(); // destroy() handles scene removal
+                    gameState.currentBubble = null;    // Explicitly nullify the reference
+                    createShootingBubble();        // Create the new (forced) one
+                } else {
+                    // console.log('[Debug Key] Current bubble not replaceable or ready yet.');
+                }
+            }
+        });
+
+        // Debug Keyboard Listener
+        window.addEventListener('keydown', (event) => {
+            if (!DEBUG_MODE) return;
+
+            const key = event.key;
+            let forcedType = null;
+
+            if (key >= '1' && key <= '7') {
+                const colorIndex = parseInt(key) - 1;
+                if (colorIndex < CONFIG.BUBBLE_COLORS.length) {
+                    forcedType = CONFIG.BUBBLE_COLORS[colorIndex];
+                    console.log(`Debug: Forcing bubble color ${forcedType.toString(16)}`);
+                }
+            } else {
+                switch (key) {
+                    case '8':
+                        forcedType = 'rainbow';
+                        break;
+                    case '9':
+                        forcedType = 'bomb';
+                        break;
+                    case '0':
+                        forcedType = 'chainLightning';
+                        break;
+                    case '-': // Minus key
+                        forcedType = 'precision';
+                        break;
+                    case '=': // Equals key (often next to minus)
+                        forcedType = 'colorSplash';
+                        break;
+                }
+                if (forcedType) {
+                    console.log(`Debug: Forcing power-up ${forcedType}`);
+                }
+            }
+
+            if (forcedType !== null) {
+                FORCED_NEXT_BUBBLE_TYPE = forcedType;
+                // Optionally, immediately create the new shooting bubble to see the effect
+                if (gameState.currentBubble && !gameState.currentBubble.isMoving) {
+                    scene.remove(gameState.currentBubble.mesh);
+                    gameState.currentBubble.destroy();
+                    createShootingBubble();
+                }
+            }
         });
         
         // Animation loop
