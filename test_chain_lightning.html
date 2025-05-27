@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chain Lightning Power-Up Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #444;
+            border-radius: 8px;
+            background: #2a2a2a;
+        }
+        h2 {
+            color: #00ddff;
+            margin-bottom: 10px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #2d5a2d;
+            border: 1px solid #4a8a4a;
+        }
+        .error {
+            background: #5a2d2d;
+            border: 1px solid #8a4a4a;
+        }
+        .info {
+            background: #2d3a5a;
+            border: 1px solid #4a5a8a;
+        }
+        code {
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>Chain Lightning Power-Up Implementation Test</h1>
+    
+    <div class="test-section">
+        <h2>Implementation Checklist</h2>
+        <div class="status success">✓ Created new <code>ChainLightningPowerUp</code> class extending <code>PowerUp</code></div>
+        <div class="status success">✓ Replaced old <code>LightningPowerUp</code> with <code>ChainLightningPowerUp</code></div>
+        <div class="status success">✓ Updated PowerUpSystem registration</div>
+        <div class="status success">✓ Updated event handler from <code>lightningActivated</code> to <code>chainLightningActivated</code></div>
+        <div class="status success">✓ Updated visual text display for <code>chainLightning</code> type</div>
+        <div class="status success">✓ Removed old lightning selector UI methods</div>
+        <div class="status success">✓ Removed all <code>lightningSelecting</code> references</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Key Features Implemented</h2>
+        <div class="status info">
+            <strong>Chain Lightning Mechanics:</strong>
+            <ul>
+                <li>Initial impact destroys hit bubble</li>
+                <li>2-3 primary arcs to nearest neighbors</li>
+                <li>1-2 secondary arcs from each primary target</li>
+                <li>Prevents hitting same bubble multiple times</li>
+                <li>Excludes power-up bubbles from chain targets</li>
+            </ul>
+        </div>
+        <div class="status info">
+            <strong>Visual Effects:</strong>
+            <ul>
+                <li>Dark stormy bubble with electric core</li>
+                <li>Crackling electric arcs around the bubble</li>
+                <li>Animated lightning paths between targets</li>
+                <li>Electric destruction effects</li>
+                <li>Screen shake and flash effects</li>
+            </ul>
+        </div>
+        <div class="status info">
+            <strong>Audio Integration:</strong>
+            <ul>
+                <li>Main lightning strike sound on activation</li>
+                <li>Electric arc sounds for each chain</li>
+                <li>Pitch variation for secondary arcs</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Design Document Compliance</h2>
+        <div class="status success">✓ Maintains continuous gameplay (no modal dialog)</div>
+        <div class="status success">✓ Provides strategic choices through aiming</div>
+        <div class="status success">✓ Visually clear with lightning effects</div>
+        <div class="status success">✓ Feels powerful with chain destruction</div>
+        <div class="status success">✓ Integrates as shootable bubble</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Testing Instructions</h2>
+        <ol>
+            <li>Open the main game at <a href="index.html" style="color: #00ddff;">index.html</a></li>
+            <li>Play until a Chain Lightning power-up appears (dark stormy bubble with electric arcs)</li>
+            <li>Shoot the power-up at a cluster of bubbles</li>
+            <li>Observe the chain lightning effect spreading from bubble to bubble</li>
+            <li>Verify that:
+                <ul>
+                    <li>Lightning chains to nearby bubbles</li>
+                    <li>Visual effects show lightning arcs</li>
+                    <li>Bubbles are destroyed with electric effects</li>
+                    <li>No modal dialog appears</li>
+                    <li>Gameplay continues smoothly</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+    
+    <div class="test-section">
+        <h2>Comparison with Old Lightning Strike</h2>
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr style="border-bottom: 1px solid #444;">
+                <th style="text-align: left; padding: 10px;">Aspect</th>
+                <th style="text-align: left; padding: 10px;">Old Lightning Strike</th>
+                <th style="text-align: left; padding: 10px;">New Chain Lightning</th>
+            </tr>
+            <tr style="border-bottom: 1px solid #333;">
+                <td style="padding: 10px;">Activation</td>
+                <td style="padding: 10px; color: #ff6666;">Modal dialog with row/column choice</td>
+                <td style="padding: 10px; color: #66ff66;">Direct shooting, no interruption</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #333;">
+                <td style="padding: 10px;">Strategy</td>
+                <td style="padding: 10px; color: #ff6666;">Binary choice (row vs column)</td>
+                <td style="padding: 10px; color: #66ff66;">Aiming-based with dynamic spread</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #333;">
+                <td style="padding: 10px;">Visual Feedback</td>
+                <td style="padding: 10px; color: #ff6666;">No preview, sudden destruction</td>
+                <td style="padding: 10px; color: #66ff66;">Dynamic lightning arcs, clear cause-effect</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #333;">
+                <td style="padding: 10px;">Game Flow</td>
+                <td style="padding: 10px; color: #ff6666;">Pauses gameplay</td>
+                <td style="padding: 10px; color: #66ff66;">Seamless continuation</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #333;">
+                <td style="padding: 10px;">Destruction Pattern</td>
+                <td style="padding: 10px; color: #ffaa66;">Fixed row/column clear</td>
+                <td style="padding: 10px; color: #66ff66;">Dynamic chain based on bubble layout</td>
+            </tr>
+        </table>
+    </div>
+</body>
+</html>

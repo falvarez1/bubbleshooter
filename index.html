@@ -1400,8 +1400,8 @@
                         text = 'BOMB BLAST!';
                         className = 'powerup-text-bomb';
                         break;
-                    case 'lightning':
-                        text = 'LIGHTNING STRIKE!';
+                    case 'chainLightning':
+                        text = 'CHAIN LIGHTNING!';
                         className = 'powerup-text-lightning';
                         break;
                     case 'precision':
@@ -1512,6 +1512,227 @@
             emit(event, data) {
                 if (this.events[event]) {
                     this.events[event].forEach(callback => callback(data));
+                }
+            }
+        }
+        
+        // Sound System
+        class SoundManager {
+            constructor() {
+                this.sounds = new Map();
+                this.enabled = true;
+                this.volume = 0.7;
+                this.soundCategories = {
+                    effects: 1.0,
+                    music: 0.8,
+                    ui: 0.9
+                };
+                
+                // Sound definitions with categories and settings
+                this.soundDefinitions = {
+                    // Bubble Actions
+                    bubbleShoot: { category: 'effects', volume: 0.8, file: 'sounds/bubble-shoot.wav' },
+                    bubbleBounce: { category: 'effects', volume: 0.6, file: 'sounds/bubble-bounce.wav' },
+                    bubbleAttach: { category: 'effects', volume: 0.7, file: 'sounds/bubble-attach.wav' },
+                    bubblePopSingle: { category: 'effects', volume: 0.8, file: 'sounds/bubble-pop-single.wav' },
+                    bubblePopMultiple: { category: 'effects', volume: 0.9, file: 'sounds/bubble-pop-multiple.wav' },
+                    bubbleFloat: { category: 'effects', volume: 0.6, file: 'sounds/bubble-float.wav' },
+                    
+                    // Power-Up Sounds
+                    rainbowActivate: { category: 'effects', volume: 1.0, file: 'sounds/rainbow-activate.wav' },
+                    bombExplode: { category: 'effects', volume: 1.0, file: 'sounds/bomb-explode.wav' },
+                    lightningStrike: { category: 'effects', volume: 1.0, file: 'sounds/lightning-strike.wav' },
+                    precisionActivate: { category: 'effects', volume: 0.8, file: 'sounds/precision-activate.wav' },
+                    precisionTick: { category: 'effects', volume: 0.5, file: 'sounds/precision-tick.wav' },
+                    colorSplash: { category: 'effects', volume: 0.9, file: 'sounds/color-splash.wav' },
+                    powerUpSpawn: { category: 'effects', volume: 0.7, file: 'sounds/powerup-spawn.wav' },
+                    
+                    // UI/Feedback
+                    uiHover: { category: 'ui', volume: 0.3, file: 'sounds/ui-hover.wav' },
+                    uiClick: { category: 'ui', volume: 0.5, file: 'sounds/ui-click.wav' },
+                    chargePower: { category: 'effects', volume: 0.6, file: 'sounds/charge-power.wav' },
+                    trajectoryWoosh: { category: 'effects', volume: 0.2, file: 'sounds/trajectory-woosh.wav' },
+                    
+                    // Combo/Scoring
+                    combo2x: { category: 'effects', volume: 0.8, file: 'sounds/combo-2x.wav' },
+                    combo3x: { category: 'effects', volume: 0.9, file: 'sounds/combo-3x.wav' },
+                    combo4x: { category: 'effects', volume: 1.0, file: 'sounds/combo-4x.wav' },
+                    scoreTick: { category: 'ui', volume: 0.4, file: 'sounds/score-tick.wav' },
+                    bonusPoints: { category: 'effects', volume: 0.9, file: 'sounds/bonus-points.wav' },
+                    
+                    // Game State
+                    gameStart: { category: 'ui', volume: 0.8, file: 'sounds/game-start.wav' },
+                    levelComplete: { category: 'ui', volume: 1.0, file: 'sounds/level-complete.wav' },
+                    gameOver: { category: 'ui', volume: 0.9, file: 'sounds/game-over.wav' },
+                    warning: { category: 'ui', volume: 0.8, file: 'sounds/warning.wav' },
+                    pause: { category: 'ui', volume: 0.6, file: 'sounds/pause.wav' },
+                    resume: { category: 'ui', volume: 0.6, file: 'sounds/resume.wav' },
+                    
+                    // Particle/Effect Sounds
+                    particleSparkle: { category: 'effects', volume: 0.3, file: 'sounds/particle-sparkle.wav' },
+                    screenShake: { category: 'effects', volume: 0.7, file: 'sounds/screen-shake.wav' },
+                    electricArc: { category: 'effects', volume: 0.6, file: 'sounds/electric-arc.wav' }
+                };
+                
+                this.loadingSounds = new Set();
+                this.loadedSounds = new Set();
+            }
+            
+            async init() {
+                // Pre-load critical sounds
+                const criticalSounds = [
+                    'bubbleShoot', 'bubbleAttach', 'bubblePopSingle', 'bubblePopMultiple',
+                    'uiClick', 'gameStart'
+                ];
+                
+                for (const soundName of criticalSounds) {
+                    await this.loadSound(soundName);
+                }
+                
+                // Load remaining sounds asynchronously
+                for (const soundName in this.soundDefinitions) {
+                    if (!criticalSounds.includes(soundName)) {
+                        this.loadSound(soundName).catch(err => 
+                            console.warn(`Failed to load sound: ${soundName}`, err)
+                        );
+                    }
+                }
+            }
+            
+            async loadSound(soundName) {
+                if (this.loadingSounds.has(soundName) || this.loadedSounds.has(soundName)) {
+                    return;
+                }
+                
+                this.loadingSounds.add(soundName);
+                const soundDef = this.soundDefinitions[soundName];
+                
+                if (!soundDef) {
+                    console.warn(`Sound definition not found: ${soundName}`);
+                    return;
+                }
+                
+                try {
+                    const audio = new Audio(soundDef.file);
+                    audio.volume = soundDef.volume * this.soundCategories[soundDef.category] * this.volume;
+                    
+                    await new Promise((resolve, reject) => {
+                        audio.addEventListener('canplaythrough', resolve, { once: true });
+                        audio.addEventListener('error', reject, { once: true });
+                        audio.load();
+                    });
+                    
+                    this.sounds.set(soundName, {
+                        audio: audio,
+                        definition: soundDef,
+                        pool: [audio] // Pool for overlapping sounds
+                    });
+                    
+                    this.loadedSounds.add(soundName);
+                } catch (error) {
+                    console.error(`Failed to load sound ${soundName}:`, error);
+                } finally {
+                    this.loadingSounds.delete(soundName);
+                }
+            }
+            
+            play(soundName, options = {}) {
+                if (!this.enabled) return;
+                
+                const soundData = this.sounds.get(soundName);
+                if (!soundData) {
+                    // Try to load it if not yet loaded
+                    this.loadSound(soundName);
+                    return;
+                }
+                
+                // Get audio from pool or clone if all are playing
+                let audio = null;
+                for (const pooledAudio of soundData.pool) {
+                    if (pooledAudio.paused || pooledAudio.ended) {
+                        audio = pooledAudio;
+                        break;
+                    }
+                }
+                
+                if (!audio) {
+                    // All pool instances are playing, create a new one
+                    audio = soundData.audio.cloneNode();
+                    soundData.pool.push(audio);
+                }
+                
+                // Apply volume settings
+                const categoryVolume = this.soundCategories[soundData.definition.category];
+                const finalVolume = (options.volume || soundData.definition.volume) * categoryVolume * this.volume;
+                audio.volume = Math.max(0, Math.min(1, finalVolume));
+                
+                // Apply playback rate if specified
+                if (options.rate) {
+                    audio.playbackRate = options.rate;
+                }
+                
+                // Reset and play
+                audio.currentTime = 0;
+                audio.play().catch(err => {
+                    console.warn(`Failed to play sound: ${soundName}`, err);
+                });
+                
+                return audio;
+            }
+            
+            playWithVariation(soundName, options = {}) {
+                // Add slight pitch variation for repeated sounds
+                const variation = 0.1;
+                const rate = 1 + (Math.random() - 0.5) * variation;
+                return this.play(soundName, { ...options, rate });
+            }
+            
+            playCombo(comboLevel) {
+                if (comboLevel === 2) {
+                    this.play('combo2x');
+                } else if (comboLevel === 3) {
+                    this.play('combo3x');
+                } else if (comboLevel >= 4) {
+                    this.play('combo4x', { rate: 1 + (comboLevel - 4) * 0.1 });
+                }
+            }
+            
+            stopAll() {
+                for (const [soundName, soundData] of this.sounds) {
+                    for (const audio of soundData.pool) {
+                        audio.pause();
+                        audio.currentTime = 0;
+                    }
+                }
+            }
+            
+            setEnabled(enabled) {
+                this.enabled = enabled;
+                if (!enabled) {
+                    this.stopAll();
+                }
+            }
+            
+            setVolume(volume) {
+                this.volume = Math.max(0, Math.min(1, volume));
+                // Update all loaded sounds
+                for (const [soundName, soundData] of this.sounds) {
+                    const categoryVolume = this.soundCategories[soundData.definition.category];
+                    for (const audio of soundData.pool) {
+                        audio.volume = soundData.definition.volume * categoryVolume * this.volume;
+                    }
+                }
+            }
+            
+            setCategoryVolume(category, volume) {
+                this.soundCategories[category] = Math.max(0, Math.min(1, volume));
+                // Update affected sounds
+                for (const [soundName, soundData] of this.sounds) {
+                    if (soundData.definition.category === category) {
+                        for (const audio of soundData.pool) {
+                            audio.volume = soundData.definition.volume * this.soundCategories[category] * this.volume;
+                        }
+                    }
                 }
             }
         }
@@ -1654,48 +1875,368 @@
             }
         }
         
-        // Lightning Bubble Power-Up
-        class LightningPowerUp extends PowerUp {
+        // Chain Lightning Bubble Power-Up
+        class ChainLightningPowerUp extends PowerUp {
             constructor() {
-                super('lightning', {
-                    name: 'Lightning Bubble',
+                super('chainLightning', {
+                    name: 'Chain Lightning Bubble',
                     rarity: 'rare',
                     spawnRate: 0.08,
                     color: 0x00aaff,
                     glowColor: 0x00ddff
                 });
+                this.primaryArcCount = 3; // 2-3 primary arcs
+                this.secondaryArcCount = 2; // 1-2 secondary arcs per primary
+                this.hitBubbles = new Set(); // Track bubbles already hit
             }
             
-            activate(targetPosition, gameState, gameManager) {
-                // Show selection UI for row/column choice
-                gameManager.eventBus.emit('lightningActivated', { 
-                    position: targetPosition,
-                    bubble: this
+            activate(targetBubble, gameState, gameManager) {
+                // Clear hit tracking for this activation
+                this.hitBubbles.clear();
+                
+                // Get the impact position
+                const impactPos = targetBubble.position;
+                
+                // Find the bubble at impact position (could be the shot bubble or a grid bubble)
+                let impactBubble = null;
+                let minDistance = Infinity;
+                
+                // Check all grid bubbles to find the one at impact position
+                for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
+                    for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
+                        const bubble = gameState.bubbleGrid[y][x];
+                        if (bubble) {
+                            const distance = bubble.position.distanceTo(impactPos);
+                            if (distance < minDistance) {
+                                minDistance = distance;
+                                impactBubble = bubble;
+                            }
+                        }
+                    }
+                }
+                
+                if (!impactBubble) {
+                    console.log('No bubble found at impact position');
+                    return false;
+                }
+                
+                // Emit event for visual/audio feedback
+                gameManager.eventBus.emit('chainLightningActivated', {
+                    position: impactPos,
+                    bubble: impactBubble
                 });
+                
+                // Start the chain lightning effect
+                this.executeChainLightning(impactBubble, gameState, gameManager);
+                
                 return true;
+            }
+            
+            executeChainLightning(impactBubble, gameState, gameManager) {
+                const bubblesDestroyed = [];
+                
+                // 1. Destroy the initial impact bubble
+                this.hitBubbles.add(impactBubble);
+                bubblesDestroyed.push(impactBubble);
+                
+                // Create initial impact effect
+                this.createLightningImpactEffect(impactBubble.position, gameManager);
+                
+                // 2. Find and destroy primary arc targets
+                const primaryTargets = this.findNearestBubbles(
+                    impactBubble,
+                    this.primaryArcCount,
+                    gameState,
+                    this.hitBubbles
+                );
+                
+                // Create primary lightning arcs with delay
+                primaryTargets.forEach((target, index) => {
+                    setTimeout(() => {
+                        this.createLightningArc(
+                            impactBubble.position,
+                            target.position,
+                            true, // isPrimary
+                            gameManager
+                        );
+                        this.hitBubbles.add(target);
+                        bubblesDestroyed.push(target);
+                        
+                        // Play electric arc sound
+                        soundManager.playWithVariation('electricArc', { volume: 0.8 });
+                        
+                        // 3. For each primary target, find secondary targets
+                        const secondaryTargets = this.findNearestBubbles(
+                            target,
+                            Math.floor(Math.random() * 2) + 1, // 1-2 secondary arcs
+                            gameState,
+                            this.hitBubbles
+                        );
+                        
+                        // Create secondary arcs with additional delay
+                        secondaryTargets.forEach((secondaryTarget, secondaryIndex) => {
+                            setTimeout(() => {
+                                this.createLightningArc(
+                                    target.position,
+                                    secondaryTarget.position,
+                                    false, // not primary
+                                    gameManager
+                                );
+                                this.hitBubbles.add(secondaryTarget);
+                                bubblesDestroyed.push(secondaryTarget);
+                                
+                                // Play quieter arc sound for secondary
+                                soundManager.playWithVariation('electricArc', { volume: 0.5, rate: 1.2 });
+                            }, 50 + secondaryIndex * 30);
+                        });
+                    }, 100 + index * 50);
+                });
+                
+                // Destroy all hit bubbles after all arcs are shown
+                setTimeout(() => {
+                    bubblesDestroyed.forEach((bubble, index) => {
+                        setTimeout(() => {
+                            this.createElectricDestructionEffect(bubble);
+                            removeBubble(bubble);
+                            
+                            // Add score for each destroyed bubble
+                            gameState.score += 20;
+                            updateScore();
+                        }, index * 30);
+                    });
+                    
+                    // Check for floating bubbles after destruction
+                    setTimeout(() => {
+                        removeFloatingBubbles();
+                    }, bubblesDestroyed.length * 30 + 200);
+                    
+                }, primaryTargets.length * 50 + 300);
+            }
+            
+            findNearestBubbles(centerBubble, count, gameState, excludeSet) {
+                const candidates = [];
+                
+                // Find all valid neighbor bubbles
+                for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
+                    for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
+                        const bubble = gameState.bubbleGrid[y][x];
+                        if (bubble && bubble !== centerBubble && !excludeSet.has(bubble) && !bubble.isPowerUp) {
+                            const distance = centerBubble.position.distanceTo(bubble.position);
+                            candidates.push({ bubble, distance });
+                        }
+                    }
+                }
+                
+                // Sort by distance and return the nearest ones
+                candidates.sort((a, b) => a.distance - b.distance);
+                return candidates.slice(0, count).map(c => c.bubble);
+            }
+            
+            createLightningImpactEffect(position, gameManager) {
+                // Bright flash at impact point
+                const flashLight = new THREE.PointLight(0x00ddff, 15, 10);
+                flashLight.position.copy(position);
+                flashLight.position.z = 2;
+                scene.add(flashLight);
+                
+                // Fade out flash
+                let intensity = 15;
+                const fadeInterval = setInterval(() => {
+                    intensity -= 1;
+                    flashLight.intensity = intensity;
+                    if (intensity <= 0) {
+                        scene.remove(flashLight);
+                        clearInterval(fadeInterval);
+                    }
+                }, 20);
+                
+                // Create electrical burst particles
+                for (let i = 0; i < 30; i++) {
+                    const particle = new Particle(
+                        position.x,
+                        position.y,
+                        position.z + 0.5,
+                        0x00ddff,
+                        0.2
+                    );
+                    
+                    const angle = (Math.PI * 2 * i) / 30;
+                    const speed = 5 + Math.random() * 5;
+                    particle.velocity = new THREE.Vector3(
+                        Math.cos(angle) * speed,
+                        Math.sin(angle) * speed,
+                        Math.random() * 2
+                    );
+                    particle.decay = 0.03;
+                    gameState.particles.push(particle);
+                }
+                
+                // Screen shake
+                gameManager.addScreenShake(0.3, 8);
+            }
+            
+            createLightningArc(startPos, endPos, isPrimary, gameManager) {
+                // Create animated lightning bolt geometry
+                const points = this.generateLightningPath(startPos, endPos, isPrimary ? 5 : 3);
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                
+                const material = new THREE.LineBasicMaterial({
+                    color: isPrimary ? 0x00ddff : 0x66ccff,
+                    transparent: true,
+                    opacity: 1,
+                    linewidth: isPrimary ? 3 : 2
+                });
+                
+                const lightning = new THREE.Line(geometry, material);
+                scene.add(lightning);
+                
+                // Add glow effect
+                const glowMaterial = new THREE.LineBasicMaterial({
+                    color: 0xffffff,
+                    transparent: true,
+                    opacity: 0.5,
+                    linewidth: isPrimary ? 5 : 3
+                });
+                const glowLine = new THREE.Line(geometry, glowMaterial);
+                scene.add(glowLine);
+                
+                // Animate the lightning
+                let opacity = 1;
+                let time = 0;
+                const animateInterval = setInterval(() => {
+                    time += 0.016;
+                    
+                    // Flicker effect
+                    const flicker = Math.random() > 0.3 ? 1 : 0.5;
+                    material.opacity = opacity * flicker;
+                    glowMaterial.opacity = opacity * 0.5 * flicker;
+                    
+                    // Update path for dynamic movement
+                    if (time < 0.2) {
+                        const newPoints = this.generateLightningPath(startPos, endPos, isPrimary ? 5 : 3);
+                        geometry.setFromPoints(newPoints);
+                    }
+                    
+                    // Fade out
+                    if (time > 0.3) {
+                        opacity -= 0.05;
+                        if (opacity <= 0) {
+                            scene.remove(lightning);
+                            scene.remove(glowLine);
+                            geometry.dispose();
+                            material.dispose();
+                            glowMaterial.dispose();
+                            clearInterval(animateInterval);
+                        }
+                    }
+                }, 16);
+            }
+            
+            generateLightningPath(start, end, segments) {
+                const points = [];
+                points.push(new THREE.Vector3(start.x, start.y, start.z + 0.5));
+                
+                // Generate intermediate points with random offset
+                for (let i = 1; i < segments; i++) {
+                    const t = i / segments;
+                    const x = start.x + (end.x - start.x) * t;
+                    const y = start.y + (end.y - start.y) * t;
+                    const z = start.z + (end.z - start.z) * t + 0.5;
+                    
+                    // Add random offset perpendicular to the line
+                    const perpX = -(end.y - start.y);
+                    const perpY = end.x - start.x;
+                    const length = Math.sqrt(perpX * perpX + perpY * perpY);
+                    const normalizedPerpX = perpX / length;
+                    const normalizedPerpY = perpY / length;
+                    
+                    const offset = (Math.random() - 0.5) * 0.3;
+                    points.push(new THREE.Vector3(
+                        x + normalizedPerpX * offset,
+                        y + normalizedPerpY * offset,
+                        z
+                    ));
+                }
+                
+                points.push(new THREE.Vector3(end.x, end.y, end.z + 0.5));
+                return points;
+            }
+            
+            createElectricDestructionEffect(bubble) {
+                // Create electrical "short-circuit" effect
+                const particleCount = 15;
+                for (let i = 0; i < particleCount; i++) {
+                    const particle = new Particle(
+                        bubble.position.x,
+                        bubble.position.y,
+                        bubble.position.z,
+                        0x00ddff,
+                        0.15
+                    );
+                    
+                    // Erratic movement pattern
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = 2 + Math.random() * 4;
+                    particle.velocity = new THREE.Vector3(
+                        Math.cos(angle) * speed,
+                        Math.sin(angle) * speed,
+                        (Math.random() - 0.5) * 3
+                    );
+                    
+                    // Add some "sparks" in white
+                    if (i % 3 === 0) {
+                        particle.mesh.material.color.set(0xffffff);
+                    }
+                    
+                    particle.decay = 0.04;
+                    gameState.particles.push(particle);
+                }
+                
+                // Electric flash at bubble position
+                const flash = new THREE.PointLight(0x00ddff, 5, 3);
+                flash.position.copy(bubble.position);
+                scene.add(flash);
+                
+                setTimeout(() => {
+                    scene.remove(flash);
+                }, 100);
             }
             
             createVisualEffect(bubble) {
                 super.createVisualEffect(bubble);
                 
-                // Electric blue material
+                // Dark stormy bubble with electric core
                 bubble.mesh.material = new THREE.MeshPhysicalMaterial({
-                    color: 0x00aaff,
+                    color: 0x001144,
                     emissive: 0x0066ff,
                     emissiveIntensity: 0.6,
-                    metalness: 0.8,
-                    roughness: 0.2,
+                    metalness: 0.9,
+                    roughness: 0.1,
                     clearcoat: 1,
-                    clearcoatRoughness: 0
+                    clearcoatRoughness: 0,
+                    transmission: 0.5,
+                    thickness: 0.5,
+                    ior: 1.5
                 });
                 
-                // Add electric arc particles
-                const arcCount = 3;
+                // Add internal lightning core
+                const coreGeometry = new THREE.SphereGeometry(CONFIG.BUBBLE_RADIUS * 0.3, 8, 8);
+                const coreMaterial = new THREE.MeshBasicMaterial({
+                    color: 0x00ddff,
+                    transparent: true,
+                    opacity: 0.8
+                });
+                const core = new THREE.Mesh(coreGeometry, coreMaterial);
+                bubble.mesh.add(core);
+                bubble.lightningCore = core;
+                
+                // Add crackling electric arcs around the bubble
+                const arcCount = 4;
                 bubble.electricArcs = [];
                 
                 for (let i = 0; i < arcCount; i++) {
                     const arcGeometry = new THREE.BufferGeometry();
-                    const arcPositions = new Float32Array(6 * 3); // 6 points per arc
+                    const arcPositions = new Float32Array(6 * 3);
                     arcGeometry.setAttribute('position', new THREE.BufferAttribute(arcPositions, 3));
                     
                     const arcMaterial = new THREE.LineBasicMaterial({
@@ -1707,32 +2248,53 @@
                     
                     const arc = new THREE.Line(arcGeometry, arcMaterial);
                     bubble.mesh.add(arc);
-                    bubble.electricArcs.push({ mesh: arc, phase: Math.random() * Math.PI * 2 });
+                    bubble.electricArcs.push({
+                        mesh: arc,
+                        phase: Math.random() * Math.PI * 2,
+                        speed: 2 + Math.random() * 2
+                    });
                 }
                 
-                // Enhanced pulsing animation with electric arcs
+                // Enhanced animation with pulsing core and dynamic arcs
                 const originalUpdate = bubble.powerUpAnimation.update;
                 bubble.powerUpAnimation.update = function(deltaTime) {
                     originalUpdate.call(this, deltaTime);
                     
-                    // Update electric arcs
+                    // Pulse the core
+                    const corePulse = 0.8 + Math.sin(this.time * 4) * 0.2;
+                    bubble.lightningCore.scale.setScalar(corePulse);
+                    bubble.lightningCore.material.opacity = 0.6 + Math.sin(this.time * 3) * 0.4;
+                    
+                    // Update electric arcs with more chaotic movement
                     bubble.electricArcs.forEach((arc, index) => {
                         const positions = arc.mesh.geometry.attributes.position.array;
-                        const time = this.time + arc.phase;
+                        const time = this.time * arc.speed + arc.phase;
                         
                         for (let j = 0; j < 6; j++) {
-                            const angle = (j / 5) * Math.PI * 2 + time * 2;
-                            const radius = CONFIG.BUBBLE_RADIUS * (0.8 + Math.sin(time * 3 + j) * 0.3);
-                            const jitter = Math.sin(time * 10 + j * 2) * 0.1;
+                            const t = j / 5;
+                            const angle = time + t * Math.PI * 2;
+                            const radius = CONFIG.BUBBLE_RADIUS * (0.7 + Math.sin(time * 3 + j) * 0.4);
                             
-                            positions[j * 3] = Math.cos(angle) * radius + jitter;
-                            positions[j * 3 + 1] = Math.sin(angle) * radius + jitter;
-                            positions[j * 3 + 2] = (j - 2.5) * 0.2;
+                            // More erratic movement
+                            const jitterX = (Math.random() - 0.5) * 0.2;
+                            const jitterY = (Math.random() - 0.5) * 0.2;
+                            
+                            positions[j * 3] = Math.cos(angle) * radius + jitterX;
+                            positions[j * 3 + 1] = Math.sin(angle) * radius + jitterY;
+                            positions[j * 3 + 2] = (j - 2.5) * 0.3;
                         }
                         
                         arc.mesh.geometry.attributes.position.needsUpdate = true;
-                        arc.mesh.material.opacity = 0.5 + Math.sin(time * 5) * 0.3;
+                        arc.mesh.material.opacity = 0.3 + Math.random() * 0.7;
                     });
+                    
+                    // Occasional bright flash
+                    if (Math.random() < 0.02) {
+                        bubble.mesh.material.emissiveIntensity = 1.5;
+                        setTimeout(() => {
+                            bubble.mesh.material.emissiveIntensity = 0.6;
+                        }, 50);
+                    }
                 };
             }
         }
@@ -2141,7 +2703,7 @@
                 // Register power-ups
                 this.registerPowerUp(new RainbowPowerUp());
                 this.registerPowerUp(new BombPowerUp());
-                this.registerPowerUp(new LightningPowerUp());
+                this.registerPowerUp(new ChainLightningPowerUp());
                 this.registerPowerUp(new PrecisionAimPowerUp());
                 this.registerPowerUp(new ColorSplashPowerUp());
                 
@@ -2241,11 +2803,12 @@
                     }
                 });
                 
-                // Lightning activation handler
-                this.eventBus.on('lightningActivated', (data) => {
-                    console.log('Lightning power-up activated at', data.position);
-                    visualTextDisplay.showPowerUpText('lightning', data.position);
-                    this.showLightningSelector(data.position);
+                // Chain Lightning activation handler
+                this.eventBus.on('chainLightningActivated', (data) => {
+                    console.log('Chain Lightning power-up activated at', data.position);
+                    visualTextDisplay.showPowerUpText('chainLightning', data.position);
+                    // Play main lightning strike sound
+                    soundManager.play('lightningStrike');
                 });
                 
                 // Precision aim activation handler
@@ -2262,270 +2825,14 @@
                 });
             }
             
-            showLightningSelector(position) {
-                const selector = document.getElementById('lightningSelector');
-                selector.style.display = 'block';
-                
-                // Disable shooting while selecting
-                gameState.lightningSelecting = true;
-                
-                let selectedTarget = null;
-                let hoveredRow = -1;
-                let hoveredColumn = -1;
-                
-                // Remove any existing event listeners
-                const selectRow = document.getElementById('selectRow');
-                const selectColumn = document.getElementById('selectColumn');
-                const cancelBtn = document.querySelector('.lightning-cancel');
-                
-                // Clone elements to remove all event listeners
-                const newSelectRow = selectRow.cloneNode(true);
-                const newSelectColumn = selectColumn.cloneNode(true);
-                const newCancelBtn = cancelBtn.cloneNode(true);
-                
-                selectRow.parentNode.replaceChild(newSelectRow, selectRow);
-                selectColumn.parentNode.replaceChild(newSelectColumn, selectColumn);
-                cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-                
-                // Handle row selection
-                document.getElementById('selectRow').onclick = () => {
-                    if (!selectedTarget) {
-                        selectedTarget = 'row';
-                        selector.style.display = 'none';
-                        gameState.lightningSelecting = false;
-                        this.executeLightningStrike(position, 'row');
-                    }
-                };
-                
-                // Handle column selection
-                document.getElementById('selectColumn').onclick = () => {
-                    if (!selectedTarget) {
-                        selectedTarget = 'column';
-                        selector.style.display = 'none';
-                        gameState.lightningSelecting = false;
-                        this.executeLightningStrike(position, 'column');
-                    }
-                };
-                
-                // Handle cancel
-                document.querySelector('.lightning-cancel').onclick = () => {
-                    if (!selectedTarget) {
-                        selector.style.display = 'none';
-                        gameState.lightningSelecting = false;
-                        // Create new bubble since power-up was cancelled
-                        setTimeout(() => createShootingBubble(), 100);
-                    }
-                };
-            }
-            
-            executeLightningStrike(position, targetType) {
-                const lightningBubble = position; 
-
-                // Defensive checks for the lightningBubble and its grid properties
-                if (!lightningBubble || typeof lightningBubble.gridY !== 'number' || typeof lightningBubble.gridX !== 'number') {
-                    console.error("Lightning Strike: Invalid lightningBubble or its grid properties.", lightningBubble);
-                    // Since the power-up failed, create a new shooting bubble
-                    setTimeout(() => createShootingBubble(), 100);
-                    return; 
-                }
-
-                const gridY = lightningBubble.gridY;
-                const gridX = lightningBubble.gridX;
-                
-                console.log("Executing Lightning Strike:", 
-                            "gridY:", gridY, "type:", typeof gridY,
-                            "gridX:", gridX, "type:", typeof gridX,
-                            "bubbleGrid length:", gameState.bubbleGrid.length);
-
-                // Check if gridY is a valid index for the outer array gameState.bubbleGrid
-                if (gridY < 0 || gridY >= gameState.bubbleGrid.length || !gameState.bubbleGrid[gridY]) {
-                    console.error(`Lightning Strike: gridY (${gridY}) is out of bounds or row is undefined. bubbleGrid length: ${gameState.bubbleGrid.length}`);
-                    setTimeout(() => createShootingBubble(), 100); // Power-up failed
-                    return;
-                }
-
-                const destroyed = [];
-                
-                if (targetType === 'row') {
-                    const isOddRow = gridY % 2 === 1;
-                    const bubblesInRow = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
-                    
-                    console.log(`Lightning - Destroying Row: gridY=${gridY}, bubblesInRow=${bubblesInRow}`);
-                    
-                    // gameState.bubbleGrid[gridY] should be a valid array here due to the check above
-                    for (let x = 0; x < bubblesInRow; x++) {
-                        // Check if x is a valid index for the inner array gameState.bubbleGrid[gridY]
-                        if (x < 0 || x >= gameState.bubbleGrid[gridY].length) {
-                            console.warn(`Lightning Strike - Row: Column index x (${x}) is out of bounds for row ${gridY}. Row length: ${gameState.bubbleGrid[gridY].length}`);
-                            continue; // Skip this iteration
-                        }
-                        const bubble = gameState.bubbleGrid[gridY][x]; 
-                        if (bubble) {
-                            destroyed.push(bubble);
-                        }
-                    }
-                } else if (targetType === 'column') {
-                    console.log(`Lightning - Destroying Column: originating gridX=${gridX}`);
-                    for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
-                        // Check if y is a valid index for the outer array gameState.bubbleGrid
-                        if (y < 0 || y >= gameState.bubbleGrid.length || !gameState.bubbleGrid[y]) {
-                            console.warn(`Lightning Strike - Column: Row index y (${y}) is out of bounds or row is undefined. bubbleGrid length: ${gameState.bubbleGrid.length}`);
-                            continue; // Skip this iteration
-                        }
-
-                        const isOddRow = y % 2 === 1;
-                        // For column destruction, the effective 'gridX' for the current row 'y' might need adjustment
-                        // based on the original 'gridX' of the lightning bubble.
-                        // This logic assumes 'gridX' refers to the 0-indexed column in a possibly staggered row.
-                        let currentX = gridX; 
-                        // If the lightning bubble was in an even row, and we are now checking an odd row,
-                        // and 'gridX' was the last possible column in an even row, it might be out of bounds for an odd row.
-                        // Or vice-versa.
-                        // However, the original logic for 'adjustedX' was: const adjustedX = isOddRow ? gridX : gridX; which is just gridX.
-                        // Let's re-evaluate this. The column alignment is tricky in hex grids.
-                        // The crucial part is that `gridX` (from the lightningBubble) should be a valid index *for its own row type*.
-                        // When iterating other rows, we need to ensure the x-coordinate is valid for *that* row.
-
-                        const bubblesInCurrentRow = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
-                        let targetColumnX = gridX; // Start with the original column
-
-                        // If the original lightning bubble was in an odd row, its gridX goes up to CONFIG.GRID_WIDTH - 2.
-                        // If the current row 'y' is an even row, its columns go up to CONFIG.GRID_WIDTH - 1.
-                        // If the original lightning bubble was in an even row, its gridX goes up to CONFIG.GRID_WIDTH - 1.
-                        // If the current row 'y' is an odd row, its columns go up to CONFIG.GRID_WIDTH - 2.
-
-                        // This seems more like what you intended with adjustedX, but it was a bit simplified.
-                        // Let's assume 'gridX' is the column index of the lightning bubble.
-                        // We want to clear bubbles in the same "visual" column.
-                        // This logic for adjustedX needs careful thought if it's not behaving.
-                        // For now, let's stick to the logic that was there but ensure 'adjustedX' is valid.
-                        const adjustedX = gridX; // Your original logic before the ternary was removed
-
-                        if (adjustedX >= 0 && adjustedX < bubblesInCurrentRow) {
-                            if (adjustedX < 0 || adjustedX >= gameState.bubbleGrid[y].length) {
-                                console.warn(`Lightning Strike - Column: Column index adjustedX (${adjustedX}) is out of bounds for row ${y}. Row length: ${gameState.bubbleGrid[y].length}`);
-                                continue; // Skip
-                            }
-                            const bubble = gameState.bubbleGrid[y][adjustedX];
-                            if (bubble) {
-                                destroyed.push(bubble);
-                            }
-                        } else {
-                            console.warn(`Lightning Strike - Column: Calculated adjustedX (${adjustedX}) is out of bounds for current row type (y=${y}, bubblesInCurrentRow=${bubblesInCurrentRow})`);
-                        }
-                    }
-                }
-                
-                // ... (rest of the function: createLightningEffect, updateScore, removeBubble, etc.)
-                // Ensure this part is only reached if no critical errors occurred above.
-                if (destroyed.length > 0 || targetType) { // Ensure we proceed if an action was intended
-                    this.createLightningEffect(destroyed, targetType);
-                
-                    let points = destroyed.length * 25;
-                    updateScore(points);
-                    if (destroyed.length > 0) updateCombo(); // Only update combo if bubbles were destroyed
-                    
-                    if (lightningBubble && typeof lightningBubble.position !== 'undefined') { // Check if lightningBubble and its position exist
-                        createFloatingScore(lightningBubble.position, points);
-                    } else {
-                        createFloatingScore(new THREE.Vector3(0,0,0), points); // Fallback position
-                    }
-                
-                    destroyed.forEach((bubble, index) => {
-                        setTimeout(() => {
-                            removeBubble(bubble);
-                            this.createLightningParticles(bubble);
-                        }, index * 30);
-                    });
-                    
-                    setTimeout(() => {
-                        removeFloatingBubbles();
-                    }, destroyed.length * 30 + 200);
-                    
-                    setTimeout(() => createShootingBubble(), destroyed.length * 30 + 500);
-
-                } else if (!lightningBubble || typeof lightningBubble.gridY !== 'number') {
-                    // This case was handled at the top, but as a fallback if destroyed is empty due to other reasons.
-                    console.warn("Lightning Strike: No bubbles destroyed and initial checks might have passed. Creating new shooting bubble as fallback.");
-                    setTimeout(() => createShootingBubble(), 100);
-                }
-            }
-            
-            createLightningEffect(bubbles, targetType) {
-                if (bubbles.length === 0) return;
-                
-                // Create lightning bolt visual
-                const lightningGeometry = new THREE.BufferGeometry();
-                const positions = [];
-                
-                bubbles.forEach((bubble, index) => {
-                    if (index > 0) {
-                        const prev = bubbles[index - 1];
-                        positions.push(
-                            prev.position.x, prev.position.y, prev.position.z,
-                            bubble.position.x, bubble.position.y, bubble.position.z
-                        );
-                    }
-                });
-                
-                lightningGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-                
-                const lightningMaterial = new THREE.LineBasicMaterial({
-                    color: 0x00ddff,
-                    transparent: true,
-                    opacity: 1,
-                    linewidth: 5
-                });
-                
-                const lightning = new THREE.LineSegments(lightningGeometry, lightningMaterial);
-                scene.add(lightning);
-                
-                // Flash effect
-                const flashLight = new THREE.PointLight(0x00ddff, 10, 50);
-                const centerPos = bubbles[Math.floor(bubbles.length / 2)].position;
-                flashLight.position.copy(centerPos);
-                scene.add(flashLight);
-                
-                // Animate lightning fade
-                let opacity = 1;
-                const fadeInterval = setInterval(() => {
-                    opacity -= 0.1;
-                    lightningMaterial.opacity = opacity;
-                    flashLight.intensity = opacity * 10;
-                    
-                    if (opacity <= 0) {
-                        scene.remove(lightning);
-                        scene.remove(flashLight);
-                        clearInterval(fadeInterval);
-                    }
-                }, 50);
-                
-                // Screen flash
-                this.addScreenShake(0.4, 8);
-            }
-            
-            createLightningParticles(bubble) {
-                for (let i = 0; i < 20; i++) {
-                    const particle = new Particle(
-                        bubble.position.x,
-                        bubble.position.y,
-                        bubble.position.z,
-                        0x00ddff,
-                        0.15
-                    );
-                    
-                    const angle = (Math.PI * 2 * i) / 20;
-                    const speed = 10 + Math.random() * 5;
-                    particle.velocity = new THREE.Vector3(
-                        Math.cos(angle) * speed,
-                        Math.sin(angle) * speed,
-                        (Math.random() - 0.5) * 5
-                    );
-                    particle.decay = 0.02;
-                    
-                    gameState.particles.push(particle);
-                }
-            }
+            // Old lightning selector methods - no longer needed with Chain Lightning
+            // These methods were used for the row/column selection UI
+            /*
+            showLightningSelector(position) { ... }
+            executeLightningStrike(position, targetType) { ... }
+            createLightningEffect(bubbles, targetType) { ... }
+            createLightningParticles(bubble) { ... }
+            */
             
             activatePrecisionAim(duration) {
                 gameState.precisionAimActive = true;
@@ -2665,7 +2972,6 @@
             bubbleGrid: [],
             particles: [],
             animations: [],
-            lightningSelecting: false,
             precisionAimActive: false,
             precisionAimTime: 0,
             extendedTrajectory: false
@@ -3397,8 +3703,6 @@
         function shootBubble(power) {
             if (!gameState.currentBubble || gameState.currentBubble.isMoving || gameState.isGameOver) return;
             
-            // Prevent shooting while lightning selector is active
-            if (gameState.lightningSelecting) return;
             
             // Prevent shooting backwards or below a certain angle
             const direction = new THREE.Vector3(
@@ -4413,9 +4717,7 @@
                     0
                 );
                 
-                if (gameState.lightningSelecting) {
-                    renderer.domElement.style.cursor = 'wait';
-                } else if (direction.y < 0.3) {
+                if (direction.y < 0.3) {
                     renderer.domElement.style.cursor = 'not-allowed';
                 } else {
                     renderer.domElement.style.cursor = 'crosshair';
@@ -4428,8 +4730,6 @@
         function handleMouseDown(event) {
             if (gameState.isGameOver || gameState.isPaused || !gameState.currentBubble || gameState.currentBubble.isMoving) return;
             
-            // Prevent charging while lightning selector is active
-            if (gameState.lightningSelecting) return;
             
             gameState.isCharging = true;
             document.getElementById('powerMeter').classList.add('active');
@@ -4438,8 +4738,6 @@
         function handleMouseUp(event) {
             if (gameState.isGameOver || gameState.isPaused || !gameState.currentBubble || gameState.currentBubble.isMoving) return;
             
-            // Prevent shooting while lightning selector is active
-            if (gameState.lightningSelecting) return;
             
             if (gameState.isCharging) {
                 // Reset bubble scale
