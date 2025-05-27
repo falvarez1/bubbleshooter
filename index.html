@@ -2383,6 +2383,7 @@
         }
         
         // Color Splash Power-Up
+console.log('[Debug STARTUP] ColorSplashPowerUp.activate: "this" is:', this, 'Constructor name:', this ? this.constructor.name : 'N/A');
         class ColorSplashPowerUp extends PowerUp {
             constructor() {
                 super('colorSplash', {
@@ -2466,10 +2467,10 @@
                 
                 // Remove the power-up bubble itself
                 setTimeout(() => {
-                    const powerUpBubble = gameState.bubbleGrid[targetPosition.gridY][targetPosition.gridX];
-                    if (powerUpBubble) {
-                        removeBubble(powerUpBubble);
-                        createExplosionEffect(powerUpBubble);
+                    // const powerUpBubble = gameState.bubbleGrid[targetPosition.gridY][targetPosition.gridX]; // Original problematic line
+                    if (this) { // 'this' refers to the ColorSplashPowerUp instance
+                        removeBubble(this);
+                        createExplosionEffect(this);
                     }
                 }, 100);
                 
@@ -2919,7 +2920,9 @@
         }
         
         // Initialize Game Manager
+//console.log('[Debug STARTUP] BEFORE new GameManager()');
         const gameManager = new GameManager();
+//console.log('[Debug STARTUP] AFTER new GameManager()');
         
         // Initialize Three.js
         const scene = new THREE.Scene();
@@ -3145,7 +3148,7 @@
             }
             
             destroy() {
-                console.log('[DEBUG] Bubble.destroy called for bubble at gridX:', this.gridX, 'gridY:', this.gridY, 'color:', this.color);
+                //console.log('[DEBUG] Bubble.destroy called for bubble at gridX:', this.gridX, 'gridY:', this.gridY, 'color:', this.color);
                 scene.remove(this.mesh);
                 this.material.dispose();
                 this.mesh.geometry.dispose();
@@ -3870,7 +3873,7 @@
             // Remove old trajectory
             const oldTrajectory = scene.getObjectByName('trajectoryGroup');
             if (oldTrajectory) {
-                console.log('[DEBUG] renderTrajectory: Removing oldTrajectoryGroup. Children count:', oldTrajectory.children.length);
+                //console.log('[DEBUG] renderTrajectory: Removing oldTrajectoryGroup. Children count:', oldTrajectory.children.length);
                 oldTrajectory.children.forEach(child => {
                     if (child.geometry) child.geometry.dispose();
                     if (child.material) child.material.dispose();
@@ -4471,7 +4474,7 @@
                     bubble.material.opacity = 1 - this.progress;
                     
                     if (this.progress >= 1) {
-                        console.log('[DEBUG] removeAnimation COMPLETED for bubble at:', bubble.gridX, bubble.gridY);
+                        //console.log('[DEBUG] removeAnimation COMPLETED for bubble at:', bubble.gridX, bubble.gridY);
                         bubble.destroy();
                         return false;
                     }
@@ -4836,7 +4839,7 @@
                     }
                     const timerCircle = document.getElementById('precisionTimerCircle');
                     if (timerCircle) {
-                         const initialDuration = gameManager.powerUpSystem.powerUps.get('precisionAim').duration || 5; // Fallback duration
+                         const initialDuration = gameManager.powerUpSystem.powerUps.get('precision').duration || 5; // Fallback duration
                          const progress = Math.max(0, gameState.precisionAimTime / initialDuration);
                          timerCircle.style.strokeDashoffset = `${283 * (1 - progress)}`; // 283 is circumference
                     }
