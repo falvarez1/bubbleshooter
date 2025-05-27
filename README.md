@@ -2,7 +2,7 @@
 
 A modern, feature-rich bubble shooter game built with Three.js, featuring advanced power-ups, stunning 3D graphics, and engaging gameplay mechanics.
 
-![Game Version](https://img.shields.io/badge/version-3.0-blue.svg)
+![Game Version](https://img.shields.io/badge/version-3.1-blue.svg)
 ![Three.js](https://img.shields.io/badge/Three.js-r128-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-yellow.svg)
 
@@ -43,6 +43,13 @@ A modern, feature-rich bubble shooter game built with Three.js, featuring advanc
 - Cyan-colored trajectory preview
 - Circular countdown timer
 - Perfect for tricky shots
+
+#### 🎨 Color Splash (10% spawn rate)
+- Randomly transforms a cluster of bubbles to a single color
+- Creates spectacular chain reactions
+- Multicolor swirling visual effect
+- Dynamic particle waves
+- Up to 15 bubbles affected per activation
 
 ### Visual Effects
 - **Screen Shake**: Dynamic camera effects for explosions
@@ -119,10 +126,45 @@ Then navigate to `http://localhost:8000/`
 - **HTML5 Canvas**: WebGL rendering context
 
 ### Performance Features
-- Object pooling for particles
-- Efficient collision detection
-- Optimized trajectory calculation
-- GPU-accelerated rendering
+- **Advanced Particle Pooling**: Pre-allocated particle system with 300+ reusable particles
+- **Configurable Quality Settings**: Four performance presets (low, medium, high, ultra)
+- **Staggered Processing**: Batch processing for large-scale effects
+- **Optimized Materials**: Dynamic switching between basic and advanced materials
+- **Efficient collision detection**: Spatial optimization for bubble interactions
+- **GPU-accelerated rendering**: Hardware-accelerated graphics
+
+## 🔊 Sound System
+
+### Integrated Audio Manager
+The game includes a comprehensive sound system ready for audio files:
+- **35+ Sound Effects**: Pre-configured for all game actions
+- **Category-based Volume Control**: Separate controls for effects, music, and UI
+- **Sound Pooling**: Prevents audio cutting with overlapping sounds
+- **Pitch Variation**: Automatic variation for repeated sounds
+- **Async Loading**: Critical sounds load first, others in background
+
+### Required Sound Files
+Place sound files in the `/sounds/` directory. See `sound_integration_guide.md` for the complete list.
+
+## 🎆 Particle Effects Configuration
+
+### Performance Presets
+Adjust visual quality in real-time:
+```javascript
+// In browser console:
+applyParticlePreset('low');    // Minimal effects (best performance)
+applyParticlePreset('medium'); // Balanced (default)
+applyParticlePreset('high');   // Enhanced effects
+applyParticlePreset('ultra');  // Maximum quality
+```
+
+### Fine-tuning
+```javascript
+// Customize specific effects:
+PARTICLE_CONFIG.colorSplash.waveParticles = 40;  // More explosion particles
+PARTICLE_CONFIG.colorSplash.maxClusterSize = 25; // Bigger color splash clusters
+PARTICLE_CONFIG.quality.particleSegments = 12;   // Higher quality spheres
+```
 
 ## 📊 Game Configuration
 
@@ -131,7 +173,7 @@ Key parameters in `CONFIG` object:
 - `GRID_WIDTH`: Number of columns (default: 11)
 - `GRID_HEIGHT`: Number of rows (default: 14)
 - `SHOOTING_SPEED`: Base projectile speed (default: 20)
-- `PARTICLE_COUNT`: Particles per explosion (default: 30)
+- `COMBO_TIMEOUT`: Time window for combos (default: 2000ms)
 
 ## 🎨 Customization
 
@@ -187,6 +229,21 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - Three.js community for excellent documentation
 - Game design inspired by classic bubble shooter games
 - Power-up concepts from `advanced_mechanics_prompt.md`
+
+## 📋 Changelog
+
+### Version 3.1 (Latest)
+- **New Power-Up**: Color Splash - transforms bubble clusters
+- **Sound System**: Complete audio manager with 35+ sound effect mappings
+- **Performance Optimization**: Advanced particle pooling system
+- **Quality Settings**: Four performance presets (low/medium/high/ultra)
+- **Particle Configuration**: Real-time adjustment of all visual effects
+- **Bug Fixes**: Resolved particle system memory leaks and frame drops
+
+### Version 3.0
+- Initial release with 5 power-up system
+- Three.js-based 3D rendering
+- Advanced particle effects
 
 ---
 
