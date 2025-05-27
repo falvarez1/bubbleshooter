@@ -448,6 +448,125 @@
             border: 2px solid #00ddff;
             transition: all 0.3s ease;
             z-index: 500;
+/* Power-up Text Display */
+        .powerup-text-display {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 36px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            pointer-events: none;
+            z-index: 300;
+            opacity: 0;
+            animation: powerupTextAnimation 2s ease-out forwards;
+        }
+        
+        @keyframes powerupTextAnimation {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.5);
+            }
+            20% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.2);
+            }
+            40% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -70%) scale(0.8);
+            }
+        }
+        
+        .powerup-text-rainbow {
+            background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(255, 255, 255, 0.8);
+        }
+        
+        .powerup-text-bomb {
+            color: #ff0000;
+            text-shadow: 0 0 30px rgba(255, 0, 0, 0.8),
+                        0 0 50px rgba(255, 100, 0, 0.6);
+        }
+        
+        .powerup-text-lightning {
+            color: #00ddff;
+            text-shadow: 0 0 30px rgba(0, 221, 255, 0.8),
+                        0 0 50px rgba(0, 170, 255, 0.6);
+        }
+        
+        .powerup-text-precision {
+            color: #00ffff;
+            text-shadow: 0 0 30px rgba(0, 255, 255, 0.8),
+                        0 0 50px rgba(0, 255, 255, 0.6);
+        }
+        
+        .powerup-text-colorsplash {
+            background: linear-gradient(45deg, #ff00ff, #00ffff, #ffff00, #ff00ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(255, 0, 255, 0.8);
+        }
+        
+        /* Game Effect Text Display */
+        .effect-text-display {
+            position: absolute;
+            top: 30%;
+            right: 50px;
+            font-size: 28px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            pointer-events: none;
+            z-index: 250;
+            opacity: 0;
+            animation: effectTextAnimation 1.5s ease-out forwards;
+        }
+        
+        @keyframes effectTextAnimation {
+            0% {
+                opacity: 0;
+                transform: translateX(50px);
+            }
+            20% {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            80% {
+                opacity: 1;
+                transform: translateX(0);
+            }
+            100% {
+                opacity: 0;
+                transform: translateX(-50px);
+            }
+        }
+        
+        .effect-text-combo {
+            color: #ff6b35;
+            text-shadow: 0 0 20px rgba(255, 107, 53, 0.8);
+        }
+        
+        .effect-text-megaclear {
+            color: #ffff00;
+            text-shadow: 0 0 20px rgba(255, 255, 0, 0.8);
+        }
+        
+        .effect-text-victory {
+            background: linear-gradient(135deg, #00ffff, #ff6b35);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(255, 255, 255, 0.8);
+        }
         }
     </style>
 </head>
@@ -519,6 +638,287 @@
     
     <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
     <script>
+        // Audio System for managing game sounds
+        class AudioSystem {
+            constructor() {
+                this.audioContext = null;
+                this.sounds = {};
+                this.ambientGain = null;
+                this.effectsGain = null;
+                this.ambientSource = null;
+                this.ambientBuffer = null;
+                this.isInitialized = false;
+                this.ambientVolume = 0.3; // Base ambient volume
+                this.targetAmbientVolume = 0.3;
+                this.volumeTransitionSpeed = 0.02;
+            }
+            
+            async initialize() {
+                if (this.isInitialized) return;
+                
+                try {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    
+                    // Create gain nodes for volume control
+                    this.effectsGain = this.audioContext.createGain();
+                    this.effectsGain.gain.value = 0.7;
+                    this.effectsGain.connect(this.audioContext.destination);
+                    
+                    this.ambientGain = this.audioContext.createGain();
+                    this.ambientGain.gain.value = this.ambientVolume;
+                    this.ambientGain.connect(this.audioContext.destination);
+                    
+                    // Load sound effects
+                    await this.loadSounds();
+                    
+                    this.isInitialized = true;
+                    console.log('Audio system initialized');
+                } catch (error) {
+                    console.error('Failed to initialize audio system:', error);
+                }
+            }
+            
+            async loadSounds() {
+                // Define sound configurations
+                const soundConfigs = {
+                    'plink': {
+                        frequency: 800,
+                        duration: 0.1,
+                        type: 'sine',
+                        envelope: { attack: 0.01, decay: 0.09 }
+                    },
+                    'crunchy_pop': {
+                        frequencies: [400, 600, 800, 1000],
+                        duration: 0.3,
+                        type: 'sawtooth',
+                        envelope: { attack: 0.02, decay: 0.28 }
+                    },
+                    'ambient_hum': {
+                        frequency: 110,
+                        duration: 2,
+                        type: 'sine',
+                        loop: true
+                    }
+                };
+                
+                // Generate procedural sounds
+                for (const [name, config] of Object.entries(soundConfigs)) {
+                    this.sounds[name] = await this.generateSound(config);
+                }
+            }
+            
+            async generateSound(config) {
+                const sampleRate = this.audioContext.sampleRate;
+                const duration = config.duration;
+                const length = sampleRate * duration;
+                const buffer = this.audioContext.createBuffer(1, length, sampleRate);
+                const data = buffer.getChannelData(0);
+                
+                if (config.frequencies) {
+                    // Multi-frequency sound (crunchy)
+                    for (let i = 0; i < length; i++) {
+                        let sample = 0;
+                        const t = i / sampleRate;
+                        
+                        config.frequencies.forEach(freq => {
+                            sample += Math.sin(2 * Math.PI * freq * t) / config.frequencies.length;
+                        });
+                        
+                        // Apply envelope
+                        let envelope = 1;
+                        if (config.envelope) {
+                            if (t < config.envelope.attack) {
+                                envelope = t / config.envelope.attack;
+                            } else {
+                                envelope = 1 - ((t - config.envelope.attack) / config.envelope.decay);
+                            }
+                        }
+                        
+                        // Add some noise for crunchiness
+                        sample += (Math.random() - 0.5) * 0.1;
+                        
+                        data[i] = sample * envelope * 0.3;
+                    }
+                } else {
+                    // Single frequency sound
+                    for (let i = 0; i < length; i++) {
+                        const t = i / sampleRate;
+                        let sample;
+                        
+                        switch (config.type) {
+                            case 'sine':
+                                sample = Math.sin(2 * Math.PI * config.frequency * t);
+                                break;
+                            case 'square':
+                                sample = Math.sign(Math.sin(2 * Math.PI * config.frequency * t));
+                                break;
+                            case 'sawtooth':
+                                sample = 2 * ((config.frequency * t) % 1) - 1;
+                                break;
+                            default:
+                                sample = Math.sin(2 * Math.PI * config.frequency * t);
+                        }
+                        
+                        // Apply envelope
+                        let envelope = 1;
+                        if (config.envelope) {
+                            if (t < config.envelope.attack) {
+                                envelope = t / config.envelope.attack;
+                            } else {
+                                envelope = 1 - ((t - config.envelope.attack) / config.envelope.decay);
+                            }
+                        }
+                        
+                        data[i] = sample * envelope * 0.5;
+                    }
+                }
+                
+                return { buffer, config };
+            }
+            
+            playSound(soundName, volume = 1.0) {
+                if (!this.isInitialized || !this.sounds[soundName]) return;
+                
+                const sound = this.sounds[soundName];
+                const source = this.audioContext.createBufferSource();
+                source.buffer = sound.buffer;
+                
+                const gainNode = this.audioContext.createGain();
+                gainNode.gain.value = volume;
+                
+                source.connect(gainNode);
+                gainNode.connect(this.effectsGain);
+                
+                source.start();
+            }
+            
+            startAmbientAudio() {
+                if (!this.isInitialized || this.ambientSource) return;
+                
+                // Create a more complex ambient sound
+                this.ambientSource = this.createAmbientSound();
+                this.ambientSource.start();
+            }
+            
+            createAmbientSound() {
+                // Create multiple oscillators for a richer ambient sound
+                const oscillators = [];
+                const gains = [];
+                const merger = this.audioContext.createChannelMerger(1);
+                
+                // Base frequency and harmonics
+                const baseFreq = 55; // Low A
+                const harmonics = [1, 2, 3, 4, 5];
+                
+                harmonics.forEach((harmonic, index) => {
+                    const osc = this.audioContext.createOscillator();
+                    const gain = this.audioContext.createGain();
+                    const lfo = this.audioContext.createOscillator();
+                    const lfoGain = this.audioContext.createGain();
+                    
+                    // Set oscillator frequency
+                    osc.frequency.value = baseFreq * harmonic;
+                    osc.type = index === 0 ? 'sine' : 'triangle';
+                    
+                    // Set up LFO for subtle frequency modulation
+                    lfo.frequency.value = 0.1 + index * 0.05;
+                    lfoGain.gain.value = 2 + index;
+                    
+                    lfo.connect(lfoGain);
+                    lfoGain.connect(osc.frequency);
+                    
+                    // Set gain based on harmonic
+                    gain.gain.value = 1 / (harmonic * harmonic);
+                    
+                    osc.connect(gain);
+                    gain.connect(merger);
+                    
+                    osc.start();
+                    lfo.start();
+                    
+                    oscillators.push(osc, lfo);
+                    gains.push(gain);
+                });
+                
+                // Add subtle noise
+                const noiseBuffer = this.createNoiseBuffer();
+                const noiseSource = this.audioContext.createBufferSource();
+                noiseSource.buffer = noiseBuffer;
+                noiseSource.loop = true;
+                
+                const noiseGain = this.audioContext.createGain();
+                noiseGain.gain.value = 0.02;
+                
+                const noiseFilter = this.audioContext.createBiquadFilter();
+                noiseFilter.type = 'lowpass';
+                noiseFilter.frequency.value = 200;
+                
+                noiseSource.connect(noiseFilter);
+                noiseFilter.connect(noiseGain);
+                noiseGain.connect(merger);
+                
+                noiseSource.start();
+                
+                merger.connect(this.ambientGain);
+                
+                // Return a custom object that can stop all oscillators
+                return {
+                    oscillators: [...oscillators, noiseSource],
+                    start: () => {},
+                    stop: () => {
+                        oscillators.forEach(osc => osc.stop());
+                        noiseSource.stop();
+                    }
+                };
+            }
+            
+            createNoiseBuffer() {
+                const bufferSize = 2 * this.audioContext.sampleRate;
+                const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+                const output = buffer.getChannelData(0);
+                
+                for (let i = 0; i < bufferSize; i++) {
+                    output[i] = Math.random() * 2 - 1;
+                }
+                
+                return buffer;
+            }
+            
+            updateAmbientVolume(targetVolume) {
+                this.targetAmbientVolume = Math.max(0, Math.min(1, targetVolume));
+            }
+            
+            update() {
+                if (!this.isInitialized || !this.ambientGain) return;
+                
+                // Smoothly transition ambient volume
+                const currentVolume = this.ambientGain.gain.value;
+                const diff = this.targetAmbientVolume - currentVolume;
+                
+                if (Math.abs(diff) > 0.001) {
+                    this.ambientGain.gain.value += diff * this.volumeTransitionSpeed;
+                }
+            }
+            
+            stopAmbientAudio() {
+                if (this.ambientSource) {
+                    this.ambientSource.stop();
+                    this.ambientSource = null;
+                }
+            }
+        }
+        
+        // Initialize Audio System
+        const audioSystem = new AudioSystem();
+        
+        // Initialize audio on first user interaction
+        document.addEventListener('click', async () => {
+            if (!audioSystem.isInitialized) {
+                await audioSystem.initialize();
+                audioSystem.startAmbientAudio();
+            }
+        }, { once: true });
+        
         // Game Configuration
         const CONFIG = {
             BUBBLE_RADIUS: 0.5,
@@ -543,6 +943,118 @@
             COMBO_TIMEOUT: 2000,
             DANGER_LINE: -5
         };
+        
+        // Visual Text Display System
+        class VisualTextDisplay {
+            constructor() {
+                this.activeDisplays = [];
+            }
+            
+            showPowerUpText(powerUpType, position) {
+                const textElement = document.createElement('div');
+                textElement.className = 'powerup-text-display';
+                
+                let text = '';
+                let className = '';
+                
+                switch(powerUpType) {
+                    case 'rainbow':
+                        text = 'RAINBOW POWER!';
+                        className = 'powerup-text-rainbow';
+                        break;
+                    case 'bomb':
+                        text = 'BOMB BLAST!';
+                        className = 'powerup-text-bomb';
+                        break;
+                    case 'lightning':
+                        text = 'LIGHTNING STRIKE!';
+                        className = 'powerup-text-lightning';
+                        break;
+                    case 'precision':
+                        text = 'PRECISION AIM!';
+                        className = 'powerup-text-precision';
+                        break;
+                    case 'colorSplash':
+                        text = 'COLOR SPLASH!';
+                        className = 'powerup-text-colorsplash';
+                        break;
+                    default:
+                        text = 'POWER-UP!';
+                        className = '';
+                }
+                
+                textElement.textContent = text;
+                textElement.classList.add(className);
+                
+                // Position the text based on the bubble position if provided
+                if (position) {
+                    const screenPos = this.worldToScreen(position);
+                    textElement.style.left = `${screenPos.x}px`;
+                    textElement.style.top = `${screenPos.y}px`;
+                    textElement.style.transform = 'translate(-50%, -50%)';
+                }
+                
+                document.body.appendChild(textElement);
+                
+                // Remove after animation completes
+                setTimeout(() => {
+                    textElement.remove();
+                }, 2000);
+            }
+            
+            showEffectText(effectType, value) {
+                const textElement = document.createElement('div');
+                textElement.className = 'effect-text-display';
+                
+                let text = '';
+                let className = '';
+                
+                switch(effectType) {
+                    case 'combo':
+                        text = `COMBO x${value}!`;
+                        className = 'effect-text-combo';
+                        break;
+                    case 'megaClear':
+                        text = 'MEGA CLEAR!';
+                        className = 'effect-text-megaclear';
+                        break;
+                    case 'victory':
+                        text = 'LEVEL CLEAR!';
+                        className = 'effect-text-victory';
+                        break;
+                    case 'floatingClear':
+                        text = `${value} FLOATING CLEARED!`;
+                        className = 'effect-text-megaclear';
+                        break;
+                    default:
+                        text = effectType;
+                        className = '';
+                }
+                
+                textElement.textContent = text;
+                textElement.classList.add(className);
+                
+                document.body.appendChild(textElement);
+                
+                // Remove after animation completes
+                setTimeout(() => {
+                    textElement.remove();
+                }, 1500);
+            }
+            
+            worldToScreen(position) {
+                const vector = position.clone();
+                vector.project(camera);
+                
+                const x = (vector.x + 1) / 2 * window.innerWidth;
+                const y = -(vector.y - 1) / 2 * window.innerHeight;
+                
+                return { x, y };
+            }
+        }
+        
+        // Initialize Visual Text Display
+        const visualTextDisplay = new VisualTextDisplay();
         
         // Event Bus System for modular communication
         class EventBus {
@@ -804,18 +1316,25 @@
                 });
             }
             
-            activate(targetPosition, gameState, gameManager) {
-                // Activate precision aim mode
+            activate(powerUpBubble, gameState, gameManager) { // Renamed targetPosition for clarity
                 gameManager.eventBus.emit('precisionAimActivated', { 
                     duration: this.duration 
                 });
                 
-                // Remove the bubble after activation
                 setTimeout(() => {
-                    const bubble = gameState.bubbleGrid[targetPosition.gridY][targetPosition.gridX];
-                    if (bubble) {
-                        removeBubble(bubble);
-                        createExplosionEffect(bubble);
+                    // Use the gridX/gridY from the powerUpBubble that was passed in
+                    const bubbleOnGrid = gameState.bubbleGrid[powerUpBubble.gridY][powerUpBubble.gridX];
+                    
+                    // Ensure we're removing the correct bubble that's actually on the grid
+                    // and that it is indeed the power-up bubble we intended to remove.
+                    if (bubbleOnGrid && bubbleOnGrid === powerUpBubble) {
+                        removeBubble(bubbleOnGrid);
+                        createExplosionEffect(bubbleOnGrid);
+                    } else if (powerUpBubble && gameState.bubbleGrid[powerUpBubble.gridY] && gameState.bubbleGrid[powerUpBubble.gridY][powerUpBubble.gridX] === null) {
+                        // It might have been removed by another effect (e.g. cascading match)
+                        console.log("PrecisionAim power-up bubble was already removed from grid.");
+                    } else {
+                        console.warn("PrecisionAim: Could not find the power-up bubble on the grid for removal or it was not the expected bubble.", powerUpBubble, bubbleOnGrid);
                     }
                 }, 100);
                 
@@ -1266,11 +1785,13 @@
                 // Rainbow activation handler
                 this.eventBus.on('rainbowActivated', (data) => {
                     console.log('Rainbow power-up activated at', data.position);
+                    visualTextDisplay.showPowerUpText('rainbow', data.position);
                 });
                 
                 // Bomb explosion handler
                 this.eventBus.on('bombExploded', (data) => {
                     console.log('Bomb exploded at', data.position, 'with radius', data.radius);
+                    visualTextDisplay.showPowerUpText('bomb', data.position);
                 });
                 
                 // Score update handler
@@ -1281,23 +1802,29 @@
                 // Combo handler
                 this.eventBus.on('comboAchieved', (data) => {
                     console.log('Combo achieved:', data.comboSize);
+                    if (data.comboSize >= 3) {
+                        visualTextDisplay.showEffectText('combo', data.comboSize);
+                    }
                 });
                 
                 // Lightning activation handler
                 this.eventBus.on('lightningActivated', (data) => {
                     console.log('Lightning power-up activated at', data.position);
+                    visualTextDisplay.showPowerUpText('lightning', data.position);
                     this.showLightningSelector(data.position);
                 });
                 
                 // Precision aim activation handler
                 this.eventBus.on('precisionAimActivated', (data) => {
                     console.log('Precision aim activated for', data.duration, 'seconds');
+                    visualTextDisplay.showPowerUpText('precision');
                     this.activatePrecisionAim(data.duration);
                 });
                 
                 // Color Splash activation handler
                 this.eventBus.on('colorSplashActivated', (data) => {
                     console.log('Color Splash power-up activated at', data.position);
+                    visualTextDisplay.showPowerUpText('colorSplash', data.position);
                 });
             }
             
@@ -1358,8 +1885,25 @@
             }
             
             executeLightningStrike(position, targetType) {
-                const gridY = position.gridY;
-                const gridX = position.gridX;
+                const lightningBubble = position; // Rename for clarity
+                const gridY = lightningBubble.gridY;
+                const gridX = lightningBubble.gridX;
+
+                console.log("Executing Lightning Strike:", 
+                    "lightningBubble exists:", !!lightningBubble, 
+                    "gridY:", gridY, "type:", typeof gridY,
+                    "gridX:", gridX, "type:", typeof gridX,
+                    "bubbleGrid length:", gameState.bubbleGrid.length);
+        
+                // Add a check to ensure gridY is valid before proceeding
+                if (typeof gridY !== 'number' || gridY < 0 || gridY >= gameState.bubbleGrid.length) {
+                    console.error("Invalid gridY for lightning strike:", gridY, "Bubble:", lightningBubble);
+                    // Potentially return or handle this error gracefully
+                    // For now, let's log and see. If it continues, we might just return.
+                    // If you add a return here, remember to call createShootingBubble() if the power-up fails
+                    // similar to how the cancel button in showLightningSelector does.
+                    // However, this indicates a deeper issue if gridY is invalid.
+                }
                 const destroyed = [];
                 
                 if (targetType === 'row') {
@@ -2734,6 +3278,11 @@
                 updateScore(points);
                 updateCombo();
                 
+                // Show mega clear text for large matches
+                if (matches.length >= 7) {
+                    visualTextDisplay.showEffectText('megaClear');
+                }
+                
                 // Create floating score at center of match group
                 const centerX = matches.reduce((sum, b) => sum + b.position.x, 0) / matches.length;
                 const centerY = matches.reduce((sum, b) => sum + b.position.y, 0) / matches.length;
@@ -2742,7 +3291,8 @@
                 matches.forEach((matchedBubble, index) => {
                     setTimeout(() => {
                         removeBubble(matchedBubble);
-                        createExplosionEffect(matchedBubble);
+                        // Use enhanced explosion for large matches
+                        createExplosionEffect(matchedBubble, matches.length >= 5);
                     }, index * 50);
                 });
                 
@@ -2795,7 +3345,8 @@
                     bubblesRemoved.forEach((b, index) => {
                         setTimeout(() => {
                             removeBubble(b);
-                            createExplosionEffect(b);
+                            // Enhanced explosion for rainbow power-up
+                            createExplosionEffect(b, true);
                         }, index * 30);
                     });
                     
@@ -2852,6 +3403,11 @@
                     }, index * 20);
                 });
                 
+                // Play multiple crunchy sounds for bomb explosion
+                if (audioSystem.isInitialized) {
+                    audioSystem.playSound('crunchy_pop', 1.0);
+                }
+                
                 // Check for floating bubbles
                 setTimeout(() => {
                     removeFloatingBubbles();
@@ -2893,6 +3449,18 @@
                 const victoryBonus = 1000 * gameState.level;
                 updateScore(victoryBonus);
                 createFloatingScore(new THREE.Vector3(0, 0, 0), victoryBonus);
+                
+                // Show victory text
+                visualTextDisplay.showEffectText('victory');
+                
+                // Play victory sound (multiple plinks in sequence)
+                if (audioSystem.isInitialized) {
+                    for (let i = 0; i < 5; i++) {
+                        setTimeout(() => {
+                            audioSystem.playSound('plink', 0.8);
+                        }, i * 100);
+                    }
+                }
                 
                 // Create celebration effect
                 for (let i = 0; i < 50; i++) {
@@ -3011,6 +3579,13 @@
                             removeBubble(bubble);
                             createFloatingEffect(bubble);
                         }, floatingCount * 30);
+                        
+                        // Play plink sound for each floating bubble
+                        if (audioSystem.isInitialized && floatingCount <= 10) {
+                            setTimeout(() => {
+                                audioSystem.playSound('plink', 0.4);
+                            }, floatingCount * 30);
+                        }
                     }
                 }
             }
@@ -3026,6 +3601,15 @@
                     setTimeout(() => {
                         createFloatingScore(new THREE.Vector3(centerX, centerY, 0), floatingPoints);
                     }, floatingCount * 15);
+                }
+                
+                // Show visual text for significant floating clears
+                if (floatingCount >= 5) {
+                    visualTextDisplay.showEffectText('floatingClear', floatingCount);
+                    // Play crunchy sound for large floating clears
+                    if (audioSystem.isInitialized) {
+                        audioSystem.playSound('crunchy_pop', 0.7);
+                    }
                 }
             }
         }
@@ -3080,6 +3664,17 @@
             const particleCount = enhanced ? CONFIG.PARTICLE_COUNT * 2 : CONFIG.PARTICLE_COUNT;
             const particleSize = enhanced ? 0.3 : 0.2;
             const speedMultiplier = enhanced ? 1.5 : 1;
+            
+            // Play appropriate sound effect
+            if (audioSystem.isInitialized) {
+                if (enhanced) {
+                    // Play crunchy sound for enhanced explosions (bombs, multiple bubbles)
+                    audioSystem.playSound('crunchy_pop', 0.8);
+                } else {
+                    // Play tiny plink for single bubble
+                    audioSystem.playSound('plink', 0.6);
+                }
+            }
             
             for (let i = 0; i < particleCount; i++) {
                 const particle = new Particle(
@@ -3243,6 +3838,9 @@
             comboDisplay.classList.add('active');
             comboValue.textContent = gameState.combo + 1;
             
+            // Emit combo event for visual text display
+            gameManager.eventBus.emit('comboAchieved', { comboSize: gameState.combo + 1 });
+            
             clearTimeout(gameState.comboTimer);
             gameState.comboTimer = setTimeout(() => {
                 comboDisplay.classList.remove('active');
@@ -3401,7 +3999,9 @@
                     checkBubbleCollisions();
                 }
                 
-                // Update all bubbles
+                // Update all bubbles and count remaining
+                let totalBubbles = 0;
+                let bubblesRemaining = 0;
                 for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
                     const isOddRow = y % 2 === 1;
                     const bubblesInRow = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
@@ -3409,8 +4009,35 @@
                     for (let x = 0; x < bubblesInRow; x++) {
                         if (gameState.bubbleGrid[y][x]) {
                             gameState.bubbleGrid[y][x].update(deltaTime);
+                            totalBubbles++;
+                            // Count non-power-up bubbles for clear detection
+                            if (!gameState.bubbleGrid[y][x].isPowerUp) {
+                                bubblesRemaining++;
+                            }
                         }
                     }
+                }
+                
+                // Update ambient audio based on game state
+                if (audioSystem.isInitialized && !gameState.isGameOver) {
+                    // Calculate how close we are to clearing the board
+                    const clearPercentage = 1 - (bubblesRemaining / 50); // Assume ~50 bubbles is "full"
+                    
+                    // Swell ambient audio when close to clearing (less than 10 bubbles or 80% clear)
+                    if (bubblesRemaining < 10 || clearPercentage > 0.8) {
+                        // Increase volume based on how close to clearing
+                        const swellFactor = bubblesRemaining < 10 ?
+                            1 - (bubblesRemaining / 10) :
+                            (clearPercentage - 0.8) * 5; // Scale 0.8-1.0 to 0-1
+                        
+                        const targetVolume = 0.3 + (0.5 * swellFactor); // 0.3 to 0.8
+                        audioSystem.updateAmbientVolume(targetVolume);
+                    } else {
+                        // Return to normal volume
+                        audioSystem.updateAmbientVolume(0.3);
+                    }
+                    
+                    audioSystem.update();
                 }
                 
                 // Update particles
