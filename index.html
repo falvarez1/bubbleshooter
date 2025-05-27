@@ -2702,8 +2702,9 @@
         
         // Power-Up System Manager
         class PowerUpSystem {
-            constructor(eventBus) {
+            constructor(eventBus, soundManager) {
                 this.eventBus = eventBus;
+                this.soundManager = soundManager;
                 this.powerUps = new Map();
                 this.activePowerUps = [];
                 
@@ -2748,6 +2749,7 @@
                 if (this.shouldSpawnPowerUp()) {
                     const powerUp = this.getRandomPowerUp();
                     powerUp.createVisualEffect(bubble);
+                    this.soundManager.play('powerUpSpawn');
                     console.log(`Created ${powerUp.type} power-up`);
                     return powerUp;
                 }
@@ -2777,8 +2779,9 @@
         class GameManager {
             constructor() {
                 this.eventBus = new EventBus();
-                this.powerUpSystem = new PowerUpSystem(this.eventBus);
                 this.soundManager = new SoundManager(); // Initialize SoundManager
+                this.soundManager.init(); // Initialize sounds
+                this.powerUpSystem = new PowerUpSystem(this.eventBus, this.soundManager);
                 this.screenShake = { intensity: 0, duration: 0 };
                 
                 // Set up event listeners
@@ -2790,12 +2793,14 @@
                 this.eventBus.on('rainbowActivated', (data) => {
                     console.log('Rainbow power-up activated at', data.position);
                     visualTextDisplay.showPowerUpText('rainbow', data.position);
+                    this.soundManager.play('rainbowActivate');
                 });
                 
                 // Bomb explosion handler
                 this.eventBus.on('bombExploded', (data) => {
                     console.log('Bomb exploded at', data.position, 'with radius', data.radius);
                     visualTextDisplay.showPowerUpText('bomb', data.position);
+                    this.soundManager.play('bombExplode');
                 });
                 
                 // Score update handler
@@ -2806,6 +2811,16 @@
                 // Combo handler
                 this.eventBus.on('comboAchieved', (data) => {
                     console.log('Combo achieved:', data.comboSize);
+                    if (data.comboSize === 2) {
+                        this.soundManager.play('combo2x');
+                        visualTextDisplay.showEffectText('combo', data.comboSize);
+                    } else if (data.comboSize === 3) {
+                        this.soundManager.play('combo3x');
+                        visualTextDisplay.showEffectText('combo', data.comboSize);
+                    } else if (data.comboSize >= 4) {
+                        this.soundManager.play('combo4x');
+                        visualTextDisplay.showEffectText('combo', data.comboSize);
+                    }
                     if (data.comboSize >= 3) {
                         visualTextDisplay.showEffectText('combo', data.comboSize);
                     }
@@ -2823,6 +2838,7 @@
                 this.eventBus.on('precisionAimActivated', (data) => {
                     console.log('Precision aim activated for', data.duration, 'seconds');
                     visualTextDisplay.showPowerUpText('precision');
+                    this.soundManager.play('precisionActivate');
                     this.activatePrecisionAim(data.duration);
                 });
                 
@@ -2830,6 +2846,7 @@
                 this.eventBus.on('colorSplashActivated', (data) => {
                     console.log('Color Splash power-up activated at', data.position);
                     visualTextDisplay.showPowerUpText('colorSplash', data.position);
+                    this.soundManager.play('colorSplash');
                 });
             }
             
@@ -3055,6 +3072,7 @@
                     if (Math.abs(this.position.x) > wallLimit - this.radius) {
                         this.position.x = Math.sign(this.position.x) * (wallLimit - this.radius);
                         this.velocity.x *= -CONFIG.WALL_BOUNCE_DAMPING;
+                        gameManager.soundManager.play('bubbleBounce');
                         this.createWallImpactParticles();
                         
                         // Add wall flash effect
@@ -3732,6 +3750,7 @@
             // Create shooting trail
             createShootingTrail(gameState.currentBubble);
             
+            gameManager.soundManager.play('bubbleShoot');
             // Play shooting sound effect (visual feedback instead)
             createShootingEffect(gameState.currentBubble.position.clone());
         }
@@ -4037,6 +4056,7 @@
         
         // Create attachment effect
         function createAttachmentEffect(bubble) {
+            gameManager.soundManager.play('bubbleAttach');
             // Trigger connection bounce animation
             bubble.connectionAnimating = 1.0;
             
@@ -4260,14 +4280,8 @@
                 // Show victory text
                 visualTextDisplay.showEffectText('victory');
                 
-                // Play victory sound (multiple plinks in sequence)
-                if (audioSystem.isInitialized) {
-                    for (let i = 0; i < 5; i++) {
-                        setTimeout(() => {
-                            audioSystem.playSound('plink', 0.8);
-                        }, i * 100);
-                    }
-                }
+                // Play victory sound
+                gameManager.soundManager.play('levelComplete');
                 
                 // Create celebration effect
                 for (let i = 0; i < 50; i++) {
@@ -4475,14 +4489,10 @@
             const speedMultiplier = enhanced ? 1.5 : 1;
             
             // Play appropriate sound effect
-            if (audioSystem.isInitialized) {
-                if (enhanced) {
-                    // Play crunchy sound for enhanced explosions (bombs, multiple bubbles)
-                    audioSystem.playSound('crunchy_pop', 0.8);
-                } else {
-                    // Play tiny plink for single bubble
-                    audioSystem.playSound('plink', 0.6);
-                }
+            if (enhanced) {
+                gameManager.soundManager.play('bubblePopMultiple');
+            } else {
+                gameManager.soundManager.play('bubblePopSingle');
             }
             
             for (let i = 0; i < particleCount; i++) {
@@ -4702,6 +4712,7 @@
             document.getElementById('finalLevel').textContent = gameState.level;
             document.getElementById('bestCombo').textContent = gameState.bestCombo + 1;
             document.getElementById('gameOver').style.display = 'block';
+            gameManager.soundManager.play('gameOver');
         }
         
         // Mouse/Touch controls
@@ -4793,6 +4804,7 @@
         
         // Animation loop
         let lastTime = 0;
+        let precisionTickTimer = 0; // Timer for precision tick sound
         function animate(currentTime) {
             requestAnimationFrame(animate);
             
@@ -4800,6 +4812,36 @@
             lastTime = currentTime;
             
             if (!gameState.isGameOver && !gameState.isPaused) {
+                // Precision Aim Tick
+                if (gameState.precisionAimActive) {
+                    gameState.precisionAimTime -= deltaTime;
+                    precisionTickTimer += deltaTime;
+
+                    if (precisionTickTimer >= 1.0) {
+                        gameManager.soundManager.play('precisionTick');
+                        precisionTickTimer = 0;
+                    }
+
+                    if (gameState.precisionAimTime <= 0) {
+                        gameState.precisionAimActive = false;
+                        gameState.precisionAimTime = 0;
+                        const indicator = document.getElementById('precisionIndicator');
+                        indicator.style.display = 'none';
+                        // Potentially play a "precision end" sound if one exists
+                    }
+                    // Update the visual timer display for precision aim
+                    const timeDisplay = document.getElementById('precisionTime');
+                    if (timeDisplay) {
+                        timeDisplay.textContent = Math.max(0, gameState.precisionAimTime).toFixed(1);
+                    }
+                    const timerCircle = document.getElementById('precisionTimerCircle');
+                    if (timerCircle) {
+                         const initialDuration = gameManager.powerUpSystem.powerUps.get('precisionAim').duration || 5; // Fallback duration
+                         const progress = Math.max(0, gameState.precisionAimTime / initialDuration);
+                         timerCircle.style.strokeDashoffset = `${283 * (1 - progress)}`; // 283 is circumference
+                    }
+                }
+                
                 // Update current bubble
                 if (gameState.currentBubble) {
                     gameState.currentBubble.update(deltaTime);
@@ -4916,6 +4958,7 @@
         createGameBoard();
         createInitialBubbles();
         createShootingBubble();
+        gameManager.soundManager.play('gameStart');
         animate(0);
         
         // Make restart function globally accessible
