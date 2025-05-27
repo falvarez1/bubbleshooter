@@ -1375,7 +1375,35 @@
             ],
             PARTICLE_COUNT: 30,
             COMBO_TIMEOUT: 2000,
-            DANGER_LINE: -5
+            DANGER_LINE: -5,
+            
+            // Impact Physics Configuration
+            IMPACT_PHYSICS: {
+                // Spring physics
+                SPRING_CONSTANT: 0.5,        // How tight the spring is (0.1-1.0)
+                DAMPING: 0.45,               // How quickly motion settles (0.8-0.95)
+                POSITION_MULTIPLIER: 15,     // Speed of position updates
+                
+                // Visual effects
+                SCALE_RESPONSE: 0.15,        // How much bubbles scale on impact (0.1-0.5)
+                CONNECTION_ANIMATION: 1.2,   // Base animation intensity (0.5-2.0)
+                
+                // Force calculations
+                ATTACHMENT_FORCE: 0.06,      // Force multiplier for attachment impacts
+                DIRECT_HIT_FORCE: 0.08,      // Force multiplier for direct hits
+                NEIGHBOR_FORCE: 1.2,         // Multiplier for neighbor impacts
+                PROPAGATION_MULTIPLIER: 0.6, // Force reduction for propagation
+                
+                // Propagation settings
+                MAX_DEPTH: 2,                // Maximum propagation depth (1-4)
+                MIN_FORCE: 0.02,             // Minimum force to continue propagation
+                PROPAGATION_DELAY: 20,       // Delay between propagation levels (ms)
+                ANGLE_FACTOR: 0.3,           // Minimum angle factor (0-1)
+                FALLOFF_RATE: 0.6,           // Force reduction per level (0.4-0.8)
+                
+                // Special effects
+                NEW_ROW_DROP_FORCE: 2.0      // Drop force for new row bubbles
+            }
         };
         
         // Particle Effects Configuration
@@ -3200,8 +3228,8 @@
                 
                 // Impact physics properties
                 this.impactVelocity = new THREE.Vector3(0, 0, 0);
-                this.impactDamping = 0.45; // Balanced damping
-                this.springConstant = 0.5; // Moderately tight spring
+                this.impactDamping = CONFIG.IMPACT_PHYSICS.DAMPING;
+                this.springConstant = CONFIG.IMPACT_PHYSICS.SPRING_CONSTANT;
                 this.basePosition = new THREE.Vector3(x, y, 0);
                 
                 // Add subtle floating animation
@@ -3278,11 +3306,11 @@
                     this.impactVelocity.multiplyScalar(this.impactDamping);
                     
                     // Update position based on impact velocity
-                    this.position.add(this.impactVelocity.clone().multiplyScalar(deltaTime * 15));
+                    this.position.add(this.impactVelocity.clone().multiplyScalar(deltaTime * CONFIG.IMPACT_PHYSICS.POSITION_MULTIPLIER));
                     this.mesh.position.copy(this.position);
                     
                     // Add subtle scale pulse
-                    const impactScale = 1.0 + this.impactVelocity.length() * 0.15;
+                    const impactScale = 1.0 + this.impactVelocity.length() * CONFIG.IMPACT_PHYSICS.SCALE_RESPONSE;
                     this.mesh.scale.setScalar(impactScale);
                     
                     // Reset if velocity is very small
@@ -4265,14 +4293,14 @@
                         const impactDirection = new THREE.Vector3()
                             .subVectors(bubble.position, current.position)
                             .normalize();
-                        const impactForce = current.velocity.length() * 0.08; // Subtle direct hit
+                        const impactForce = current.velocity.length() * CONFIG.IMPACT_PHYSICS.DIRECT_HIT_FORCE;
                         
                         // Apply direct hit impact
                         bubble.impactVelocity.add(impactDirection.clone().multiplyScalar(impactForce));
-                        bubble.connectionAnimating = 1.2;
+                        bubble.connectionAnimating = CONFIG.IMPACT_PHYSICS.CONNECTION_ANIMATION;
                         
                         // Immediate propagation to all neighbors
-                        propagateImpact(bubble, impactDirection, impactForce * 0.6, 0);
+                        propagateImpact(bubble, impactDirection, impactForce * CONFIG.IMPACT_PHYSICS.PROPAGATION_MULTIPLIER, 0);
                         
                         attachBubble(current);
                         return;
@@ -4396,12 +4424,12 @@
             gameManager.soundManager.play('bubbleAttach');
             
             // Calculate impact force based on bubble velocity
-            const impactForce = bubble.velocity.length() * 0.06; // Subtle initial force
+            const impactForce = bubble.velocity.length() * CONFIG.IMPACT_PHYSICS.ATTACHMENT_FORCE;
             const impactDirection = bubble.velocity.normalize();
             
             // Apply instant impact to the attached bubble
             bubble.impactVelocity.add(impactDirection.clone().multiplyScalar(impactForce));
-            bubble.connectionAnimating = 1.2;
+            bubble.connectionAnimating = CONFIG.IMPACT_PHYSICS.CONNECTION_ANIMATION;
             
             // Create ripple effect through ALL neighboring bubbles immediately
             propagateImpact(bubble, impactDirection, impactForce, 0);
@@ -4426,7 +4454,7 @@
         
         // Propagate impact through bubble grid
         function propagateImpact(centerBubble, impactDirection, force, depth) {
-            if (depth > 2 || force < 0.02) return; // Limit propagation depth but keep force threshold higher
+            if (depth > CONFIG.IMPACT_PHYSICS.MAX_DEPTH || force < CONFIG.IMPACT_PHYSICS.MIN_FORCE) return;
             
             // Get all neighbors
             const neighbors = getNeighbors(centerBubble.gridX, centerBubble.gridY);
@@ -4442,8 +4470,8 @@
                         .normalize();
                     
                     // Less angle dependency for wider impact
-                    const dotProduct = Math.max(0.3, impactDirection.dot(toNeighbor));
-                    const falloff = Math.pow(0.6, depth); // 40% force reduction per level
+                    const dotProduct = Math.max(CONFIG.IMPACT_PHYSICS.ANGLE_FACTOR, impactDirection.dot(toNeighbor));
+                    const falloff = Math.pow(CONFIG.IMPACT_PHYSICS.FALLOFF_RATE, depth);
                     const neighborForce = force * (0.7 + dotProduct * 0.3) * falloff;
                     
                     // Store for batch processing
@@ -4455,17 +4483,17 @@
             setTimeout(() => {
                 impactedNeighbors.forEach(({ bubble, direction, force }) => {
                     // Add impact velocity to neighbor
-                    bubble.impactVelocity.add(direction.multiplyScalar(force * 1.2));
-                    bubble.connectionAnimating = Math.max(bubble.connectionAnimating, 1.0 - depth * 0.2);
+                    bubble.impactVelocity.add(direction.multiplyScalar(force * CONFIG.IMPACT_PHYSICS.NEIGHBOR_FORCE));
+                    bubble.connectionAnimating = Math.max(bubble.connectionAnimating, CONFIG.IMPACT_PHYSICS.CONNECTION_ANIMATION - depth * 0.2);
                 });
                 
                 // Continue propagation to next level
-                if (depth < 2) {
+                if (depth < CONFIG.IMPACT_PHYSICS.MAX_DEPTH) {
                     impactedNeighbors.forEach(({ bubble, direction, force }) => {
                         propagateImpact(bubble, direction, force, depth + 1);
                     });
                 }
-            }, depth * 20); // Much faster propagation - 20ms per level
+            }, depth * CONFIG.IMPACT_PHYSICS.PROPAGATION_DELAY);
         }
         
         // Check for matches
@@ -5086,7 +5114,7 @@
                     // Set base position for physics
                     bubble.basePosition.set(xPos, yPos, 0);
                     // Add a drop-in effect for new row bubbles
-                    bubble.impactVelocity.set(0, -2, 0);
+                    bubble.impactVelocity.set(0, -CONFIG.IMPACT_PHYSICS.NEW_ROW_DROP_FORCE, 0);
                 } else {
                     gameState.bubbleGrid[0][x] = null;
                 }
