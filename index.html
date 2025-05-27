@@ -1375,7 +1375,12 @@
             ],
             PARTICLE_COUNT: 30,
             COMBO_TIMEOUT: 2000,
-            DANGER_LINE: -5,
+            DANGER_LINE: -7,  // Moved from -5 to -7 (lower on screen)
+            
+            // Position Configuration
+            SHOOTER_Y: -8,    // Y position of shooting bubble (was -6)
+            GRID_TOP_Y: 6,    // Top position of bubble grid
+            CEILING_Y: 7,     // Ceiling position for collision
             
             // Impact Physics Configuration
             IMPACT_PHYSICS: {
@@ -3267,8 +3272,8 @@
                     }
                     
                     // Check ceiling
-                    if (this.position.y > 7 - this.radius) {
-                        this.position.y = 7 - this.radius;
+                    if (this.position.y > CONFIG.CEILING_Y - this.radius) {
+                        this.position.y = CONFIG.CEILING_Y - this.radius;
                         this.velocity.y = 0;
                         this.isMoving = false;
                     }
@@ -3861,7 +3866,7 @@
             // Create ceiling
             const ceilingGeometry = new THREE.PlaneGeometry(12, 0.5);
             const ceiling = new THREE.Mesh(ceilingGeometry, wallMaterial);
-            ceiling.position.set(0, 7.5, -1);
+            ceiling.position.set(0, CONFIG.CEILING_Y + 0.5, -1);
             scene.add(ceiling);
             
             // Create danger line as energy field
@@ -3972,7 +3977,7 @@
                     if (Math.random() > 0.3) { // 70% chance to place a bubble
                         const color = CONFIG.BUBBLE_COLORS[Math.floor(Math.random() * CONFIG.BUBBLE_COLORS.length)];
                         const xPos = (x - CONFIG.GRID_WIDTH / 2 + 0.5) * CONFIG.HEX_WIDTH + (isOddRow ? CONFIG.HEX_WIDTH / 2 : 0);
-                        const yPos = 6 - y * CONFIG.HEX_HEIGHT;
+                        const yPos = CONFIG.GRID_TOP_Y - y * CONFIG.HEX_HEIGHT;
                         
                         const bubble = new Bubble(xPos, yPos, color);
                         scene.add(bubble.mesh);
@@ -4012,7 +4017,7 @@
                 // console.log(`[Debug] Using random/next color: ${color.toString(16)}`);
             }
             
-            const bubble = new Bubble(0, -6, color);
+            const bubble = new Bubble(0, CONFIG.SHOOTER_Y, color);
             bubble.isMoving = false;
             scene.add(bubble.mesh);
             gameState.currentBubble = bubble;
@@ -4184,7 +4189,7 @@
                 gameState.trajectory.push(pos.clone());
                 
                 // Stop at ceiling or when hitting bubbles
-                if (pos.y > 6.5) break;
+                if (pos.y > CONFIG.CEILING_Y - 0.5) break;
                 
                 // Check collision with existing bubbles
                 let hitBubble = false;
@@ -4309,7 +4314,7 @@
             }
             
             // Check if bubble reached the ceiling
-            if (current.position.y > 6.5 - CONFIG.BUBBLE_RADIUS) {
+            if (current.position.y > CONFIG.CEILING_Y - 0.5 - CONFIG.BUBBLE_RADIUS) {
                 attachBubble(current);
             }
         }
@@ -4341,7 +4346,7 @@
                     
                     // Calculate world position for this grid cell
                     const xPos = (x - CONFIG.GRID_WIDTH / 2 + 0.5) * CONFIG.HEX_WIDTH + (isOddRow ? CONFIG.HEX_WIDTH / 2 : 0);
-                    const yPos = 6 - y * CONFIG.HEX_HEIGHT;
+                    const yPos = CONFIG.GRID_TOP_Y - y * CONFIG.HEX_HEIGHT;
                     
                     const distance = Math.sqrt(
                         Math.pow(bubble.position.x - xPos, 2) + 
@@ -4390,7 +4395,7 @@
                 // Snap to position
                 const isOddRow = finalY % 2 === 1;
                 bubble.position.x = (finalX - CONFIG.GRID_WIDTH / 2 + 0.5) * CONFIG.HEX_WIDTH + (isOddRow ? CONFIG.HEX_WIDTH / 2 : 0);
-                bubble.position.y = 6 - finalY * CONFIG.HEX_HEIGHT;
+                bubble.position.y = CONFIG.GRID_TOP_Y - finalY * CONFIG.HEX_HEIGHT;
                 bubble.gridX = finalX;
                 bubble.gridY = finalY;
                 bubble.mesh.position.copy(bubble.position);
@@ -5088,7 +5093,7 @@
                         gameState.bubbleGrid[y][x].gridY = y;
                         const isOddRow = y % 2 === 1;
                         gameState.bubbleGrid[y][x].position.x = (x - CONFIG.GRID_WIDTH / 2 + 0.5) * CONFIG.HEX_WIDTH + (isOddRow ? CONFIG.HEX_WIDTH / 2 : 0);
-                        gameState.bubbleGrid[y][x].position.y = 6 - y * CONFIG.HEX_HEIGHT;
+                        gameState.bubbleGrid[y][x].position.y = CONFIG.GRID_TOP_Y - y * CONFIG.HEX_HEIGHT;
                         gameState.bubbleGrid[y][x].mesh.position.copy(gameState.bubbleGrid[y][x].position);
                         // Update base position for physics
                         gameState.bubbleGrid[y][x].basePosition.copy(gameState.bubbleGrid[y][x].position);
@@ -5104,7 +5109,7 @@
                 if (Math.random() > 0.2) { // 80% chance for bubble
                     const color = CONFIG.BUBBLE_COLORS[Math.floor(Math.random() * CONFIG.BUBBLE_COLORS.length)];
                     const xPos = (x - CONFIG.GRID_WIDTH / 2 + 0.5) * CONFIG.HEX_WIDTH;
-                    const yPos = 6;
+                    const yPos = CONFIG.GRID_TOP_Y;
                     
                     const bubble = new Bubble(xPos, yPos, color);
                     bubble.gridX = x;
