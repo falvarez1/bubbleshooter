@@ -88,7 +88,7 @@ A modern, feature-rich bubble shooter game built with Three.js, featuring advanc
 ### Running the Game
 
 #### Option 1: Direct File Opening
-Simply open `premium-bubble-shooterV3.html` in your web browser.
+Simply open `index.html` in your web browser.
 
 #### Option 2: Local Web Server (Recommended)
 ```bash
@@ -102,7 +102,7 @@ python -m SimpleHTTPServer 8000
 npx http-server -p 8000
 ```
 
-Then navigate to `http://localhost:8000/premium-bubble-shooterV3.html`
+Then navigate to `http://localhost:8000/`
 
 ## 🏗️ Technical Architecture
 

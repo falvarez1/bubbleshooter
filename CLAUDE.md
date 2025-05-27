@@ -4,16 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Premium 3D Bubble Shooter game built as a single HTML file with embedded JavaScript using Three.js for 3D graphics. The game is self-contained in `premium-bubble-shooterV3.html`.
+This is a Premium 3D Bubble Shooter game built as a single HTML file with embedded JavaScript using Three.js for 3D graphics. The game is self-contained in `index.html`.
 
 ## Commands
 
 ### Running the Game
 ```bash
 # Open the HTML file in a web browser
-open premium-bubble-shooterV3.html  # macOS
-xdg-open premium-bubble-shooterV3.html  # Linux
-start premium-bubble-shooterV3.html  # Windows
+open index.html  # macOS
+xdg-open index.html  # Linux
+start index.html  # Windows
 ```
 
 ### Development Server
