@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bubble Color Palette Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .palette-section {
+            margin-bottom: 40px;
+        }
+        
+        h2 {
+            margin-bottom: 20px;
+            color: #00ffff;
+        }
+        
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .color-bubble {
+            aspect-ratio: 1;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .color-bubble::before {
+            content: '';
+            position: absolute;
+            top: 10%;
+            left: 20%;
+            width: 30%;
+            height: 30%;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            filter: blur(10px);
+        }
+        
+        .color-label {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #ccc;
+        }
+        
+        .comparison {
+            display: flex;
+            gap: 40px;
+            justify-content: space-around;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bubble Shooter Color Palette Comparison</h1>
+        
+        <div class="comparison">
+            <div class="palette-section">
+                <h2>Old Palette (Similar Colors)</h2>
+                <div class="color-grid">
+                    <div>
+                        <div class="color-bubble" style="background-color: #ff0066;">1</div>
+                        <div class="color-label">Pink<br>#FF0066</div>
+                    </div>
+                    <div>
+                        <div class="color-bubble" style="background-color: #00ff66;">2</div>
+                        <div class="color-label">Green<br>#00FF66</div>
+                    </div>
+                    <div>
+                        <div class="color-bubble" style="background-color: #66ff00;">3</div>
+                        <div class="color-label">Lime<br>#66FF00</div>
+                    </div>
+                    <div>
+                        <div class="color-bubble" style="background-color: #00ffff;">4</div>
+                        <div class="color-label">Cyan<br>#00FFFF</div>
+                    </div>
+                    <div>
+                        <div class="color-bubble" style="background-color: #ff6600;">5</div>
+                        <div class="color-label">Orange<br>#FF6600</div>
+                    </div>
+                    <div>
+                        <div class="color-bubble" style="background-color: #6600ff;">6</div>
+                        <div class="color-label">Purple<br>#6600FF</div>
+                    </div>
+                    <div>
+                        <div class="color-bubble" style="background-color: #ffff00;">7</div>
+                        <div class="color-label">Yellow<br>#FFFF00</div>
+                    </div>
+                    <div>
+                        <div class="color-bubble" style="background-color: #ff00ff;">8</div>
+                        <div class="color-label">Magenta<br>#FF00FF</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="palette-section">
+                <h2>New Palette (High Contrast)</h2>
+                <div class="color-grid">
+                    <div>
+                        <div class="color-bubble" style="background-color: #FF0000;">1</div>
+                        <div class="color-label">Pure Red<br>#FF0000</div>
+                    </div>
+                    <div>
+                        <div class="color-bubble" style="background-color: #0080FF;">2</div>
+                        <div class="color-label">Sky Blue<br>#0080FF</div>
+                    </div>
+                    <div>
+                        <div class="color-bubble" style="background-color: #FFD700;">3</div>
+                        <div class="color-label">Gold<br>#FFD700</div>
+                    </div>
+                    <div>
+                        <div class="color-bubble" style="background-color: #00FF00;">4</div>
+                        <div class="color-label">Bright Green<br>#00FF00</div>
+                    </div>
+                    <div>
+                        <div class="color-bubble" style="background-color: #FF1493;">5</div>
+                        <div class="color-label">Deep Pink<br>#FF1493</div>
+                    </div>
+                    <div>
+                        <div class="color-bubble" style="background-color: #9400D3;">6</div>
+                        <div class="color-label">Dark Violet<br>#9400D3</div>
+                    </div>
+                    <div>
+                        <div class="color-bubble" style="background-color: #FF8C00;">7</div>
+                        <div class="color-label">Dark Orange<br>#FF8C00</div>
+                    </div>
+                    <div>
+                        <div class="color-bubble" style="background-color: #00CED1;">8</div>
+                        <div class="color-label">Dark Turquoise<br>#00CED1</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div style="margin-top: 40px; padding: 20px; background: rgba(255,255,255,0.1); border-radius: 10px;">
+            <h3>Improvements in the New Palette:</h3>
+            <ul>
+                <li><strong>Red vs Pink:</strong> Pure red (#FF0000) is clearly distinct from deep pink (#FF1493)</li>
+                <li><strong>Blue variations:</strong> Sky blue (#0080FF) and dark turquoise (#00CED1) are easily distinguishable</li>
+                <li><strong>Yellow/Orange:</strong> Gold (#FFD700) and dark orange (#FF8C00) have clear contrast</li>
+                <li><strong>Green:</strong> Single bright green (#00FF00) instead of confusing green/lime variations</li>
+                <li><strong>Purple:</strong> Dark violet (#9400D3) provides strong contrast against other colors</li>
+                <li><strong>Overall:</strong> Each color has unique hue, saturation, and brightness values for maximum distinction</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
