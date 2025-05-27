@@ -2317,16 +2317,23 @@
                     duration: this.duration 
                 });
                 
+                const currentGridX = powerUpBubble.gridX;
+                const currentGridY = powerUpBubble.gridY;
                 setTimeout(() => {
-                    // Use the gridX/gridY from the powerUpBubble that was passed in
-                    const bubbleOnGrid = gameState.bubbleGrid[powerUpBubble.gridY][powerUpBubble.gridX];
+                    // Use the captured gridX/gridY
+                    // Ensure currentGridY and currentGridX are valid before accessing the grid
+                    if (typeof currentGridY === 'undefined' || typeof currentGridX === 'undefined' || !gameState.bubbleGrid || !gameState.bubbleGrid[currentGridY]) {
+                        console.warn("PrecisionAim: Invalid grid coordinates or grid row after delay.", { currentGridY, currentGridX }, "powerUpBubble:", powerUpBubble);
+                        return; // Exit if coordinates are bad or grid/row is undefined
+                    }
+                    const bubbleOnGrid = gameState.bubbleGrid[currentGridY][currentGridX];
                     
                     // Ensure we're removing the correct bubble that's actually on the grid
                     // and that it is indeed the power-up bubble we intended to remove.
                     if (bubbleOnGrid && bubbleOnGrid === powerUpBubble) {
                         removeBubble(bubbleOnGrid);
                         createExplosionEffect(bubbleOnGrid);
-                    } else if (powerUpBubble && gameState.bubbleGrid[powerUpBubble.gridY] && gameState.bubbleGrid[powerUpBubble.gridY][powerUpBubble.gridX] === null) {
+                    } else if (powerUpBubble && gameState.bubbleGrid[currentGridY] && gameState.bubbleGrid[currentGridY][currentGridX] === null) {
                         // It might have been removed by another effect (e.g. cascading match)
                         console.log("PrecisionAim power-up bubble was already removed from grid.");
                     } else {
@@ -3119,6 +3126,7 @@
             }
             
             destroy() {
+                console.log('[DEBUG] Bubble.destroy called for bubble at gridX:', this.gridX, 'gridY:', this.gridY, 'color:', this.color);
                 scene.remove(this.mesh);
                 this.material.dispose();
                 this.mesh.geometry.dispose();
@@ -3842,6 +3850,7 @@
             // Remove old trajectory
             const oldTrajectory = scene.getObjectByName('trajectoryGroup');
             if (oldTrajectory) {
+                console.log('[DEBUG] renderTrajectory: Removing oldTrajectoryGroup. Children count:', oldTrajectory.children.length);
                 oldTrajectory.children.forEach(child => {
                     if (child.geometry) child.geometry.dispose();
                     if (child.material) child.material.dispose();
@@ -4440,12 +4449,14 @@
                 progress: 0,
                 update: function(deltaTime) {
                     this.progress += deltaTime * 3;
+                    // console.log('[DEBUG] removeAnimation update. Bubble at:', bubble.gridX, bubble.gridY, 'Progress:', this.progress);
                     bubble.mesh.scale.setScalar(1 - this.progress);
                     bubble.mesh.rotation.x += 0.3;
                     bubble.mesh.rotation.y += 0.2;
                     bubble.material.opacity = 1 - this.progress;
                     
                     if (this.progress >= 1) {
+                        console.log('[DEBUG] removeAnimation COMPLETED for bubble at:', bubble.gridX, bubble.gridY);
                         bubble.destroy();
                         return false;
                     }
@@ -4561,6 +4572,7 @@
             gameState.currentBubble = null;
             gameState.shootingPower = 0;
             gameState.isCharging = false;
+            console.log('[DEBUG] restartGame: gameState.animations before clear:', JSON.stringify(gameState.animations.map(a => ({ type: a.bubble?.powerUpType, gridX: a.bubble?.gridX, gridY: a.bubble?.gridY }))));
             gameState.animations = [];
             
             // Update UI
