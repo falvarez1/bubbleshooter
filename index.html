@@ -2412,12 +2412,13 @@
                 // Randomly select a center bubble
                 const centerBubble = allBubbles[Math.floor(Math.random() * allBubbles.length)];
                 
-                // Find cluster of bubbles around the center
+                // Find cluster of bubbles around the center - OPTIMIZED
                 const cluster = [centerBubble];
                 const maxDistance = this.clusterSize * CONFIG.HEX_WIDTH;
+                const maxClusterSize = 15; // Limit cluster size for performance
                 
-                for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
-                    for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
+                for (let y = 0; y < CONFIG.GRID_HEIGHT && cluster.length < maxClusterSize; y++) {
+                    for (let x = 0; x < CONFIG.GRID_WIDTH && cluster.length < maxClusterSize; x++) {
                         const bubble = gameState.bubbleGrid[y][x];
                         if (bubble && bubble !== centerBubble && !bubble.isPowerUp) {
                             const distance = centerBubble.position.distanceTo(bubble.position);
@@ -2441,15 +2442,23 @@
                 // Create visual effect before color change
                 this.createSplashEffect(centerBubble, cluster, selectedColor, gameManager);
                 
-                // Change colors of all bubbles in cluster after delay
+                // Change colors of all bubbles in cluster after delay - OPTIMIZED
                 setTimeout(() => {
-                    cluster.forEach((bubble, index) => {
+                    // Process bubbles in smaller batches
+                    const batchSize = 5;
+                    for (let i = 0; i < cluster.length; i += batchSize) {
+                        const batch = cluster.slice(i, i + batchSize);
                         setTimeout(() => {
-                            this.transformBubbleColor(bubble, selectedColor);
-                        }, index * 50);
-                    });
+                            batch.forEach((bubble, batchIndex) => {
+                                setTimeout(() => {
+                                    this.transformBubbleColor(bubble, selectedColor);
+                                }, batchIndex * 80); // Increased delay within batch
+                            });
+                        }, i * 100); // Delay between batches
+                    }
                     
                     // Check for matches after all transformations
+                    const totalTransformTime = Math.ceil(cluster.length / batchSize) * 100 + batchSize * 80;
                     setTimeout(() => {
                         cluster.forEach(bubble => {
                             const matches = findConnectedBubbles(bubble);
@@ -2461,7 +2470,7 @@
                         setTimeout(() => {
                             removeFloatingBubbles();
                         }, 500);
-                    }, cluster.length * 50 + 200);
+                    }, totalTransformTime + 200);
                 }, 800);
                 
                 // Remove the power-up bubble itself
@@ -2494,25 +2503,29 @@
                 ring.position.z = 1;
                 scene.add(ring);
                 
-                // Animate expanding ring
-                let scale = 1;
-                let opacity = 1;
-                const expandInterval = setInterval(() => {
-                    scale += 0.5;
-                    opacity -= 0.02;
-                    ring.scale.set(scale, scale, 1);
-                    ringMaterial.opacity = opacity;
-                    
-                    if (opacity <= 0) {
-                        scene.remove(ring);
-                        ringGeometry.dispose();
-                        ringMaterial.dispose();
-                        clearInterval(expandInterval);
+                // Animate expanding ring - OPTIMIZED
+                const ringAnimation = {
+                    scale: 1,
+                    opacity: 1,
+                    update: function(deltaTime) {
+                        this.scale += 30 * deltaTime; // 30 units per second
+                        this.opacity -= 1.2 * deltaTime; // Fade in ~0.8 seconds
+                        ring.scale.set(this.scale, this.scale, 1);
+                        ringMaterial.opacity = Math.max(0, this.opacity);
+                        
+                        if (this.opacity <= 0) {
+                            scene.remove(ring);
+                            ringGeometry.dispose();
+                            ringMaterial.dispose();
+                            return false; // Remove from animations
+                        }
+                        return true; // Keep animating
                     }
-                }, 16);
+                };
+                gameState.animations.push(ringAnimation);
                 
-                // Create color wave particles
-                const particleCount = 50;
+                // Create color wave particles - OPTIMIZED
+                const particleCount = 20; // Reduced from 50
                 for (let i = 0; i < particleCount; i++) {
                     const angle = (Math.PI * 2 * i) / particleCount;
                     const particle = new Particle(
@@ -2523,14 +2536,16 @@
                         0.2
                     );
                     
-                    const speed = 8 + Math.random() * 4;
-                    particle.velocity = new THREE.Vector3(
-                        Math.cos(angle) * speed,
-                        Math.sin(angle) * speed,
-                        Math.random() * 2
-                    );
-                    particle.decay = 0.02;
-                    gameState.particles.push(particle);
+                    if (particle._pooledParticle) {
+                        const speed = 8 + Math.random() * 4;
+                        particle.velocity.set(
+                            Math.cos(angle) * speed,
+                            Math.sin(angle) * speed,
+                            Math.random() * 2
+                        );
+                        particle._pooledParticle.decay = 0.025; // Slightly faster decay
+                        gameState.particles.push(particle);
+                    }
                 }
                 
                 // Add screen flash effect
@@ -2539,31 +2554,40 @@
                 flashLight.position.z = 5;
                 scene.add(flashLight);
                 
-                // Fade flash
-                let flashIntensity = 8;
-                const flashInterval = setInterval(() => {
-                    flashIntensity -= 0.3;
-                    flashLight.intensity = flashIntensity;
-                    if (flashIntensity <= 0) {
-                        scene.remove(flashLight);
-                        clearInterval(flashInterval);
+                // Fade flash - OPTIMIZED
+                const flashAnimation = {
+                    intensity: 8,
+                    update: function(deltaTime) {
+                        this.intensity -= 6 * deltaTime; // Fade in ~1.3 seconds
+                        flashLight.intensity = Math.max(0, this.intensity);
+                        
+                        if (this.intensity <= 0) {
+                            scene.remove(flashLight);
+                            flashLight.dispose();
+                            return false;
+                        }
+                        return true;
                     }
-                }, 50);
+                };
+                gameState.animations.push(flashAnimation);
                 
                 // Screen shake for impact
                 gameManager.addScreenShake(0.3, 6);
                 
-                // Create spiral effect around each bubble in cluster
+                // Create spiral effect around each bubble in cluster - OPTIMIZED
                 cluster.forEach((bubble, index) => {
-                    setTimeout(() => {
-                        this.createSpiralEffect(bubble, targetColor);
-                    }, index * 30);
+                    // Only create spiral for every other bubble to reduce particle count
+                    if (index % 2 === 0) {
+                        setTimeout(() => {
+                            this.createSpiralEffect(bubble, targetColor);
+                        }, index * 50); // Increased delay
+                    }
                 });
             }
             
             createSpiralEffect(bubble, targetColor) {
-                // Create spiral particles around bubble
-                const spiralCount = 8;
+                // Create spiral particles around bubble - OPTIMIZED
+                const spiralCount = 4; // Reduced from 8
                 for (let i = 0; i < spiralCount; i++) {
                     const angle = (Math.PI * 2 * i) / spiralCount;
                     const particle = new Particle(
@@ -2574,15 +2598,17 @@
                         0.1
                     );
                     
-                    // Spiral motion
-                    const tangentAngle = angle + Math.PI / 2;
-                    particle.velocity = new THREE.Vector3(
-                        Math.cos(tangentAngle) * 3,
-                        Math.sin(tangentAngle) * 3,
-                        2
-                    );
-                    particle.decay = 0.03;
-                    gameState.particles.push(particle);
+                    if (particle._pooledParticle) {
+                        // Spiral motion
+                        const tangentAngle = angle + Math.PI / 2;
+                        particle.velocity.set(
+                            Math.cos(tangentAngle) * 3,
+                            Math.sin(tangentAngle) * 3,
+                            2
+                        );
+                        particle._pooledParticle.decay = 0.04; // Faster decay
+                        gameState.particles.push(particle);
+                    }
                 }
             }
             
@@ -2590,25 +2616,27 @@
                 // Store old color for transition effect
                 const oldColor = bubble.color;
                 
-                // Create transformation particles
-                for (let i = 0; i < 20; i++) {
+                // Create transformation particles - OPTIMIZED
+                for (let i = 0; i < 8; i++) { // Reduced from 20
                     const particle = new Particle(
                         bubble.position.x,
                         bubble.position.y,
                         bubble.position.z,
-                        i < 10 ? oldColor : newColor,
+                        i < 4 ? oldColor : newColor,
                         0.15
                     );
                     
-                    const angle = Math.random() * Math.PI * 2;
-                    const speed = 2 + Math.random() * 3;
-                    particle.velocity = new THREE.Vector3(
-                        Math.cos(angle) * speed,
-                        Math.sin(angle) * speed,
-                        (Math.random() - 0.5) * 2
-                    );
-                    particle.decay = 0.04;
-                    gameState.particles.push(particle);
+                    if (particle._pooledParticle) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const speed = 2 + Math.random() * 3;
+                        particle.velocity.set(
+                            Math.cos(angle) * speed,
+                            Math.sin(angle) * speed,
+                            (Math.random() - 0.5) * 2
+                        );
+                        particle._pooledParticle.decay = 0.05; // Faster decay
+                        gameState.particles.push(particle);
+                    }
                 }
                 
                 // Update bubble color
@@ -2633,20 +2661,13 @@
             createVisualEffect(bubble) {
                 super.createVisualEffect(bubble);
                 
-                // Multicolor swirling material
-                bubble.mesh.material = new THREE.MeshPhysicalMaterial({
+                // Multicolor swirling material - OPTIMIZED
+                bubble.mesh.material = new THREE.MeshPhongMaterial({
                     color: 0xff00ff,
                     emissive: 0xff00ff,
                     emissiveIntensity: 0.5,
-                    metalness: 0.3,
-                    roughness: 0.2,
-                    clearcoat: 1,
-                    clearcoatRoughness: 0,
-                    iridescence: 1,
-                    iridescenceIOR: 2.3,
-                    sheen: 1,
-                    sheenRoughness: 0.2,
-                    sheenColor: new THREE.Color(0x00ffff)
+                    shininess: 100,
+                    specular: 0x00ffff
                 });
                 
                 // Add swirling color particles
@@ -3003,6 +3024,7 @@
             trajectory: [],
             bubbleGrid: [],
             particles: [],
+            particlePool: null, // Will be initialized after ParticlePool class is defined
             animations: [],
             precisionAimActive: false,
             precisionAimTime: 0,
@@ -3160,47 +3182,150 @@
         }
         
         // Particle System
-        class Particle {
-            constructor(x, y, z, color, size) {
-                this.position = new THREE.Vector3(x, y, z);
-                this.velocity = new THREE.Vector3(
-                    (Math.random() - 0.5) * 10,
-                    (Math.random() - 0.5) * 10,
-                    (Math.random() - 0.5) * 5
-                );
-                this.life = 1.0;
-                this.decay = 0.02;
+        // Particle Pool for performance
+        class ParticlePool {
+            constructor(size = 200) {
+                this.pool = [];
+                this.activeParticles = [];
+                this.geometryCache = new Map();
+                this.materialCache = new Map();
                 
-                const geometry = new THREE.SphereGeometry(size, 8, 8);
-                const material = new THREE.MeshStandardMaterial({
-                    color: color,
+                // Pre-create particles
+                for (let i = 0; i < size; i++) {
+                    const particle = this.createParticle();
+                    particle.mesh.visible = false;
+                    this.pool.push(particle);
+                }
+            }
+            
+            createParticle() {
+                // Use shared geometry
+                const size = 0.15;
+                let geometry = this.geometryCache.get(size);
+                if (!geometry) {
+                    geometry = new THREE.SphereGeometry(size, 6, 6); // Reduced segments
+                    this.geometryCache.set(size, geometry);
+                }
+                
+                // Create unique material for each particle
+                const material = new THREE.MeshBasicMaterial({
+                    color: 0xffffff,
                     transparent: true,
-                    opacity: 1.0,
-                    emissive: color,
-                    emissiveIntensity: 2
+                    opacity: 1.0
                 });
                 
-                this.mesh = new THREE.Mesh(geometry, material);
-                this.mesh.position.copy(this.position);
-                scene.add(this.mesh);
+                const mesh = new THREE.Mesh(geometry, material);
+                scene.add(mesh);
+                
+                return {
+                    mesh,
+                    material,
+                    position: new THREE.Vector3(),
+                    velocity: new THREE.Vector3(),
+                    life: 1.0,
+                    decay: 0.02,
+                    active: false
+                };
+            }
+            
+            spawn(x, y, z, color, size, velocity = null) {
+                let particle = this.pool.pop();
+                
+                if (!particle) {
+                    // Pool exhausted, reuse oldest active particle
+                    if (this.activeParticles.length > 0) {
+                        particle = this.activeParticles.shift();
+                        this.reset(particle);
+                    } else {
+                        return null; // Cannot spawn
+                    }
+                }
+                
+                // Initialize particle
+                particle.position.set(x, y, z);
+                particle.mesh.position.copy(particle.position);
+                
+                if (velocity) {
+                    particle.velocity.copy(velocity);
+                } else {
+                    particle.velocity.set(
+                        (Math.random() - 0.5) * 10,
+                        (Math.random() - 0.5) * 10,
+                        (Math.random() - 0.5) * 5
+                    );
+                }
+                
+                particle.life = 1.0;
+                particle.decay = 0.02;
+                particle.material.color.set(color);
+                particle.material.opacity = 1.0;
+                particle.mesh.scale.setScalar(size / 0.15); // Scale relative to base size
+                particle.mesh.visible = true;
+                particle.active = true;
+                
+                this.activeParticles.push(particle);
+                return particle;
             }
             
             update(deltaTime) {
-                this.velocity.y -= 9.8 * deltaTime; // Gravity
-                this.position.add(this.velocity.clone().multiplyScalar(deltaTime));
-                this.mesh.position.copy(this.position);
-                
-                this.life -= this.decay;
-                this.mesh.material.opacity = this.life;
-                this.mesh.scale.setScalar(this.life);
-                
-                return this.life > 0;
+                for (let i = this.activeParticles.length - 1; i >= 0; i--) {
+                    const particle = this.activeParticles[i];
+                    
+                    // Update physics
+                    particle.velocity.y -= 9.8 * deltaTime;
+                    particle.position.x += particle.velocity.x * deltaTime;
+                    particle.position.y += particle.velocity.y * deltaTime;
+                    particle.position.z += particle.velocity.z * deltaTime;
+                    particle.mesh.position.copy(particle.position);
+                    
+                    // Update life
+                    particle.life -= particle.decay;
+                    particle.material.opacity = particle.life;
+                    particle.mesh.scale.multiplyScalar(0.98); // Gradual shrink
+                    
+                    // Return to pool if dead
+                    if (particle.life <= 0) {
+                        this.reset(particle);
+                        this.activeParticles.splice(i, 1);
+                        this.pool.push(particle);
+                    }
+                }
+            }
+            
+            reset(particle) {
+                particle.mesh.visible = false;
+                particle.active = false;
+                particle.life = 0;
+            }
+            
+            clear() {
+                while (this.activeParticles.length > 0) {
+                    const particle = this.activeParticles.pop();
+                    this.reset(particle);
+                    this.pool.push(particle);
+                }
+            }
+        }
+        
+        // Legacy Particle class wrapper for compatibility
+        class Particle {
+            constructor(x, y, z, color, size) {
+                // Use the global particle pool
+                this._pooledParticle = gameState.particlePool.spawn(x, y, z, color, size);
+                if (this._pooledParticle) {
+                    this.position = this._pooledParticle.position;
+                    this.velocity = this._pooledParticle.velocity;
+                    this.mesh = this._pooledParticle.mesh;
+                }
+            }
+            
+            update(deltaTime) {
+                // Handled by pool
+                return this._pooledParticle && this._pooledParticle.active;
             }
             
             destroy() {
-                scene.remove(this.mesh);
-                this.mesh.geometry.dispose();
-                this.mesh.material.dispose();
+                // Handled by pool
             }
         }
         
@@ -5028,11 +5153,12 @@
                     audioSystem.update();
                 }
                 
-                // Update particles
+                // Update particles using the pool
+                gameState.particlePool.update(deltaTime);
+                
+                // Clean up legacy particles array
                 gameState.particles = gameState.particles.filter(particle => {
-                    const alive = particle.update(deltaTime);
-                    if (!alive) particle.destroy();
-                    return alive;
+                    return particle.update(deltaTime);
                 });
                 
                 // Update animations
@@ -5093,6 +5219,9 @@
             
             renderer.render(scene, camera);
         }
+        
+        // Initialize ParticlePool after class is defined
+        gameState.particlePool = new ParticlePool(300);
         
         // Initialize game
         createGameBoard();
