@@ -1,0 +1,129 @@
+/* Developer Panel Styles */
+.developer-panel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100vh;
+    background: rgba(10, 30, 50, 0.95);
+    backdrop-filter: blur(15px);
+    border-right: 2px solid rgba(0, 255, 255, 0.6);
+    color: #e0e0e0;
+    padding: 20px;
+    box-sizing: border-box;
+    overflow-y: auto;
+    z-index: 3000;
+    transform: translateX(-100%); /* Initially hidden */
+    transition: transform 0.3s ease-in-out;
+    font-family: 'Orbitron', monospace;
+}
+
+.developer-panel.visible {
+    transform: translateX(0);
+}
+
+.developer-panel h2,
+.developer-panel h3 {
+    color: #00ffff;
+    text-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
+    margin-bottom: 15px;
+}
+
+.developer-panel h2 {
+    text-align: center;
+    font-size: 22px;
+    margin-bottom: 25px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.developer-panel h3 {
+    font-size: 16px;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.4);
+    padding-bottom: 8px;
+    margin-top: 20px;
+}
+.dev-tool-group:first-of-type h3 {
+     margin-top: 0;
+}
+
+.dev-tool-group {
+    margin-bottom: 25px;
+}
+
+.developer-panel label { /* General labels, e.g., for text input */
+    display: block;
+    margin-top: 12px;
+    margin-bottom: 5px;
+    font-size: 13px;
+    color: #00ffff;
+}
+
+.developer-panel input[type="text"] {
+    width: calc(100% - 12px);
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(0, 255, 255, 0.5);
+    color: #fff;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    font-family: 'Orbitron', monospace;
+}
+
+.checkbox-group {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+}
+.checkbox-group input[type="checkbox"] {
+    margin-right: 8px;
+    vertical-align: middle; /* Ensure proper alignment */
+}
+.checkbox-group label {
+    /* Override general label styles for these specific ones */
+    display: inline;
+    margin-top: 0; /* Reset margin */
+    margin-bottom: 0; /* Reset margin */
+    font-size: 13px;
+    color: #e0e0e0; /* Regular text color */
+    border-bottom: none; /* Remove border from general label style */
+    padding-bottom: 0; /* Remove padding from general label style */
+}
+
+.developer-panel button,
+.developer-panel .bubble-select-btn {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 8px;
+    background: rgba(0, 255, 255, 0.15);
+    border: 1px solid rgba(0, 255, 255, 0.4);
+    color: #e0e0e0;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: background-color 0.2s, border-color 0.2s;
+    font-size: 13px;
+    font-family: 'Orbitron', monospace;
+}
+
+.developer-panel button:hover,
+.developer-panel .bubble-select-btn:hover {
+    background: rgba(0, 255, 255, 0.3);
+    border-color: rgba(0, 255, 255, 0.7);
+}
+
+.developer-panel::-webkit-scrollbar {
+    width: 8px;
+}
+.developer-panel::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+}
+.developer-panel::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 255, 0.5);
+    border-radius: 10px;
+}
+.developer-panel::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 255, 255, 0.8);
+}
