@@ -804,9 +804,193 @@
             text-shadow: 0 0 30px rgba(255, 255, 255, 0.8);
         }
         }
+        /* Developer Panel Styles */
+        .developer-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 280px;
+            height: 100vh;
+            background: rgba(10, 30, 50, 0.95);
+            backdrop-filter: blur(15px);
+            border-right: 2px solid rgba(0, 255, 255, 0.6);
+            color: #e0e0e0;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            z-index: 3000;
+            transform: translateX(-100%); /* Initially hidden */
+            transition: transform 0.3s ease-in-out;
+            font-family: 'Orbitron', monospace;
+        }
+
+        .developer-panel.visible {
+            transform: translateX(0);
+        }
+
+        .developer-panel h2,
+        .developer-panel h3 {
+            color: #00ffff;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.7);
+            margin-bottom: 15px;
+        }
+
+        .developer-panel h2 {
+            text-align: center;
+            font-size: 22px;
+            margin-bottom: 25px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .developer-panel h3 {
+            font-size: 16px;
+            border-bottom: 1px solid rgba(0, 255, 255, 0.4);
+            padding-bottom: 8px;
+            margin-top: 20px;
+        }
+        .dev-tool-group:first-of-type h3 {
+             margin-top: 0;
+        }
+
+        .dev-tool-group {
+            margin-bottom: 25px;
+        }
+
+        .developer-panel label { /* General labels, e.g., for text input */
+            display: block;
+            margin-top: 12px;
+            margin-bottom: 5px;
+            font-size: 13px;
+            color: #00ffff;
+        }
+
+        .developer-panel input[type="text"] {
+            width: calc(100% - 12px);
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(0, 255, 255, 0.5);
+            color: #fff;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-family: 'Orbitron', monospace;
+        }
+        
+        .checkbox-group {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .checkbox-group input[type="checkbox"] {
+            margin-right: 8px;
+            vertical-align: middle; /* Ensure proper alignment */
+        }
+        .checkbox-group label {
+            /* Override general label styles for these specific ones */
+            display: inline;
+            margin-top: 0; /* Reset margin */
+            margin-bottom: 0; /* Reset margin */
+            font-size: 13px;
+            color: #e0e0e0; /* Regular text color */
+            border-bottom: none; /* Remove border from general label style */
+            padding-bottom: 0; /* Remove padding from general label style */
+        }
+
+        .developer-panel button,
+        .developer-panel .bubble-select-btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 8px;
+            background: rgba(0, 255, 255, 0.15);
+            border: 1px solid rgba(0, 255, 255, 0.4);
+            color: #e0e0e0;
+            text-align: left;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.2s, border-color 0.2s;
+            font-size: 13px;
+            font-family: 'Orbitron', monospace;
+        }
+
+        .developer-panel button:hover,
+        .developer-panel .bubble-select-btn:hover {
+            background: rgba(0, 255, 255, 0.3);
+            border-color: rgba(0, 255, 255, 0.7);
+        }
+        
+        .developer-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+        .developer-panel::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+        .developer-panel::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 255, 0.5);
+            border-radius: 10px;
+        }
+        .developer-panel::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 255, 0.8);
+        }
     </style>
 </head>
 <body>
+    <div id="developerPanel" class="developer-panel">
+        <h2>Developer Panel</h2>
+
+        <div class="dev-tool-group">
+            <h3>Essential Tools</h3>
+            <label for="loadLevelInput">Load Level by ID/Number:</label>
+            <input type="text" id="loadLevelInput" name="loadLevelInput" placeholder="e.g., 1 or level_name">
+            <button id="nextLevelBtn">Next Level</button>
+            <button id="prevLevelBtn">Previous Level</button>
+            <div class="checkbox-group">
+                <input type="checkbox" id="godModeToggle" name="godModeToggle">
+                <label for="godModeToggle">Toggle God Mode</label>
+            </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="showCoordsToggle" name="showCoordsToggle">
+                <label for="showCoordsToggle">Show Bubble Coordinates</label>
+            </div>
+        </div>
+
+        <div class="dev-tool-group">
+            <h3>Destructive Power-ups</h3>
+            <button class="bubble-select-btn" data-bubble-type="Bomb Bubble">Bomb Bubble</button>
+            <button class="bubble-select-btn" data-bubble-type="Lightning Bubble">Lightning Bubble</button>
+            <button class="bubble-select-btn" data-bubble-type="Fireball">Fireball</button>
+            <button class="bubble-select-btn" data-bubble-type="Rainbow Bubble">Rainbow Bubble</button>
+            <button class="bubble-select-btn" data-bubble-type="Laser Bubble">Laser Bubble</button>
+            <button class="bubble-select-btn" data-bubble-type="Meteor Bubble">Meteor Bubble</button>
+        </div>
+
+        <div class="dev-tool-group">
+            <h3>Utility Power-ups</h3>
+            <button class="bubble-select-btn" data-bubble-type="Magnet Bubble">Magnet Bubble</button>
+            <button class="bubble-select-btn" data-bubble-type="Time Freeze">Time Freeze</button>
+            <button class="bubble-select-btn" data-bubble-type="Precision Aim">Precision Aim</button>
+            <button class="bubble-select-btn" data-bubble-type="Color Change">Color Change</button>
+            <button class="bubble-select-btn" data-bubble-type="Ghost Bubble">Ghost Bubble</button>
+            <button class="bubble-select-btn" data-bubble-type="Multiplier Bubble">Multiplier Bubble</button>
+        </div>
+
+        <div class="dev-tool-group">
+            <h3>Defensive Power-ups</h3>
+            <button class="bubble-select-btn" data-bubble-type="Shield Bubble">Shield Bubble</button>
+            <button class="bubble-select-btn" data-bubble-type="Anchor Bubble">Anchor Bubble</button>
+            <button class="bubble-select-btn" data-bubble-type="Reinforcement">Reinforcement</button>
+        </div>
+
+        <div class="dev-tool-group">
+            <h3>Obstacle Systems</h3>
+            <button class="bubble-select-btn" data-bubble-type="Block Bubbles">Block Bubbles</button>
+            <button class="bubble-select-btn" data-bubble-type="Spike Bubbles">Spike Bubbles</button>
+            <button class="bubble-select-btn" data-bubble-type="Ice Bubbles">Ice Bubbles</button>
+            <button class="bubble-select-btn" data-bubble-type="Chain Bubbles">Chain Bubbles</button>
+            <button class="bubble-select-btn" data-bubble-type="Mimic Bubbles">Mimic Bubbles</button>
+        </div>
+    </div>
     <canvas id="gameCanvas"></canvas>
     
     <div class="ui-container">
@@ -1271,6 +1455,116 @@
                 }
             }
         }
+        
+        // --- End of AudioSystem ---
+        
+        // Developer Panel Logic
+        const developerPanel = document.getElementById('developerPanel');
+        const bubbleSelectButtons = document.querySelectorAll('.bubble-select-btn');
+
+        // Placeholder for game function
+        function setCurrentShooterBubble(bubbleTypeString) {
+            console.log(`Developer Panel: Setting next bubble to: ${bubbleTypeString}`);
+            // In a real game, this would update the game state
+            // For example: game.player.nextBubbleType = bubbleTypeString;
+            // Or: game.shooter.loadBubble(bubbleTypeString);
+            
+            // Optionally, provide some visual feedback
+            const nextBubbleDisplay = document.getElementById('nextBubble');
+            if (nextBubbleDisplay) {
+                // Attempt to display the first character, or a generic symbol if empty
+                const displayText = bubbleTypeString && bubbleTypeString.length > 0 ? bubbleTypeString.substring(0,1).toUpperCase() : 'DEV';
+                nextBubbleDisplay.textContent = displayText;
+                nextBubbleDisplay.title = bubbleTypeString || "Developer Selected Bubble";
+            }
+            alert(`Next bubble set to: ${bubbleTypeString}`);
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key.toLowerCase() === 'd') {
+                // Check if the event target is an input field or textarea
+                const activeElement = document.activeElement;
+                if (activeElement && (activeElement.tagName.toLowerCase() === 'input' ||
+                    activeElement.tagName.toLowerCase() === 'textarea')) {
+                    // If it is, don't toggle the panel to allow typing 'd' in inputs
+                    return;
+                }
+                if (developerPanel) {
+                    developerPanel.classList.toggle('visible');
+                }
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key.toLowerCase() === 'm') {
+                const activeElement = document.activeElement;
+                if (activeElement && (activeElement.tagName.toLowerCase() === 'input' ||
+                    activeElement.tagName.toLowerCase() === 'textarea')) {
+                    return; // Don't toggle music if typing in an input
+                }
+                if (audioSystem && typeof audioSystem.toggleMusic === 'function') {
+                    const isEnabled = audioSystem.toggleMusic();
+                    if (musicToggle) {
+                        musicToggle.classList.toggle('active', isEnabled);
+                    }
+                }
+            }
+        });
+
+        if (bubbleSelectButtons.length > 0) {
+            bubbleSelectButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const bubbleType = button.dataset.bubbleType;
+                    if (bubbleType) {
+                        setCurrentShooterBubble(bubbleType);
+                    }
+                });
+            });
+        } else {
+            console.warn("Developer Panel: No bubble select buttons found.");
+        }
+        
+        // Placeholders for other dev tools
+        const loadLevelInput = document.getElementById('loadLevelInput');
+        if (loadLevelInput) {
+            loadLevelInput.addEventListener('change', (event) => {
+                console.log(`Dev: Load level: ${event.target.value}`);
+                alert(`Dev: Load level: ${event.target.value}`);
+            });
+        }
+
+        const nextLevelBtn = document.getElementById('nextLevelBtn');
+        if (nextLevelBtn) {
+            nextLevelBtn.addEventListener('click', () => {
+                console.log('Dev: Next Level');
+                alert('Dev: Next Level');
+            });
+        }
+
+        const prevLevelBtn = document.getElementById('prevLevelBtn');
+        if (prevLevelBtn) {
+            prevLevelBtn.addEventListener('click', () => {
+                console.log('Dev: Previous Level');
+                alert('Dev: Previous Level');
+            });
+        }
+        
+        const godModeToggle = document.getElementById('godModeToggle');
+        if (godModeToggle) {
+            godModeToggle.addEventListener('change', (event) => {
+                console.log(`Dev: God Mode: ${event.target.checked}`);
+                alert(`Dev: God Mode: ${event.target.checked}`);
+            });
+        }
+
+        const showCoordsToggle = document.getElementById('showCoordsToggle');
+        if (showCoordsToggle) {
+            showCoordsToggle.addEventListener('change', (event) => {
+                console.log(`Dev: Show Bubble Coords: ${event.target.checked}`);
+                alert(`Dev: Show Bubble Coords: ${event.target.checked}`);
+            });
+        }
+        // --- End of Developer Panel Logic ---
         
         // Initialize Audio System
         const audioSystem = new AudioSystem();
