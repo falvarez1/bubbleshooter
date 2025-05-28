@@ -74,7 +74,13 @@ export class PowerUpSystem {
         if (bubble.isPowerUp && bubble.powerUpType) {
             const powerUp = this.powerUps.get(bubble.powerUpType);
             if (powerUp) {
-                return powerUp.activate(bubble.position, gameState, gameManager);
+                // Pass the bubble object for power-ups that need chain reactions (bomb, etc.)
+                // or positions for others
+                if (bubble.powerUpType === 'bomb' || bubble.powerUpType === 'chainLightning') {
+                    return powerUp.activate(bubble, gameState, gameManager);
+                } else {
+                    return powerUp.activate(bubble.position, gameState, gameManager);
+                }
             }
         }
         return false;

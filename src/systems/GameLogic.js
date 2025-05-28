@@ -27,6 +27,11 @@ export class GameLogic {
             this.handleColorSplashDestroy(data.bubbles, data.points);
         });
         
+        // Bomb destroy event
+        this.gameManager.eventBus.on('bombDestroy', (data) => {
+            this.handleBombDestroy(data.bubbles, data.points);
+        });
+        
         // Check bubble matches event
         this.gameManager.eventBus.on('checkBubbleMatches', (data) => {
             this.checkMatches(data.bubble);
@@ -84,6 +89,34 @@ export class GameLogic {
         setTimeout(() => {
             this.removeFloatingBubbles();
         }, bubbles.length * 30 + 200);
+    }
+    
+    handleBombDestroy(bubbles, points) {
+        // Add score with combo multiplier
+        const comboMultiplier = Math.min(this.gameState.combo + 1, 5);
+        const totalPoints = points * comboMultiplier;
+        this.gameState.addScore(totalPoints);
+        this.gameState.incrementCombo();
+        this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
+        
+        // Show floating score at center of explosion
+        const centerX = bubbles.reduce((sum, b) => sum + b.position.x, 0) / bubbles.length;
+        const centerY = bubbles.reduce((sum, b) => sum + b.position.y, 0) / bubbles.length;
+        this.gameManager.showFloatingScore(new THREE.Vector3(centerX, centerY, 0), totalPoints);
+        
+        // Remove bubbles with enhanced explosion effects
+        bubbles.forEach((bubble, index) => {
+            setTimeout(() => {
+                this.createExplosionEffect(bubble, true); // Enhanced explosion for bomb
+                this.removeBubble(bubble);
+            }, index * 20); // Faster destruction for bomb
+        });
+        
+        // Check for floating bubbles after destruction
+        setTimeout(() => {
+            this.removeFloatingBubbles();
+            setTimeout(() => this.checkVictory(), 500);
+        }, bubbles.length * 20 + 200);
     }
     
     /**
@@ -154,8 +187,8 @@ export class GameLogic {
         if (activated) {
             console.log(`Power-up ${bubble.powerUpType} activated successfully`);
             
-            // For new power-ups (chainLightning, colorSplash), remove the power-up bubble and create new bubble
-            if (bubble.powerUpType === 'chainLightning' || bubble.powerUpType === 'colorSplash') {
+            // For new power-ups (chainLightning, colorSplash, bomb), remove the power-up bubble and create new bubble
+            if (bubble.powerUpType === 'chainLightning' || bubble.powerUpType === 'colorSplash' || bubble.powerUpType === 'bomb') {
                 // Remove the power-up bubble from the grid
                 this.removeBubble(bubble);
                 setTimeout(() => this.createNewShootingBubble(), 500);
