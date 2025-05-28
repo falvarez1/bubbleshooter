@@ -1702,6 +1702,49 @@
                 
                 // Special effects
                 NEW_ROW_DROP_FORCE: 2.0      // Drop force for new row bubbles
+            },
+            
+            // Trajectory Visual Configuration
+            TRAJECTORY: {
+                // Style selection
+                USE_ANIMATED_STYLE: true,     // true = flowing laser, false = static dots
+                
+                // Dot count
+                NORMAL_DOT_COUNT: 40,         // Number of dots in normal mode
+                PRECISION_DOT_COUNT: 80,      // Number of dots in precision aim mode
+                
+                // Size settings
+                BASE_SIZE_MIN: 0.12,          // Minimum dot size (increased from 0.1)
+                BASE_SIZE_MAX: 0.15,          // Maximum dot size (reduced from 0.25)
+                GLOW_SIZE_MULTIPLIER: 2.5,    // Glow size relative to dot
+                
+                // Opacity settings
+                BASE_OPACITY_MIN: 0.8,        // Minimum opacity
+                BASE_OPACITY_MAX: 1.0,        // Maximum opacity (increases along path)
+                MIN_DOT_OPACITY: 0.7,         // Never go below this opacity
+                MIN_GLOW_OPACITY: 0.4,        // Minimum glow opacity
+                GLOW_OPACITY_MULTIPLIER: 0.5, // Glow opacity relative to dot
+                
+                // Emissive settings
+                EMISSIVE_INTENSITY: 3.5,      // Normal mode emissive intensity
+                EMISSIVE_INTENSITY_PRECISION: 5, // Precision aim emissive intensity
+                EMISSIVE_MIN_MULTIPLIER: 0.8, // Minimum emissive multiplier
+                
+                // Animation settings (for animated style)
+                ANIMATION_SPEED: 4,           // Overall animation speed multiplier
+                FLOW_SPEED: 0.09,             // How fast dots flow forward
+                PULSE_RANGE: 0.3,             // Pulse variation (0.7 to 1.0)
+                BRIGHTNESS_RANGE: 0.3,        // Brightness variation
+                WAVE_AMPLITUDE: 0.05,         // Side-to-side wave motion
+                WAVE_FREQUENCY: 3,            // Wave oscillation speed
+                
+                // Static style settings
+                STATIC_OPACITY_MIN: 0.3,      // Original static minimum opacity
+                STATIC_OPACITY_MAX: 0.7,      // Original static maximum opacity
+                STATIC_SIZE_MIN: 0.05,        // Original static minimum size
+                STATIC_SIZE_MAX: 0.15,        // Original static maximum size
+                STATIC_EMISSIVE: 2,           // Original static emissive intensity
+                STATIC_EMISSIVE_PRECISION: 3  // Original precision emissive
             }
         };
         
@@ -4460,32 +4503,16 @@
             
             let pos = startPos.clone();
             let vel = direction.multiplyScalar(CONFIG.SHOOTING_SPEED);
-            const step = 0.05; // Smaller steps for smoother trajectory
+            const step = 0.015; // Smaller steps for more accurate trajectory
             const maxSteps = gameState.precisionAimActive ? 500 : 200; // Extended trajectory for precision aim
             let bounceCount = 0;
             const maxBounces = gameState.precisionAimActive ? 5 : 2; // Show more bounces with precision aim
             
             for (let i = 0; i < maxSteps; i++) {
-                pos = pos.add(vel.clone().multiplyScalar(step));
+                // Calculate next position
+                const nextPos = pos.clone().add(vel.clone().multiplyScalar(step));
                 
-                // Check wall bounce
-                if (Math.abs(pos.x) > 5.5 - CONFIG.BUBBLE_RADIUS) {
-                    vel.x *= -1;
-                    pos.x = Math.sign(pos.x) * (5.5 - CONFIG.BUBBLE_RADIUS);
-                    bounceCount++;
-                    
-                    // Stop if we've reached max bounces (unless precision aim is active)
-                    if (bounceCount >= maxBounces && !gameState.precisionAimActive) {
-                        break;
-                    }
-                }
-                
-                gameState.trajectory.push(pos.clone());
-                
-                // Stop at ceiling or when hitting bubbles
-                if (pos.y > CONFIG.CEILING_Y - 0.5) break;
-                
-                // Check collision with existing bubbles
+                // Check collision with existing bubbles BEFORE moving
                 let hitBubble = false;
                 for (let y = 0; y < CONFIG.GRID_HEIGHT && !hitBubble; y++) {
                     const isOddRow = y % 2 === 1;
@@ -4494,8 +4521,10 @@
                     for (let x = 0; x < bubblesInRow; x++) {
                         const bubble = gameState.bubbleGrid[y][x];
                         if (bubble) {
-                            const distance = pos.distanceTo(bubble.position);
-                            if (distance < CONFIG.BUBBLE_RADIUS * 1.8) {
+                            const distance = nextPos.distanceTo(bubble.position);
+                            // Check if next position would collide - bubbles touch when distance = 2 * radius
+                            // Using slightly less (1.95) to ensure trajectory stops just at the surface
+                            if (distance < CONFIG.BUBBLE_RADIUS * 1.15) {
                                 hitBubble = true;
                                 break;
                             }
@@ -4503,70 +4532,247 @@
                     }
                 }
                 
-                if (hitBubble) break;
+                // Stop if we would hit a bubble
+                if (hitBubble) {
+                    // Add a few more points to show where it stops
+                    for (let j = 0; j < 6; j++) {
+                        gameState.trajectory.push(pos.clone());
+                    }
+                    break;
+                }
+                
+                // Now move to next position
+                pos = nextPos;
+                
+                // Check wall bounce (use same wall limit as actual bubble physics)
+                const wallLimit = 6;
+                if (Math.abs(pos.x) > wallLimit - CONFIG.BUBBLE_RADIUS) {
+                    vel.x *= -1;
+                    pos.x = Math.sign(pos.x) * (wallLimit - CONFIG.BUBBLE_RADIUS);
+                    bounceCount++;
+                    
+                    // Stop if we've reached max bounces (unless precision aim is active)
+                    if (bounceCount >= maxBounces && !gameState.precisionAimActive) {
+                        break;
+                    }
+                }
+                
+                // Stop at ceiling (use same logic as actual bubble)
+                if (pos.y > CONFIG.CEILING_Y - 0.5 - CONFIG.BUBBLE_RADIUS) {
+                    break;
+                }
+                
+                // Add point to trajectory after all checks
+                gameState.trajectory.push(pos.clone());
             }
         }
         
         // Render trajectory
         function renderTrajectory() {
-            // Remove old trajectory
-            const oldTrajectory = scene.getObjectByName('trajectoryGroup');
-            if (oldTrajectory) {
-                //console.log('[DEBUG] renderTrajectory: Removing oldTrajectoryGroup. Children count:', oldTrajectory.children.length);
-                oldTrajectory.children.forEach(child => {
+            // Check if we need to update the trajectory
+            const existingTrajectory = scene.getObjectByName('trajectoryGroup');
+            
+            // If no trajectory needed, remove existing one
+            if (gameState.trajectory.length < 6 || !gameState.currentBubble) {
+                if (existingTrajectory) {
+                    existingTrajectory.children.forEach(child => {
+                        if (child.geometry) child.geometry.dispose();
+                        if (child.material) child.material.dispose();
+                    });
+                    scene.remove(existingTrajectory);
+                }
+                return;
+            }
+            
+            // Check if trajectory has actually changed
+            if (existingTrajectory && existingTrajectory.userData.trajectoryHash) {
+                // Simple hash to check if trajectory changed
+                const newHash = gameState.trajectory.length + '_' + 
+                    gameState.trajectory[0].x.toFixed(1) + '_' + 
+                    gameState.trajectory[gameState.trajectory.length - 1].x.toFixed(1);
+                
+                if (existingTrajectory.userData.trajectoryHash === newHash) {
+                    // Trajectory hasn't changed, keep the existing animation
+                    return;
+                }
+                
+                // If trajectory changed slightly, update the trajectory data without resetting animation
+                if (Math.abs(gameState.trajectory.length - existingTrajectory.userData.trajectory.length) < 5) {
+                    existingTrajectory.userData.trajectory = [...gameState.trajectory];
+                    existingTrajectory.userData.trajectoryHash = newHash;
+                    return;
+                }
+            }
+            
+            // Remove old trajectory if it exists
+            if (existingTrajectory) {
+                existingTrajectory.children.forEach(child => {
                     if (child.geometry) child.geometry.dispose();
                     if (child.material) child.material.dispose();
                 });
-                scene.remove(oldTrajectory);
+                scene.remove(existingTrajectory);
             }
-            
-            if (gameState.trajectory.length < 2 || !gameState.currentBubble) return;
             
             const trajectoryGroup = new THREE.Group();
             trajectoryGroup.name = 'trajectoryGroup';
             
+            // Calculate hash for change detection
+            const trajectoryHash = gameState.trajectory.length + '_' + 
+                gameState.trajectory[0].x.toFixed(1) + '_' + 
+                gameState.trajectory[gameState.trajectory.length - 1].x.toFixed(1);
+            
+            // Store trajectory data for animation
+            trajectoryGroup.userData = {
+                trajectory: [...gameState.trajectory], // Copy to avoid reference issues
+                trajectoryHash: trajectoryHash,
+                time: 0,
+                dots: []
+            };
+            
             // Create glowing dots along the trajectory
-            const dotCount = Math.min(gameState.trajectory.length, gameState.precisionAimActive ? 60 : 30);
-            const spacing = Math.floor(gameState.trajectory.length / dotCount);
+            const dotCount = Math.min(gameState.trajectory.length, 
+                gameState.precisionAimActive ? CONFIG.TRAJECTORY.PRECISION_DOT_COUNT : CONFIG.TRAJECTORY.NORMAL_DOT_COUNT);
+            const spacing = Math.max(1, Math.floor(gameState.trajectory.length / dotCount));
             
             for (let i = 0; i < dotCount; i++) {
                 const index = i * spacing;
                 if (index >= gameState.trajectory.length) break;
                 
                 const point = gameState.trajectory[index];
-                const size = 0.05 + (i / dotCount) * 0.1; // Dots get bigger along the path
-                const opacity = 0.3 + (i / dotCount) * 0.4; // Fade in along the path
                 
-                const dotGeometry = new THREE.SphereGeometry(size, 8, 8);
+                // Use different settings based on style
+                const useAnimated = CONFIG.TRAJECTORY.USE_ANIMATED_STYLE;
+                const progress = i / dotCount;
+                
+                const baseSize = useAnimated ? 
+                    CONFIG.TRAJECTORY.BASE_SIZE_MIN + progress * (CONFIG.TRAJECTORY.BASE_SIZE_MAX - CONFIG.TRAJECTORY.BASE_SIZE_MIN) :
+                    CONFIG.TRAJECTORY.STATIC_SIZE_MIN + progress * (CONFIG.TRAJECTORY.STATIC_SIZE_MAX - CONFIG.TRAJECTORY.STATIC_SIZE_MIN);
+                    
+                const baseOpacity = useAnimated ?
+                    CONFIG.TRAJECTORY.BASE_OPACITY_MIN + progress * (CONFIG.TRAJECTORY.BASE_OPACITY_MAX - CONFIG.TRAJECTORY.BASE_OPACITY_MIN) :
+                    CONFIG.TRAJECTORY.STATIC_OPACITY_MIN + progress * (CONFIG.TRAJECTORY.STATIC_OPACITY_MAX - CONFIG.TRAJECTORY.STATIC_OPACITY_MIN);
+                
+                const dotGeometry = new THREE.SphereGeometry(baseSize, 12, 12);
                 const trajectoryColor = gameState.precisionAimActive ? 0x00ffff : gameState.currentBubble.color;
                 const dotMaterial = new THREE.MeshStandardMaterial({
                     color: trajectoryColor,
                     transparent: true,
-                    opacity: opacity,
+                    opacity: baseOpacity,
                     emissive: trajectoryColor,
-                    emissiveIntensity: gameState.precisionAimActive ? 3 : 2
+                    emissiveIntensity: useAnimated ?
+                        (gameState.precisionAimActive ? CONFIG.TRAJECTORY.EMISSIVE_INTENSITY_PRECISION : CONFIG.TRAJECTORY.EMISSIVE_INTENSITY) :
+                        (gameState.precisionAimActive ? CONFIG.TRAJECTORY.STATIC_EMISSIVE_PRECISION : CONFIG.TRAJECTORY.STATIC_EMISSIVE)
                 });
                 
                 const dot = new THREE.Mesh(dotGeometry, dotMaterial);
                 dot.position.copy(point);
                 
                 // Add glow effect
-                const glowGeometry = new THREE.SphereGeometry(size * 2, 8, 8);
+                const glowSize = useAnimated ? CONFIG.TRAJECTORY.GLOW_SIZE_MULTIPLIER : 2;
+                const glowGeometry = new THREE.SphereGeometry(baseSize * glowSize, 8, 8);
                 const glowMaterial = new THREE.MeshStandardMaterial({
                     color: trajectoryColor,
                     transparent: true,
-                    opacity: opacity * 0.3,
+                    opacity: baseOpacity * CONFIG.TRAJECTORY.GLOW_OPACITY_MULTIPLIER,
                     emissive: trajectoryColor,
-                    emissiveIntensity: 1
+                    emissiveIntensity: useAnimated ? 2 : 1
                 });
                 
                 const glow = new THREE.Mesh(glowGeometry, glowMaterial);
                 glow.position.copy(point);
                 
+                // Store dot data for animation
+                trajectoryGroup.userData.dots.push({
+                    dot: dot,
+                    glow: glow,
+                    basePosition: point.clone(),
+                    index: i,
+                    trajectoryIndex: index,
+                    baseSize: baseSize,
+                    baseOpacity: baseOpacity,
+                    nextIndex: Math.min(index + spacing, gameState.trajectory.length - 1)
+                });
+                
                 trajectoryGroup.add(glow);
                 trajectoryGroup.add(dot);
             }
             
+            // Add animation only if animated style is enabled
+            if (CONFIG.TRAJECTORY.USE_ANIMATED_STYLE) {
+                const trajectoryAnimation = {
+                    group: trajectoryGroup,
+                    update: function(deltaTime) {
+                        if (!this.group.parent) return false; // Stop if removed from scene
+                        
+                        this.group.userData.time += deltaTime * CONFIG.TRAJECTORY.ANIMATION_SPEED;
+                        
+                        this.group.userData.dots.forEach((dotData, i) => {
+                            // Simple forward flow animation
+                            const flowOffset = (this.group.userData.time * CONFIG.TRAJECTORY.FLOW_SPEED + i * 0.1) % 1;
+                            
+                            // Calculate new position along the entire trajectory
+                            const trajectoryLength = this.group.userData.trajectory.length;
+                            const basePosition = dotData.index / dotCount;
+                            const flowPosition = basePosition + flowOffset;
+                            
+                            // Reset to start when reaching the end
+                            const wrappedPosition = flowPosition % 1;
+                            const newIndex = Math.floor(wrappedPosition * trajectoryLength);
+                            const nextIndex = Math.min(newIndex + 1, trajectoryLength - 1);
+                            
+                            const currentPoint = this.group.userData.trajectory[newIndex];
+                            const nextPoint = this.group.userData.trajectory[nextIndex];
+                            
+                            if (currentPoint && nextPoint) {
+                                // Interpolate between points
+                                const lerpFactor = (wrappedPosition * trajectoryLength) % 1;
+                                const animatedPos = new THREE.Vector3().lerpVectors(currentPoint, nextPoint, lerpFactor);
+                                
+                                // Add wave motion
+                                if (nextIndex > newIndex) {
+                                    const direction = new THREE.Vector3().subVectors(nextPoint, currentPoint).normalize();
+                                    const perpendicular = new THREE.Vector3(-direction.y, direction.x, 0);
+                                    const waveOffset = Math.sin(this.group.userData.time * CONFIG.TRAJECTORY.WAVE_FREQUENCY + i * 0.5) * CONFIG.TRAJECTORY.WAVE_AMPLITUDE;
+                                    animatedPos.add(perpendicular.multiplyScalar(waveOffset));
+                                }
+                                
+                                dotData.dot.position.copy(animatedPos);
+                                dotData.glow.position.copy(animatedPos);
+                            }
+                            
+                            // Pulsing effect
+                            const pulseBase = 1 - CONFIG.TRAJECTORY.PULSE_RANGE;
+                            const pulse = Math.sin(this.group.userData.time * 2 + i * 0.3) * CONFIG.TRAJECTORY.PULSE_RANGE + pulseBase;
+                            const sizeMultiplier = 1 + (pulse - (pulseBase + CONFIG.TRAJECTORY.PULSE_RANGE/2)) * 0.15;
+                            
+                            // Flowing opacity with fade at the end
+                            const brightnessBase = 1 - CONFIG.TRAJECTORY.BRIGHTNESS_RANGE;
+                            const brightness = Math.sin(flowOffset * Math.PI) * CONFIG.TRAJECTORY.BRIGHTNESS_RANGE + brightnessBase;
+                            
+                            // Fade out near the end to prevent visible wrap-around
+                            const fadeStart = 0.8; // Start fading at 80% of trajectory
+                            const fadeFactor = wrappedPosition < fadeStart ? 1.0 : (1.0 - wrappedPosition) / (1.0 - fadeStart);
+                            const opacityMultiplier = (0.6 + brightness * 0.4) * fadeFactor;
+                            
+                            dotData.dot.scale.setScalar(dotData.baseSize * sizeMultiplier);
+                            dotData.glow.scale.setScalar(dotData.baseSize * CONFIG.TRAJECTORY.GLOW_SIZE_MULTIPLIER * sizeMultiplier);
+                            
+                            // Ensure dots never disappear completely
+                            dotData.dot.material.opacity = Math.max(CONFIG.TRAJECTORY.MIN_DOT_OPACITY, dotData.baseOpacity * opacityMultiplier);
+                            dotData.glow.material.opacity = Math.max(CONFIG.TRAJECTORY.MIN_GLOW_OPACITY, dotData.baseOpacity * CONFIG.TRAJECTORY.GLOW_OPACITY_MULTIPLIER * opacityMultiplier);
+                            
+                            // Update emissive intensity
+                            const emissiveIntensity = gameState.precisionAimActive ? CONFIG.TRAJECTORY.EMISSIVE_INTENSITY_PRECISION : CONFIG.TRAJECTORY.EMISSIVE_INTENSITY;
+                            dotData.dot.material.emissiveIntensity = emissiveIntensity * (CONFIG.TRAJECTORY.EMISSIVE_MIN_MULTIPLIER + brightness * (1 - CONFIG.TRAJECTORY.EMISSIVE_MIN_MULTIPLIER));
+                        });
+                        
+                        // Continue animation while trajectory exists
+                        return scene.getObjectByName('trajectoryGroup') === this.group;
+                    }
+                };
+                
+                gameState.animations.push(trajectoryAnimation);
+            }
             scene.add(trajectoryGroup);
         }
         
