@@ -326,7 +326,6 @@ class BubbleShooterGame {
         
         this.gameManager.playSound('bubbleShoot');
         this.createShootingEffect(this.gameState.currentBubble.position.clone());
-        this.createShootingTrail(this.gameState.currentBubble);
     }
     
     createShootingEffect(position) {

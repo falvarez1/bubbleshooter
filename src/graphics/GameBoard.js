@@ -439,8 +439,7 @@ class ShootingStar {
             0
         );
         this.life = 1.0;
-        this.trail = [];
-        
+
         // Create shooting star mesh
         const geometry = new THREE.SphereGeometry(0.2, 8, 8);
         const material = new THREE.MeshBasicMaterial({
@@ -458,51 +457,15 @@ class ShootingStar {
         this.mesh = new THREE.Mesh(geometry, material);
         this.mesh.position.copy(this.position);
         this.scene.add(this.mesh);
-        
-        // Create trail
-        const trailGeometry = new THREE.BufferGeometry();
-        const trailPositions = new Float32Array(30 * 3);
-        trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
-        
-        const trailMaterial = new THREE.LineBasicMaterial({
-            color: 0xaaccff,
-            transparent: true,
-            opacity: 0.6,
-            linewidth: 2
-        });
-        
-        if (this.trailMesh) {
-            this.trailMesh.geometry.dispose();
-            this.trailMesh.material.dispose();
-            this.scene.remove(this.trailMesh);
-        }
-        
-        this.trailMesh = new THREE.Line(trailGeometry, trailMaterial);
-        this.scene.add(this.trailMesh);
     }
     
     update(deltaTime) {
         this.position.add(this.velocity.clone().multiplyScalar(deltaTime));
         this.mesh.position.copy(this.position);
         
-        // Update trail
-        this.trail.unshift(this.position.clone());
-        if (this.trail.length > 10) {
-            this.trail.pop();
-        }
-        
-        const positions = this.trailMesh.geometry.attributes.position.array;
-        for (let i = 0; i < this.trail.length; i++) {
-            positions[i * 3] = this.trail[i].x;
-            positions[i * 3 + 1] = this.trail[i].y;
-            positions[i * 3 + 2] = this.trail[i].z;
-        }
-        this.trailMesh.geometry.attributes.position.needsUpdate = true;
-        
         // Fade out
         this.life -= deltaTime * 0.5;
         this.mesh.material.opacity = this.life;
-        this.trailMesh.material.opacity = this.life * 0.6;
         
         // Reset if off screen or faded
         if (this.position.y < -20 || this.life <= 0) {
@@ -515,11 +478,6 @@ class ShootingStar {
             this.scene.remove(this.mesh);
             this.mesh.geometry.dispose();
             this.mesh.material.dispose();
-        }
-        if (this.trailMesh) {
-            this.scene.remove(this.trailMesh);
-            this.trailMesh.geometry.dispose();
-            this.trailMesh.material.dispose();
         }
     }
 }
