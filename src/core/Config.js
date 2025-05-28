@@ -129,7 +129,7 @@ export const CONFIG = {
 // Particle Effects Configuration
 export const PARTICLE_CONFIG = {
     // Performance preset: 'low', 'medium', 'high', 'ultra'
-    preset: 'medium',
+    preset: 'ultra',
     
     // Individual settings (override preset)
     poolSize: 300,              // Total particle pool size
@@ -177,8 +177,8 @@ export const PARTICLE_CONFIG = {
     
     // Visual quality
     quality: {
-        particleSegments: 6,    // Sphere segments (6 for performance, 8+ for quality)
-        useLighting: false,     // Use MeshBasicMaterial vs MeshStandardMaterial
+        particleSegments: 8,    // Sphere segments (6 for performance, 8+ for quality)
+        useLighting: true,     // Use MeshBasicMaterial vs MeshStandardMaterial
         glowEffects: true,      // Enable glow meshes
         animateParticles: true  // Animate particle properties
     }

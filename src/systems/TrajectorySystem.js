@@ -195,7 +195,7 @@ export class TrajectorySystem {
             
             // Create main dot with proper materials for glowing effect
             const dotGeometry = new THREE.SphereGeometry(baseSize, 12, 12);
-            const dotMaterial = new THREE.MeshBasicMaterial({
+            const dotMaterial = new THREE.MeshStandardMaterial({
                 color: trajectoryColor,
                 transparent: true,
                 opacity: baseOpacity,
@@ -211,7 +211,7 @@ export class TrajectorySystem {
             const glowOpacity = baseOpacity * CONFIG.TRAJECTORY.GLOW_OPACITY_MULTIPLIER;
             
             const glowGeometry = new THREE.SphereGeometry(glowSize, 8, 8);
-            const glowMaterial = new THREE.MeshBasicMaterial({
+            const glowMaterial = new THREE.MeshStandardMaterial({
                 color: trajectoryColor,
                 transparent: true,
                 opacity: Math.max(CONFIG.TRAJECTORY.MIN_GLOW_OPACITY, glowOpacity),
