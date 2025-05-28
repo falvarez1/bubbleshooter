@@ -1,0 +1,367 @@
+import * as THREE from 'three';
+import { CONFIG, PARTICLE_CONFIG } from '../core/Config.js';
+import { PowerUp } from './PowerUp.js';
+import { ParticleFactory } from '../entities/Particle.js';
+
+/**
+ * Color Splash Power-Up
+ * Changes colors of nearby bubbles to create matches
+ */
+export class ColorSplashPowerUp extends PowerUp {
+    constructor() {
+        super('colorSplash', {
+            name: 'Color Splash',
+            rarity: 'rare',
+            spawnRate: 0.10,
+            color: 0xff00ff,
+            glowColor: 0xff66ff
+        });
+        this.clusterSize = 2; // Radius of 2 for cluster detection
+    }
+    
+    activate(targetBubble, gameState, gameManager) {
+        // Find all bubbles on the board
+        const allBubbles = [];
+        for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
+            for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
+                const bubble = gameState.getBubbleAt(x, y);
+                if (bubble && !bubble.isPowerUp) {
+                    allBubbles.push(bubble);
+                }
+            }
+        }
+        
+        if (allBubbles.length === 0) return false;
+        
+        // Randomly select a center bubble
+        const centerBubble = allBubbles[Math.floor(Math.random() * allBubbles.length)];
+        
+        // Find cluster of bubbles around the center - OPTIMIZED
+        const cluster = [centerBubble];
+        const maxDistance = this.clusterSize * CONFIG.HEX_WIDTH;
+        const maxClusterSize = PARTICLE_CONFIG.colorSplash.maxClusterSize;
+        
+        for (let y = 0; y < CONFIG.GRID_HEIGHT && cluster.length < maxClusterSize; y++) {
+            for (let x = 0; x < CONFIG.GRID_WIDTH && cluster.length < maxClusterSize; x++) {
+                const bubble = gameState.getBubbleAt(x, y);
+                if (bubble && bubble !== centerBubble && !bubble.isPowerUp) {
+                    const distance = centerBubble.position.distanceTo(bubble.position);
+                    if (distance <= maxDistance) {
+                        cluster.push(bubble);
+                    }
+                }
+            }
+        }
+        
+        // Get all active colors from the board
+        const activeColors = new Set();
+        allBubbles.forEach(bubble => {
+            activeColors.add(bubble.color);
+        });
+        
+        // Randomly select a color from active colors
+        const colorsArray = Array.from(activeColors);
+        const selectedColor = colorsArray[Math.floor(Math.random() * colorsArray.length)];
+        
+        // Create visual effect before color change
+        this.createSplashEffect(centerBubble, cluster, selectedColor, gameState, gameManager);
+        
+        // Change colors of all bubbles in cluster after delay - OPTIMIZED
+        setTimeout(() => {
+            // Process bubbles in smaller batches
+            const batchSize = PARTICLE_CONFIG.colorSplash.batchSize;
+            for (let i = 0; i < cluster.length; i += batchSize) {
+                const batch = cluster.slice(i, i + batchSize);
+                setTimeout(() => {
+                    batch.forEach((bubble, batchIndex) => {
+                        setTimeout(() => {
+                            this.transformBubbleColor(bubble, selectedColor, gameState, gameManager);
+                        }, batchIndex * PARTICLE_CONFIG.colorSplash.transformDelay);
+                    });
+                }, i * 100); // Delay between batches
+            }
+            
+            // Check for matches after all transformations
+            const totalTransformTime = Math.ceil(cluster.length / batchSize) * 100 + batchSize * PARTICLE_CONFIG.colorSplash.transformDelay;
+            setTimeout(() => {
+                // Find all matches in the transformed cluster
+                const allMatches = new Set();
+                cluster.forEach(bubble => {
+                    if (!allMatches.has(bubble)) {
+                        const matches = this.findConnectedBubbles(bubble, gameState);
+                        if (matches.length >= 3) {
+                            matches.forEach(m => allMatches.add(m));
+                        }
+                    }
+                });
+                
+                if (allMatches.size > 0) {
+                    // Emit event to handle matched bubbles
+                    gameManager.eventBus.emit('colorSplashDestroy', {
+                        bubbles: Array.from(allMatches),
+                        points: allMatches.size * 20
+                    });
+                } else {
+                    // No matches, just check for floating bubbles
+                    setTimeout(() => {
+                        gameManager.eventBus.emit('checkFloatingBubbles');
+                    }, 500);
+                }
+            }, totalTransformTime + 200);
+        }, 800);
+        
+        // Remove the power-up bubble itself
+        setTimeout(() => {
+            if (targetBubble && typeof targetBubble.gridX !== 'undefined' && typeof targetBubble.gridY !== 'undefined') {
+                gameState.removeBubbleAt(targetBubble.gridX, targetBubble.gridY);
+                targetBubble.destroy();
+            }
+        }, 100);
+        
+        return true;
+    }
+    
+    findConnectedBubbles(startBubble, gameState) {
+        const connected = [];
+        const visited = new Set();
+        const queue = [startBubble];
+        const targetColor = startBubble.color;
+        
+        while (queue.length > 0) {
+            const current = queue.shift();
+            const key = `${current.gridX},${current.gridY}`;
+            
+            if (visited.has(key)) continue;
+            visited.add(key);
+            
+            if (current.color === targetColor) {
+                connected.push(current);
+                
+                // Check neighbors
+                const neighbors = this.getNeighbors(current.gridX, current.gridY, gameState);
+                neighbors.forEach(neighbor => {
+                    if (neighbor && !visited.has(`${neighbor.gridX},${neighbor.gridY}`)) {
+                        queue.push(neighbor);
+                    }
+                });
+            }
+        }
+        
+        return connected;
+    }
+    
+    getNeighbors(x, y, gameState) {
+        const neighbors = [];
+        const isOddRow = y % 2 === 1;
+        
+        // Hexagonal grid neighbors
+        const directions = isOddRow ? [
+            [-1, 0], [1, 0],   // Left, Right
+            [0, -1], [1, -1],  // Top-left, Top-right (for odd rows)
+            [0, 1], [1, 1]     // Bottom-left, Bottom-right (for odd rows)
+        ] : [
+            [-1, 0], [1, 0],   // Left, Right
+            [-1, -1], [0, -1], // Top-left, Top-right (for even rows)
+            [-1, 1], [0, 1]    // Bottom-left, Bottom-right (for even rows)
+        ];
+        
+        directions.forEach(([dx, dy]) => {
+            const neighbor = gameState.getBubbleAt(x + dx, y + dy);
+            if (neighbor) {
+                neighbors.push(neighbor);
+            }
+        });
+        
+        return neighbors;
+    }
+    
+    createSplashEffect(centerBubble, cluster, targetColor, gameState, gameManager) {
+        // Create expanding ring effect from center
+        const ringGeometry = new THREE.TorusGeometry(0.1, 0.05, 8, 32);
+        const ringMaterial = new THREE.MeshStandardMaterial({
+            color: targetColor,
+            transparent: true,
+            opacity: 1,
+            emissive: targetColor,
+            emissiveIntensity: 2
+        });
+        
+        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+        ring.position.copy(centerBubble.position);
+        ring.position.z = 1;
+        if (gameManager.scene) gameManager.scene.add(ring);
+        
+        // Animate expanding ring - OPTIMIZED
+        const ringAnimation = {
+            scale: 1,
+            opacity: 1,
+            update: function(deltaTime) {
+                this.scale += 30 * deltaTime; // 30 units per second
+                this.opacity -= 1.2 * deltaTime; // Fade in ~0.8 seconds
+                ring.scale.set(this.scale, this.scale, 1);
+                ringMaterial.opacity = Math.max(0, this.opacity);
+                
+                if (this.opacity <= 0) {
+                    if (gameManager.scene) gameManager.scene.remove(ring);
+                    ringGeometry.dispose();
+                    ringMaterial.dispose();
+                    return false; // Remove from animations
+                }
+                return true; // Keep animating
+            }
+        };
+        gameState.addAnimation(ringAnimation);
+        
+        // Create color wave particles - OPTIMIZED
+        ParticleFactory.createColorWave(
+            centerBubble.position,
+            targetColor,
+            PARTICLE_CONFIG.colorSplash.waveParticles,
+            gameState.particlePool
+        );
+        
+        // Add screen flash effect
+        const flashLight = new THREE.PointLight(targetColor, 8, 20);
+        flashLight.position.copy(centerBubble.position);
+        flashLight.position.z = 5;
+        if (gameManager.scene) gameManager.scene.add(flashLight);
+        
+        // Fade flash - OPTIMIZED
+        const flashAnimation = {
+            intensity: 8,
+            update: function(deltaTime) {
+                this.intensity -= 6 * deltaTime; // Fade in ~1.3 seconds
+                flashLight.intensity = Math.max(0, this.intensity);
+                
+                if (this.intensity <= 0) {
+                    if (gameManager.scene) gameManager.scene.remove(flashLight);
+                    flashLight.dispose();
+                    return false;
+                }
+                return true;
+            }
+        };
+        gameState.addAnimation(flashAnimation);
+        
+        // Screen shake for impact
+        gameManager.addScreenShake(0.3, 6);
+        
+        // Create spiral effect around each bubble in cluster - OPTIMIZED
+        cluster.forEach((bubble, index) => {
+            // Only create spiral for every Nth bubble based on config
+            if (index % PARTICLE_CONFIG.colorSplash.spiralEveryNth === 0) {
+                setTimeout(() => {
+                    this.createSpiralEffect(bubble, targetColor, gameState);
+                }, index * 50); // Increased delay
+            }
+        });
+    }
+    
+    createSpiralEffect(bubble, targetColor, gameState) {
+        // Create spiral particles around bubble - OPTIMIZED
+        ParticleFactory.createColorSpiral(
+            bubble.position,
+            targetColor,
+            PARTICLE_CONFIG.colorSplash.spiralParticles,
+            gameState.particlePool
+        );
+    }
+    
+    transformBubbleColor(bubble, newColor, gameState, gameManager) {
+        // Store old color for transition effect
+        const oldColor = bubble.color;
+        
+        // Create transformation particles - OPTIMIZED
+        ParticleFactory.createColorTransform(
+            bubble.position,
+            oldColor,
+            newColor,
+            PARTICLE_CONFIG.colorSplash.transformParticles,
+            gameState.particlePool
+        );
+        
+        // Update bubble color
+        bubble.color = newColor;
+        bubble.material.color.set(newColor);
+        bubble.material.emissive.set(newColor);
+        if (bubble.glowMesh) {
+            bubble.glowMesh.material.color.set(newColor);
+        }
+        
+        // Add transformation pulse
+        bubble.connectionAnimating = 1.5;
+        
+        // Create flash effect
+        const flash = new THREE.PointLight(newColor, 3, 3);
+        flash.position.copy(bubble.position);
+        if (gameManager.scene) gameManager.scene.add(flash);
+        
+        setTimeout(() => {
+            if (gameManager.scene) gameManager.scene.remove(flash);
+        }, 200);
+    }
+    
+    createVisualEffect(bubble) {
+        super.createVisualEffect(bubble);
+        
+        // Multicolor swirling material - OPTIMIZED
+        bubble.mesh.material = new THREE.MeshPhongMaterial({
+            color: 0xff00ff,
+            emissive: 0xff00ff,
+            emissiveIntensity: 0.5,
+            shininess: 100,
+            specular: 0x00ffff
+        });
+        
+        // Add swirling color particles
+        const particleCount = 5;
+        bubble.colorParticles = [];
+        
+        for (let i = 0; i < particleCount; i++) {
+            const particleGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+            const particleColor = CONFIG.BUBBLE_COLORS[Math.floor(Math.random() * CONFIG.BUBBLE_COLORS.length)];
+            const particleMaterial = new THREE.MeshStandardMaterial({
+                color: particleColor,
+                transparent: true,
+                opacity: 0.8,
+                emissive: particleColor,
+                emissiveIntensity: 2
+            });
+            
+            const particleMesh = new THREE.Mesh(particleGeometry, particleMaterial);
+            bubble.mesh.add(particleMesh);
+            bubble.colorParticles.push({
+                mesh: particleMesh,
+                angle: (Math.PI * 2 * i) / particleCount,
+                radius: CONFIG.BUBBLE_RADIUS * 0.8,
+                speed: 2 + Math.random(),
+                color: particleColor
+            });
+        }
+        
+        // Enhanced animation with swirling particles
+        const originalUpdate = bubble.powerUpAnimation.update;
+        bubble.powerUpAnimation.update = function(deltaTime) {
+            originalUpdate.call(this, deltaTime);
+            
+            // Animate color shift
+            const hue = (this.time * 0.2) % 1;
+            bubble.mesh.material.color.setHSL(hue, 1, 0.5);
+            bubble.mesh.material.emissive.setHSL(hue, 1, 0.5);
+            
+            // Animate swirling particles
+            bubble.colorParticles.forEach((particle, index) => {
+                particle.angle += particle.speed * deltaTime;
+                const wobble = Math.sin(this.time * 3 + index) * 0.1;
+                const r = particle.radius + wobble;
+                
+                particle.mesh.position.x = Math.cos(particle.angle) * r;
+                particle.mesh.position.y = Math.sin(particle.angle) * r;
+                particle.mesh.position.z = Math.sin(this.time * 2 + index) * 0.2;
+                
+                // Pulse opacity
+                particle.mesh.material.opacity = 0.5 + Math.sin(this.time * 4 + index) * 0.3;
+            });
+        };
+    }
+}

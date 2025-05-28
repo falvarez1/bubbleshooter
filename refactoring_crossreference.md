@@ -82,7 +82,6 @@ This document maps every existing function and feature to its destination in the
 | Next bubble preview | HTML + inline JS | `src/ui/NextBubblePreview.js` | |
 | Settings panel | HTML + inline JS | `src/ui/SettingsPanel.js` | |
 | Game over screen | HTML + inline JS | `src/ui/GameOverScreen.js` | |
-| Lightning selector | HTML + inline JS | `src/ui/LightningSelector.js` | |
 
 ### 🏗️ Three.js Components
 

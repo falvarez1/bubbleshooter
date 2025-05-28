@@ -1,0 +1,276 @@
+import * as THREE from 'three';
+import { CONFIG } from './Config.js';
+
+/**
+ * Game State Management
+ * Manages all game state data and provides methods for state manipulation
+ */
+export class GameState {
+    constructor() {
+        this.reset();
+    }
+    
+    reset() {
+        // Game status
+        this.score = 0;
+        this.level = 1;
+        this.combo = 0;
+        this.bestCombo = 0;
+        this.comboTimer = null;
+        this.isGameOver = false;
+        this.isPaused = false;
+        
+        // Bubble management
+        this.currentBubble = null;
+        this.nextBubbleColor = null;
+        this.bubbleGrid = this.initializeBubbleGrid();
+        
+        // Shooting mechanics
+        this.shootingPower = 0;
+        this.isCharging = false;
+        this.mousePosition = new THREE.Vector2();
+        this.trajectory = [];
+        
+        // Visual effects
+        this.particles = [];
+        this.particlePool = null; // Will be initialized by game manager
+        this.animations = [];
+        
+        // Power-up states
+        this.precisionAimActive = false;
+        this.precisionAimTime = 0;
+        this.extendedTrajectory = false;
+        
+        // Starfield and background effects
+        this.starfieldLayers = [];
+        this.shootingStars = [];
+        this.nebula = null;
+        this.heatHaze = null;
+        this.dangerField = null;
+    }
+    
+    initializeBubbleGrid() {
+        const grid = [];
+        for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
+            grid[y] = [];
+            for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
+                grid[y][x] = null;
+            }
+        }
+        return grid;
+    }
+    
+    // Score management
+    addScore(points) {
+        this.score += points;
+        
+        // Check level progression
+        const newLevel = Math.floor(this.score / 1000) + 1;
+        if (newLevel > this.level) {
+            this.level = newLevel;
+            return true; // Level increased
+        }
+        return false;
+    }
+    
+    // Combo management
+    incrementCombo() {
+        this.combo++;
+        if (this.combo > this.bestCombo) {
+            this.bestCombo = this.combo;
+        }
+        
+        // Reset combo timer
+        if (this.comboTimer) {
+            clearTimeout(this.comboTimer);
+        }
+        
+        this.comboTimer = setTimeout(() => {
+            this.combo = 0;
+        }, CONFIG.COMBO_TIMEOUT);
+        
+        return this.combo + 1; // Return display combo (1-based)
+    }
+    
+    resetCombo() {
+        this.combo = 0;
+        if (this.comboTimer) {
+            clearTimeout(this.comboTimer);
+            this.comboTimer = null;
+        }
+    }
+    
+    // Grid management
+    getBubbleAt(x, y) {
+        if (y >= 0 && y < CONFIG.GRID_HEIGHT) {
+            const isOddRow = y % 2 === 1;
+            const maxX = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
+            
+            if (x >= 0 && x < maxX) {
+                return this.bubbleGrid[y][x];
+            }
+        }
+        return null;
+    }
+    
+    setBubbleAt(x, y, bubble) {
+        if (y >= 0 && y < CONFIG.GRID_HEIGHT) {
+            const isOddRow = y % 2 === 1;
+            const maxX = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
+            
+            if (x >= 0 && x < maxX) {
+                this.bubbleGrid[y][x] = bubble;
+                if (bubble) {
+                    bubble.gridX = x;
+                    bubble.gridY = y;
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    removeBubbleAt(x, y) {
+        const bubble = this.getBubbleAt(x, y);
+        if (bubble) {
+            this.setBubbleAt(x, y, null);
+            return bubble;
+        }
+        return null;
+    }
+    
+    // Get all bubbles in the grid
+    getAllBubbles() {
+        const bubbles = [];
+        for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
+            const isOddRow = y % 2 === 1;
+            const bubblesInRow = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
+            
+            for (let x = 0; x < bubblesInRow; x++) {
+                const bubble = this.bubbleGrid[y][x];
+                if (bubble) {
+                    bubbles.push(bubble);
+                }
+            }
+        }
+        return bubbles;
+    }
+    
+    // Count bubbles
+    countBubbles(filterFn = null) {
+        let count = 0;
+        for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
+            const isOddRow = y % 2 === 1;
+            const bubblesInRow = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
+            
+            for (let x = 0; x < bubblesInRow; x++) {
+                const bubble = this.bubbleGrid[y][x];
+                if (bubble && (!filterFn || filterFn(bubble))) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+    
+    // Check if position is valid grid position
+    isValidGridPosition(x, y) {
+        if (y < 0 || y >= CONFIG.GRID_HEIGHT) return false;
+        
+        const isOddRow = y % 2 === 1;
+        const maxX = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
+        
+        return x >= 0 && x < maxX;
+    }
+    
+    // Shift all rows down (for adding new rows)
+    shiftRowsDown() {
+        // Start from bottom and move up
+        for (let y = CONFIG.GRID_HEIGHT - 1; y > 0; y--) {
+            for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
+                this.bubbleGrid[y][x] = this.bubbleGrid[y - 1][x];
+                if (this.bubbleGrid[y][x]) {
+                    this.bubbleGrid[y][x].gridY = y;
+                }
+            }
+        }
+        
+        // Clear top row
+        for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
+            this.bubbleGrid[0][x] = null;
+        }
+    }
+    
+    // Animation management
+    addAnimation(animation) {
+        this.animations.push(animation);
+    }
+    
+    updateAnimations(deltaTime) {
+        this.animations = this.animations.filter(animation => {
+            return animation.update(deltaTime);
+        });
+    }
+    
+    // Particle management
+    addParticle(particle) {
+        this.particles.push(particle);
+    }
+    
+    updateParticles(deltaTime) {
+        // Update particle pool if it exists
+        if (this.particlePool) {
+            this.particlePool.update(deltaTime);
+        }
+        
+        // Update legacy particles
+        this.particles = this.particles.filter(particle => {
+            return particle.update(deltaTime);
+        });
+    }
+    
+    // Power-up state management
+    activatePrecisionAim(duration) {
+        this.precisionAimActive = true;
+        this.precisionAimTime = duration;
+        this.extendedTrajectory = true;
+    }
+    
+    deactivatePrecisionAim() {
+        this.precisionAimActive = false;
+        this.precisionAimTime = 0;
+        this.extendedTrajectory = false;
+    }
+    
+    updatePrecisionAim(deltaTime) {
+        if (this.precisionAimActive) {
+            this.precisionAimTime -= deltaTime;
+            if (this.precisionAimTime <= 0) {
+                this.deactivatePrecisionAim();
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+    
+    // Game over
+    setGameOver() {
+        this.isGameOver = true;
+        this.resetCombo();
+    }
+    
+    // Pause/Resume
+    pause() {
+        this.isPaused = true;
+    }
+    
+    resume() {
+        this.isPaused = false;
+    }
+    
+    togglePause() {
+        this.isPaused = !this.isPaused;
+        return this.isPaused;
+    }
+}

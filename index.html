@@ -130,18 +130,8 @@
         <p style="font-size: 18px; color: #fff; margin-bottom: 30px;">Best Combo: <span id="bestCombo">0</span></p>
         <button class="restart-btn" onclick="restartGame()">PLAY AGAIN</button>
     </div>
-    
-    <!-- Lightning Power-Up Selection UI -->
-    <div class="lightning-selector" id="lightningSelector" style="display: none;">
-        <h3>LIGHTNING STRIKE</h3>
-        <p>Choose your target:</p>
-        <div class="lightning-options">
-            <button class="lightning-btn" id="selectRow">DESTROY ROW</button>
-            <button class="lightning-btn" id="selectColumn">DESTROY COLUMN</button>
-        </div>
-        <button class="lightning-cancel">CANCEL</button>
-    </div>
-    
+   
+  
     <!-- Precision Aim Indicator -->
     <div class="precision-indicator" id="precisionIndicator" style="display: none;">
         <div class="precision-timer">
@@ -2430,15 +2420,7 @@
                 });
             }
             
-            // Old lightning selector methods - no longer needed with Chain Lightning
-            // These methods were used for the row/column selection UI
-            /*
-            showLightningSelector(position) { ... }
-            executeLightningStrike(position, targetType) { ... }
-            createLightningEffect(bubbles, targetType) { ... }
-            createLightningParticles(bubble) { ... }
-            */
-            
+           
             activatePrecisionAim(duration) {
                 gameState.precisionAimActive = true;
                 gameState.precisionAimTime = duration;
@@ -4795,56 +4777,6 @@
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-// Debug Keyboard Listener
-        window.addEventListener('keydown', (event) => {
-            if (!DEBUG_MODE) return;
-
-            const key = event.key;
-            let forcedType = null;
-
-            if (key >= '1' && key <= '7') {
-                const colorIndex = parseInt(key) - 1;
-                if (colorIndex < CONFIG.BUBBLE_COLORS.length) {
-                    forcedType = CONFIG.BUBBLE_COLORS[colorIndex];
-                    console.log(`Debug: Forcing bubble color ${forcedType.toString(16)}`);
-                }
-            } else {
-                switch (key) {
-                    case '8':
-                        forcedType = 'rainbow';
-                        break;
-                    case '9':
-                        forcedType = 'bomb';
-                        break;
-                    case '0':
-                        forcedType = 'chainLightning';
-                        break;
-                    case '-': // Minus key
-                        forcedType = 'precision';
-                        break;
-                    case '=': // Equals key (often next to minus)
-                        forcedType = 'colorSplash';
-                        break;
-                }
-                if (forcedType) {
-                    console.log(`Debug: Forcing power-up ${forcedType}`);
-                }
-            }
-
-            if (forcedType !== null) {
-                // console.log(`[Debug Key] Setting FORCED_NEXT_BUBBLE_TYPE to:`, forcedType);
-                FORCED_NEXT_BUBBLE_TYPE = forcedType;
-                // Immediately create the new shooting bubble to see the effect
-                if (gameState.currentBubble && !gameState.currentBubble.isMoving) {
-                    // console.log('[Debug Key] Replacing current bubble.');
-                    gameState.currentBubble.destroy(); // destroy() handles scene removal
-                    gameState.currentBubble = null;    // Explicitly nullify the reference
-                    createShootingBubble();        // Create the new (forced) one
-                } else {
-                    // console.log('[Debug Key] Current bubble not replaceable or ready yet.');
-                }
-            }
         });
 
         // Debug Keyboard Listener
