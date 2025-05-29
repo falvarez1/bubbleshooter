@@ -10,6 +10,17 @@ export class BubbleInstances {
         this.scene = scene;
         this.maxBubbles = maxBubbles;
         
+        // Bubble tracking and management
+        this.bubbleMap = new Map(); // bubbleId -> { index, type, bubble }
+        this.availableIndices = []; // Pool of reusable indices
+        this.nextIndex = 0;
+        this.activeBubbles = new Set();
+        
+        // Initialize available indices pool
+        for (let i = 0; i < maxBubbles; i++) {
+            this.availableIndices.push(i);
+        }
+        
         // Configurable special effects
         this.effects = {
             // Core effects
@@ -49,8 +60,8 @@ export class BubbleInstances {
             maxBubbles
         );
         
-        // Initialize with 0 instances
-        this.instancedMesh.count = 0;
+        // Set instance count to maximum but all instances start invisible (scale = 0)
+        this.instancedMesh.count = maxBubbles;
         
         // Create glow effect mesh (slightly larger, back-side rendering)
         this.glowGeometry = new THREE.IcosahedronGeometry(CONFIG.BUBBLE_RADIUS * 1.05, 2);
@@ -59,22 +70,22 @@ export class BubbleInstances {
             this.createGlowMaterial(),
             maxBubbles
         );
+        this.glowMesh.count = maxBubbles;
                        
         // Set up instance attributes
         this.setupInstanceAttributes();
         
-        // Track active instances
-        this.activeInstances = 0;
-        this.bubbleMap = new Map(); // Maps bubble ID to instance index
-        this.freeIndices = [];
-        
         scene.add(this.instancedMesh);
 
-        // if enableGlowMesh is true, add glow mesh to the scene, this should be 
-        // optimized later so that we don't create a glow mesh if not needed
-        if (this.effects.enableGlowMesh) {            
-            scene.add(this.glowMesh);
-        }
+        // Always add glow mesh to scene for now (will optimize later)
+        scene.add(this.glowMesh);
+        
+        console.log('BubbleInstances initialized:', {
+            maxBubbles: this.maxBubbles,
+            instancedMeshCount: this.instancedMesh.count,
+            glowMeshCount: this.glowMesh.count,
+            hasInstanceAttributes: !!this.instancedMesh.geometry.getAttribute('instanceColor')
+        });
     }
     
     createBubbleMaterial() {
@@ -512,7 +523,7 @@ export class BubbleInstances {
             new THREE.InstancedBufferAttribute(colors, 3));
         
         const scales = new Float32Array(this.maxBubbles);
-        scales.fill(1.0);
+        scales.fill(0.0); // Start all instances as invisible!
         this.instancedMesh.geometry.setAttribute('instanceScale', 
             new THREE.InstancedBufferAttribute(scales, 1));
         
@@ -526,7 +537,7 @@ export class BubbleInstances {
             new THREE.InstancedBufferAttribute(glowColors, 3));
             
         const glowScales = new Float32Array(this.maxBubbles);
-        glowScales.fill(1.0);
+        glowScales.fill(0.0); // Start all glow instances as invisible!
         this.glowMesh.geometry.setAttribute('instanceScale', 
             new THREE.InstancedBufferAttribute(glowScales, 1));
             
@@ -535,71 +546,118 @@ export class BubbleInstances {
             new THREE.InstancedBufferAttribute(glowGlows, 1));
     }
     
-    addBubble(bubble) {
-        let instanceIndex;
+    addBubble(bubble, type = 'grid') {
+        // Generate unique ID if bubble doesn't have one
+        if (!bubble.id) {
+            bubble.id = `bubble_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        }
         
-        if (this.freeIndices.length > 0) {
-            instanceIndex = this.freeIndices.pop();
-        } else if (this.activeInstances < this.maxBubbles) {
-            instanceIndex = this.activeInstances++;
-        } else {
+        // Get available instance index
+        if (this.availableIndices.length === 0) {
             console.warn('Maximum bubble instances reached');
             return null;
         }
         
-        // No need to reset - we'll set everything properly below
+        const instanceIndex = this.availableIndices.pop();
+        
+        // Store bubble mapping
+        this.bubbleMap.set(bubble.id, {
+            index: instanceIndex,
+            type: type,
+            bubble: bubble
+        });
+        this.activeBubbles.add(bubble);
         
         // Set transform matrix for both meshes
         const matrix = new THREE.Matrix4();
         matrix.setPosition(bubble.position);
+        
+        // Make sure the matrix is valid
+        if (isNaN(bubble.position.x) || isNaN(bubble.position.y) || isNaN(bubble.position.z)) {
+            console.error('Invalid bubble position:', bubble.position);
+            return null;
+        }
+        
         this.instancedMesh.setMatrixAt(instanceIndex, matrix);
-        this.glowMesh.setMatrixAt(instanceIndex, matrix);
+        if (this.glowMesh) {
+            this.glowMesh.setMatrixAt(instanceIndex, matrix);
+        }
+        
+        // Matrix set successfully for instance
         
         // Set color on both meshes
         const color = new THREE.Color(bubble.color);
         const colorAttr = this.instancedMesh.geometry.getAttribute('instanceColor');
-        colorAttr.setXYZ(instanceIndex, color.r, color.g, color.b);
-        colorAttr.needsUpdate = true;
+        if (colorAttr) {
+            colorAttr.setXYZ(instanceIndex, color.r, color.g, color.b);
+            colorAttr.needsUpdate = true;
+        }
         
-        const glowColorAttr = this.glowMesh.geometry.getAttribute('instanceColor');
-        glowColorAttr.setXYZ(instanceIndex, color.r, color.g, color.b);
-        glowColorAttr.needsUpdate = true;
+        if (this.glowMesh) {
+            const glowColorAttr = this.glowMesh.geometry.getAttribute('instanceColor');
+            if (glowColorAttr) {
+                glowColorAttr.setXYZ(instanceIndex, color.r, color.g, color.b);
+                glowColorAttr.needsUpdate = true;
+            }
+        }
         
         // Set scale on both meshes
         const scaleAttr = this.instancedMesh.geometry.getAttribute('instanceScale');
-        scaleAttr.setX(instanceIndex, 1.0);
-        scaleAttr.needsUpdate = true;
+        if (scaleAttr) {
+            scaleAttr.setX(instanceIndex, 1.0);
+            scaleAttr.needsUpdate = true;
+        }
         
-        const glowScaleAttr = this.glowMesh.geometry.getAttribute('instanceScale');
-        glowScaleAttr.setX(instanceIndex, 1.0);
-        glowScaleAttr.needsUpdate = true;
+        if (this.glowMesh) {
+            const glowScaleAttr = this.glowMesh.geometry.getAttribute('instanceScale');
+            if (glowScaleAttr) {
+                glowScaleAttr.setX(instanceIndex, 1.0);
+                glowScaleAttr.needsUpdate = true;
+            }
+        }
         
         // Set glow on both meshes
         const glowValue = bubble.isPowerUp ? 1.0 : 0.0;
         const glowAttr = this.instancedMesh.geometry.getAttribute('instanceGlow');
-        glowAttr.setX(instanceIndex, glowValue);
-        glowAttr.needsUpdate = true;
+        if (glowAttr) {
+            glowAttr.setX(instanceIndex, glowValue);
+            glowAttr.needsUpdate = true;
+        }
         
-        const glowGlowAttr = this.glowMesh.geometry.getAttribute('instanceGlow');
-        glowGlowAttr.setX(instanceIndex, glowValue);
-        glowGlowAttr.needsUpdate = true;
+        if (this.glowMesh) {
+            const glowGlowAttr = this.glowMesh.geometry.getAttribute('instanceGlow');
+            if (glowGlowAttr) {
+                glowGlowAttr.setX(instanceIndex, glowValue);
+                glowGlowAttr.needsUpdate = true;
+            }
+        }
         
         this.instancedMesh.instanceMatrix.needsUpdate = true;
-        this.glowMesh.instanceMatrix.needsUpdate = true;
+        if (this.glowMesh) {
+            this.glowMesh.instanceMatrix.needsUpdate = true;
+        }
         
-        // Update instance count for rendering
-        this.instancedMesh.count = this.activeInstances;
-        this.glowMesh.count = this.activeInstances;
+        // Instance count is already set to maxBubbles - no need to change it
+        // All unused instances have scale=0 so they're invisible
         
-        // Map bubble to instance
-        this.bubbleMap.set(bubble, instanceIndex);
-        
+        console.log(`Added ${type} bubble with ID ${bubble.id} at instance ${instanceIndex}`, {
+            position: bubble.position,
+            activeCount: this.activeBubbles.size,
+            availableIndices: this.availableIndices.length
+        });
         return instanceIndex;
     }
     
     updateBubble(bubble) {
-        const instanceIndex = this.bubbleMap.get(bubble);
-        if (instanceIndex === undefined) return;
+        const mapping = this.bubbleMap.get(bubble.id);
+        if (!mapping) return;
+        
+        const instanceIndex = mapping.index;
+        
+        // Debug: Log shooting bubble updates (disabled)
+        // if (mapping.type === 'shooting') {
+        //     console.log(`Updating shooting bubble at position:`, bubble.position);
+        // }
         
         // Update transform
         const matrix = new THREE.Matrix4();
@@ -609,39 +667,173 @@ export class BubbleInstances {
             matrix.setPosition(bubble.position);
         }
         this.instancedMesh.setMatrixAt(instanceIndex, matrix);
-        this.glowMesh.setMatrixAt(instanceIndex, matrix);
+        if (this.glowMesh) {
+            this.glowMesh.setMatrixAt(instanceIndex, matrix);
+        }
         
         // Update scale for animations on both meshes
         const scaleAttr = this.instancedMesh.geometry.getAttribute('instanceScale');
-        // Use connectionScale directly - it already contains the full scale value (1.0 + animation)
-        const scale = bubble.connectionAnimating ? bubble.connectionScale : 1.0;
-        scaleAttr.setX(instanceIndex, scale);
-        scaleAttr.needsUpdate = true;
+        if (scaleAttr) {
+            // Use connectionScale for connection animation, impactScale for spring physics, or 1.0
+            let scale = 1.0;
+            if (bubble.connectionAnimating) {
+                scale = bubble.connectionScale;
+            } else if (bubble.impactScale && bubble.impactScale !== 1.0) {
+                scale = bubble.impactScale;
+            }
+            scaleAttr.setX(instanceIndex, scale);
+            scaleAttr.needsUpdate = true;
+        }
         
-        const glowScaleAttr = this.glowMesh.geometry.getAttribute('instanceScale');
-        glowScaleAttr.setX(instanceIndex, scale);
-        glowScaleAttr.needsUpdate = true;
+        if (this.glowMesh) {
+            const glowScaleAttr = this.glowMesh.geometry.getAttribute('instanceScale');
+            if (glowScaleAttr) {
+                let scale = 1.0;
+                if (bubble.connectionAnimating) {
+                    scale = bubble.connectionScale;
+                } else if (bubble.impactScale && bubble.impactScale !== 1.0) {
+                    scale = bubble.impactScale;
+                }
+                glowScaleAttr.setX(instanceIndex, scale);
+                glowScaleAttr.needsUpdate = true;
+            }
+        }
         
         this.instancedMesh.instanceMatrix.needsUpdate = true;
-        this.glowMesh.instanceMatrix.needsUpdate = true;
+        if (this.glowMesh) {
+            this.glowMesh.instanceMatrix.needsUpdate = true;
+        }
     }
     
     removeBubble(bubble) {
-        const instanceIndex = this.bubbleMap.get(bubble);
-        if (instanceIndex === undefined) return;
+        const bubbleId = bubble.id || bubble;
+        const mapping = this.bubbleMap.get(bubbleId);
+        if (!mapping) {
+            console.log(`Warning: Tried to remove bubble ${bubbleId} but it was not found in mapping`);
+            return false;
+        }
+        
+        const instanceIndex = mapping.index;
         
         // Hide both main and glow instances by setting scale to 0
         const scaleAttr = this.instancedMesh.geometry.getAttribute('instanceScale');
-        scaleAttr.setX(instanceIndex, 0.0);
-        scaleAttr.needsUpdate = true;
+        if (scaleAttr) {
+            scaleAttr.setX(instanceIndex, 0.0);
+            scaleAttr.needsUpdate = true;
+        }
         
-        const glowScaleAttr = this.glowMesh.geometry.getAttribute('instanceScale');
-        glowScaleAttr.setX(instanceIndex, 0.0);
-        glowScaleAttr.needsUpdate = true;
+        if (this.glowMesh) {
+            const glowScaleAttr = this.glowMesh.geometry.getAttribute('instanceScale');
+            if (glowScaleAttr) {
+                glowScaleAttr.setX(instanceIndex, 0.0);
+                glowScaleAttr.needsUpdate = true;
+            }
+        }
         
         // Free the index for reuse
-        this.freeIndices.push(instanceIndex);
-        this.bubbleMap.delete(bubble);
+        this.availableIndices.push(instanceIndex);
+        this.bubbleMap.delete(bubbleId);
+        this.activeBubbles.delete(mapping.bubble);
+        
+        console.log(`Removed bubble with ID ${bubbleId} from instance ${instanceIndex}`, {
+            activeCount: this.activeBubbles.size,
+            availableIndices: this.availableIndices.length,
+            type: mapping.type
+        });
+        return true;
+    }
+    
+    // New unified methods for bubble management
+    getActiveBubbles() {
+        return Array.from(this.activeBubbles);
+    }
+    
+    getBubblesByType(type) {
+        return Array.from(this.bubbleMap.values())
+            .filter(mapping => mapping.type === type)
+            .map(mapping => mapping.bubble);
+    }
+    
+    getBubbleMapping(bubble) {
+        const bubbleId = bubble.id || bubble;
+        return this.bubbleMap.get(bubbleId);
+    }
+    
+    setElectricEffect(bubble) {
+        const mapping = this.bubbleMap.get(bubble.id);
+        if (!mapping) return;
+        
+        const instanceIndex = mapping.index;
+        
+        // Set electric blue color
+        const color = new THREE.Color(0x00ddff);
+        const colorAttr = this.instancedMesh.geometry.getAttribute('instanceColor');
+        if (colorAttr) {
+            colorAttr.setXYZ(instanceIndex, color.r, color.g, color.b);
+            colorAttr.needsUpdate = true;
+        }
+        
+        // Set electric glow
+        const glowAttr = this.instancedMesh.geometry.getAttribute('instanceGlow');
+        if (glowAttr) {
+            glowAttr.setX(instanceIndex, 1.0); // Full glow for electrical effect
+            glowAttr.needsUpdate = true;
+        }
+        
+        if (this.glowMesh) {
+            const glowColorAttr = this.glowMesh.geometry.getAttribute('instanceColor');
+            if (glowColorAttr) {
+                glowColorAttr.setXYZ(instanceIndex, color.r, color.g, color.b);
+                glowColorAttr.needsUpdate = true;
+            }
+            
+            const glowGlowAttr = this.glowMesh.geometry.getAttribute('instanceGlow');
+            if (glowGlowAttr) {
+                glowGlowAttr.setX(instanceIndex, 1.0);
+                glowGlowAttr.needsUpdate = true;
+            }
+        }
+    }
+    
+    updateBubbleType(bubble, newType) {
+        const mapping = this.bubbleMap.get(bubble.id);
+        if (mapping) {
+            const oldType = mapping.type;
+            mapping.type = newType;
+            console.log(`Updated bubble ${bubble.id} type from ${oldType} to ${newType}`);
+            return true;
+        }
+        return false;
+    }
+    
+    setJitterEffect(bubble, jitterAmount = 0.1) {
+        const mapping = this.bubbleMap.get(bubble.id);
+        if (!mapping) return;
+        
+        const instanceIndex = mapping.index;
+        
+        // Apply electrical jitter through matrix manipulation
+        const matrix = new THREE.Matrix4();
+        this.instancedMesh.getMatrixAt(instanceIndex, matrix);
+        
+        // Add jitter to position
+        const position = new THREE.Vector3();
+        matrix.decompose(position, new THREE.Quaternion(), new THREE.Vector3());
+        
+        position.x += (Math.random() - 0.5) * jitterAmount;
+        position.y += (Math.random() - 0.5) * jitterAmount;
+        
+        matrix.setPosition(position);
+        this.instancedMesh.setMatrixAt(instanceIndex, matrix);
+        
+        if (this.glowMesh) {
+            this.glowMesh.setMatrixAt(instanceIndex, matrix);
+        }
+        
+        this.instancedMesh.instanceMatrix.needsUpdate = true;
+        if (this.glowMesh) {
+            this.glowMesh.instanceMatrix.needsUpdate = true;
+        }
     }
     
     update(deltaTime, camera = null) {

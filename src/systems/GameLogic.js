@@ -11,15 +11,11 @@ export class GameLogic {
         this.gameState = gameState;
         this.gameManager = gameManager;
         this.scene = scene;
-        this.bubbleRenderer = null;
         
         // Set up event listeners for power-up effects
         this.setupEventListeners();
     }
     
-    setBubbleRenderer(bubbleRenderer) {
-        this.bubbleRenderer = bubbleRenderer;
-    }
     
     setupEventListeners() {
         // Chain Lightning destroy event
@@ -58,18 +54,34 @@ export class GameLogic {
         const centerY = bubbles.reduce((sum, b) => sum + b.position.y, 0) / bubbles.length;
         this.gameManager.showFloatingScore(new THREE.Vector3(centerX, centerY, 0), points);
         
-        // Remove bubbles (electric effects are already handled by the power-up)
+        // Bubbles have already been removed from grid and instanced renderer by the power-up
+        // Clean up any remaining effects and dispose resources
         bubbles.forEach((bubble, index) => {
             setTimeout(() => {
-                this.removeBubble(bubble);
-            }, index * 15); // Faster removal since effects are pre-created
+                // Clean up effects for this bubble
+                if (this.gameManager.effectsSystem) {
+                    this.gameManager.effectsSystem.cleanupBubbleEffects(bubble.id);
+                }
+                
+                // Dispose of individual mesh resources (not used for rendering but still allocated)
+                if (bubble.mesh) {
+                    if (bubble.mesh.geometry) bubble.mesh.geometry.dispose();
+                    if (bubble.mesh.material) {
+                        if (Array.isArray(bubble.mesh.material)) {
+                            bubble.mesh.material.forEach(mat => mat.dispose());
+                        } else {
+                            bubble.mesh.material.dispose();
+                        }
+                    }
+                }
+            }, index * 50); // Stagger cleanup
         });
         
         // Check for floating bubbles after destruction
         setTimeout(() => {
             this.removeFloatingBubbles();
             setTimeout(() => this.checkVictory(), 500);
-        }, bubbles.length * 15 + 200);
+        }, bubbles.length * 50 + 400); // Allow extra time for effects cleanup
     }
     
     handleColorSplashDestroy(bubbles, points) {
@@ -449,14 +461,17 @@ export class GameLogic {
     removeBubble(bubble) {
         this.gameState.removeBubbleAt(bubble.gridX, bubble.gridY);
         
+        // Mark as destroyed to prevent collision detection
+        bubble.isDestroyed = true;
+        
         // Reset animation states to prevent updates during removal
         bubble.connectionAnimating = false;
         bubble.connectionScale = 1.0;
         bubble.impactVelocity.set(0, 0, 0);
         
-        // Remove from instanced renderer if applicable
-        if (bubble.useInstancedRendering && this.bubbleRenderer) {
-            this.bubbleRenderer.removeBubble(bubble);
+        // Remove mesh from scene
+        if (bubble.mesh && bubble.mesh.parent) {
+            this.scene.remove(bubble.mesh);
         }
         
         // Animate removal

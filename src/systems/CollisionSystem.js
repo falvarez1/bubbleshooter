@@ -36,7 +36,10 @@ export class CollisionSystem {
             
             for (let x = 0; x < bubblesInRow; x++) {
                 const bubble = this.gameState.bubbleGrid[y][x];
-                if (!bubble) continue;
+                if (!bubble || bubble.isDestroyed || bubble.isFloating) continue;
+                
+                // Skip if bubble mesh is not in scene
+                if (!bubble.mesh || !bubble.mesh.parent) continue;
                 
                 const distance = current.position.distanceTo(bubble.position);
                 // Use slightly less than 2 radii to ensure proper contact
@@ -101,6 +104,13 @@ export class CollisionSystem {
             bubble.velocity = attachmentVelocity;
             
             this.gameState.bubbleGrid[finalY][finalX] = bubble;
+            
+            // Bubble is now part of the grid
+            bubble.isMoving = false;
+            
+            // Ensure mesh is visible
+            bubble.mesh.visible = true;
+            bubble.mesh.scale.setScalar(1.0);
             
             // Create attachment effect
             this.createAttachmentEffect(bubble);

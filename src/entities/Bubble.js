@@ -7,6 +7,9 @@ import { CONFIG } from '../core/Config.js';
  */
 export class Bubble {
     constructor(x, y, color, radius = CONFIG.BUBBLE_RADIUS) {
+        // Generate unique ID for instanced rendering tracking
+        this.id = `bubble_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
         this.gridX = -1;
         this.gridY = -1;
         this.position = new THREE.Vector3(x, y, 0);
@@ -58,6 +61,9 @@ export class Bubble {
         this.connectionScale = 1.0;
         this.connectionAnimating = false;
         
+        // Impact scale for spring physics
+        this.impactScale = 1.0;
+        
         // Impact physics properties
         this.impactVelocity = new THREE.Vector3(0, 0, 0);
         this.impactDamping = CONFIG.IMPACT_PHYSICS.DAMPING;
@@ -72,6 +78,9 @@ export class Bubble {
         this.isPowerUp = false;
         this.powerUpType = null;
         this.powerUpAnimation = null;
+        
+        // Destruction state - used to prevent collision with bubbles being destroyed
+        this.isDestroyed = false;
     }
     
     update(deltaTime) {
@@ -99,7 +108,9 @@ export class Bubble {
         // Floating animation
         if (!this.isMoving) {
             const floatY = Math.sin(Date.now() * 0.001 * this.floatSpeed + this.floatOffset) * 0.05;
+            this.mesh.position.x = this.position.x;
             this.mesh.position.y = this.position.y + floatY;
+            this.mesh.position.z = this.position.z;
         }
         
         // Rotation
@@ -136,12 +147,16 @@ export class Bubble {
             const impactScale = 1.0 + this.impactVelocity.length() * CONFIG.IMPACT_PHYSICS.SCALE_RESPONSE;
             this.mesh.scale.setScalar(impactScale);
             
+            // Store the impact scale for instanced rendering
+            this.impactScale = impactScale;
+            
             // Reset if velocity is very small
             if (this.impactVelocity.length() < 0.001) {
                 this.impactVelocity.set(0, 0, 0);
                 this.position.copy(this.basePosition);
                 this.mesh.position.copy(this.position);
                 this.mesh.scale.setScalar(1.0);
+                this.impactScale = 1.0; // Reset impact scale
             }
         }
         
@@ -166,6 +181,9 @@ export class Bubble {
     }
     
     destroy() {
+        // Mark as destroyed to prevent collision detection
+        this.isDestroyed = true;
+        
         // First, properly dispose of all children of the mesh
         if (this.mesh.children.length > 0) {
             // Create a copy of the children array since we'll be modifying it

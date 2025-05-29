@@ -10,6 +10,7 @@ import { CollisionSystem } from './systems/CollisionSystem.js';
 import { GameLogic } from './systems/GameLogic.js';
 import { UIManager } from './ui/VisualTextDisplay.js';
 import { PerformanceManager } from './core/PerformanceManager.js';
+import { BubbleEffectsSystem } from './graphics/BubbleEffectsSystem.js';
 import { Bubble } from './entities/Bubble.js';
 import { ParticlePool, Particle } from './entities/Particle.js';
 import { 
@@ -41,6 +42,7 @@ class BubbleShooterGame {
         this.trajectorySystem = new TrajectorySystem(this.scene);
         this.collisionSystem = new CollisionSystem(this.gameState, this.gameManager);
         this.gameLogic = new GameLogic(this.gameState, this.gameManager, this.scene);
+        this.effectsSystem = new BubbleEffectsSystem(this.scene);
         
         // Game properties
         this.DEBUG_MODE = true;
@@ -69,34 +71,8 @@ class BubbleShooterGame {
         // Initialize performance manager first
         await this.performanceManager.initialize();
         
-        // Create optimal bubble renderer based on capabilities
-        this.bubbleRenderer = this.performanceManager.createOptimalBubbleRenderer(this.scene, 200);
-        if (this.bubbleRenderer) {
-            console.log('Using instanced bubble rendering for grid bubbles');
-            
-            this.bubbleRenderer.setQualityPreset('low'); // Set initial quality preset
-            // Configure bubble special effects
-            // Enable multiple effects for better visibility
-            this.bubbleRenderer.setEffects({
-                enableTransmission: true,
-                enableRainbow: true,
-                enableFoam: true,
-                enableWobble: true
-            });
-            
-            // Alternative: Use a quality preset for all effects
-            // this.bubbleRenderer.setQualityPreset('ultra');
-            
-            // Debug: Check if uniforms are properly set
-            const material = this.bubbleRenderer.instancedMesh.material;
-            console.log('Sparkles uniform value:', material.uniforms.enableSparkles.value);
-            console.log('Rainbow uniform value:', material.uniforms.enableRainbow.value);
-            
-            // Log current effect settings
-            console.log('Bubble effects:', this.bubbleRenderer.getEffects());
-        } else {
-            console.log('Using individual meshes for all bubbles');
-        }
+        // Using individual meshes for all bubbles
+        console.log('Using individual meshes for all bubbles');
         
         // Apply particle preset
         applyParticlePreset(PARTICLE_CONFIG.preset);
@@ -165,13 +141,8 @@ class BubbleShooterGame {
         await this.audioSystem.initialize();
         this.audioSystem.startAmbientAudio();
         
-        // Initialize game manager with camera and scene
-        this.gameManager.initialize(this.camera, this.scene);
-        
-        // Pass bubble renderer to game logic for proper cleanup
-        if (this.bubbleRenderer) {
-            this.gameLogic.setBubbleRenderer(this.bubbleRenderer);
-        }
+        // Initialize game manager with camera, scene, and effects system
+        this.gameManager.initialize(this.camera, this.scene, this.effectsSystem);
         
         // Register power-ups
         this.gameManager.registerPowerUp(new RainbowPowerUp());
@@ -336,17 +307,9 @@ class BubbleShooterGame {
                         );
                     };
                     
-                    // Add to instanced renderer if available, otherwise use individual mesh
-                    if (this.bubbleRenderer) {
-                        this.bubbleRenderer.addBubble(bubble);
-                        // Mark bubble as using instanced rendering
-                        bubble.useInstancedRendering = true;
-                        // Hide the individual mesh since we're using instanced rendering
-                        bubble.mesh.visible = false;
-                    } else {
-                        this.scene.add(bubble.mesh);
-                        bubble.useInstancedRendering = false;
-                    }
+                    // Add bubble mesh to scene
+                    this.scene.add(bubble.mesh);
+                    bubble.useInstancedRendering = false;
                     
                     this.gameState.setBubbleAt(x, y, bubble);
                     
@@ -360,12 +323,40 @@ class BubbleShooterGame {
     }
     
     createShootingBubble() {
-        // Force cleanup of any orphaned meshes at shooting position before creating new bubble
-        // Use a more efficient approach - only check direct children of scene at shooting position
+        // Prevent creating multiple shooting bubbles
+        if (this.isCreatingShootingBubble) {
+            console.log('Already creating shooting bubble, skipping...');
+            return;
+        }
+        this.isCreatingShootingBubble = true;
+        
+        // Debug: Creating new shooting bubble
+        console.log('Creating new shooting bubble...');
+        
+        // CRITICAL FIX: Properly clean up previous shooting bubble
+        if (this.gameState.currentBubble) {
+            console.log('Cleaning up previous shooting bubble:', this.gameState.currentBubble.id);
+            
+            // Log cleanup
+            console.log('Cleaning up previous bubble...');
+            
+            // Remove from scene if it's an individual mesh
+            if (this.gameState.currentBubble.mesh && this.gameState.currentBubble.mesh.parent) {
+                this.scene.remove(this.gameState.currentBubble.mesh);
+                console.log('Removed individual mesh from scene');
+            }
+            
+            // Properly destroy the bubble to free all resources
+            this.gameState.currentBubble.destroy();
+            
+            // Clear the reference
+            this.gameState.currentBubble = null;
+        }
+        
+        // Legacy cleanup for any remaining meshes at shooting position
         const shootingY = CONFIG.SHOOTER_Y;
         const meshesToRemove = [];
         
-        // Only check immediate children of scene to avoid expensive traversal
         this.scene.children.forEach(child => {
             if (child.isMesh && Math.abs(child.position.y - shootingY) < 0.1 && 
                 child !== this.gameBoard && !child.name?.includes('wall') && !child.name?.includes('floor')) {
@@ -384,6 +375,8 @@ class BubbleShooterGame {
                 }
             }
         });
+        
+        console.log('Cleaned up', meshesToRemove.length, 'legacy meshes');
         
         let color;
         let powerUpToApply = null;
@@ -495,10 +488,12 @@ class BubbleShooterGame {
             );
         };
         
-        // Always use individual mesh for shooting bubble (needs special effects)
+        // Set as current bubble BEFORE adding to instanced renderer
+        this.gameState.currentBubble = bubble;
+        
+        // Add bubble mesh to scene
         this.scene.add(bubble.mesh);
         bubble.useInstancedRendering = false;
-        this.gameState.currentBubble = bubble;
         
         let appliedPowerUpDetails = null;
         if (powerUpToApply) {
@@ -516,7 +511,7 @@ class BubbleShooterGame {
                     }
                 } else {
                     // Apply visual effect for non-collectable power-ups
-                    powerUpInstance.createVisualEffect(bubble);
+                    powerUpInstance.createVisualEffect(bubble, this.gameState);
                     appliedPowerUpDetails = powerUpInstance;
                 }
             }
@@ -534,7 +529,7 @@ class BubbleShooterGame {
                         }
                     } else {
                         // Apply visual effect for non-collectable power-ups
-                        randomPowerUp.createVisualEffect(bubble);
+                        randomPowerUp.createVisualEffect(bubble, this.gameState);
                         appliedPowerUpDetails = randomPowerUp;
                     }
                 }
@@ -570,6 +565,12 @@ class BubbleShooterGame {
         // Set next bubble color
         this.gameState.nextBubbleColor = CONFIG.BUBBLE_COLORS[Math.floor(Math.random() * CONFIG.BUBBLE_COLORS.length)];
         this.uiManager.updateNextBubble(this.gameState.nextBubbleColor);
+        
+        // Debug: Shooting bubble created
+        console.log('Shooting bubble created:', bubble.id);
+        
+        // Reset flag
+        this.isCreatingShootingBubble = false;
     }
     
     createWallImpactParticles(bubble) {
@@ -995,6 +996,10 @@ class BubbleShooterGame {
                 // For other power-ups, force them on the next bubble
                 this.FORCED_NEXT_BUBBLE_TYPE = forcedType;
                 if (this.gameState.currentBubble && !this.gameState.currentBubble.isMoving) {
+                    // Remove from scene before destroying
+                    if (this.gameState.currentBubble.mesh && this.gameState.currentBubble.mesh.parent) {
+                        this.scene.remove(this.gameState.currentBubble.mesh);
+                    }
                     this.gameState.currentBubble.destroy();
                     this.gameState.currentBubble = null;
                     this.createShootingBubble();
@@ -1063,6 +1068,8 @@ class BubbleShooterGame {
             if (this.gameState.currentBubble) {
                 this.gameState.currentBubble.update(deltaTime);
                 
+                // Bubble position is already updated in bubble.update()
+                
                 // Check collisions
                 if (this.collisionSystem.checkBubbleCollisions()) {
                     // Collision handled
@@ -1077,10 +1084,7 @@ class BubbleShooterGame {
                     if (bubble) {
                         bubble.update(deltaTime);
                         
-                        // Update instanced bubble position if using instanced rendering
-                        if (bubble.useInstancedRendering && this.bubbleRenderer) {
-                            this.bubbleRenderer.updateBubble(bubble);
-                        }
+                        // Bubble position is already updated in bubble.update()
                         
                         if (!bubble.isPowerUp) {
                             bubblesRemaining++;
@@ -1089,10 +1093,7 @@ class BubbleShooterGame {
                 }
             }
             
-            // Update bubble renderer
-            if (this.bubbleRenderer) {
-                this.bubbleRenderer.update(deltaTime, this.camera);
-            }
+            // All bubbles are updated individually above
             
             // Update ambient audio based on game state (throttled to 30fps)
             this.audioUpdateTimer += deltaTime;

@@ -23,10 +23,12 @@ export class GameManager {
      * Initialize with dependencies
      * @param {THREE.Camera} camera - Three.js camera for visual text display
      * @param {THREE.Scene} scene - Three.js scene for power-up effects
+     * @param {BubbleEffectsSystem} effectsSystem - Independent effects system
      */
-    initialize(camera, scene) {
-        // Store scene reference for power-ups
+    initialize(camera, scene, effectsSystem) {
+        // Store references for power-ups and effects
         this.scene = scene;
+        this.effectsSystem = effectsSystem;
         
         // Initialize visual text display
         this.visualTextDisplay = new VisualTextDisplay(camera);
