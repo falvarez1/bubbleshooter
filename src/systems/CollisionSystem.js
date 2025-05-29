@@ -108,9 +108,17 @@ export class CollisionSystem {
             // Bubble is now part of the grid
             bubble.isMoving = false;
             
-            // Ensure mesh is visible
+            // Ensure mesh is visible and in scene
             bubble.mesh.visible = true;
             bubble.mesh.scale.setScalar(1.0);
+            
+            // Make sure the mesh stays in the scene
+            if (!bubble.mesh.parent) {
+                console.warn('Bubble mesh was not in scene, re-adding it');
+                if (this.gameManager.scene) {
+                    this.gameManager.scene.add(bubble.mesh);
+                }
+            }
             
             // Create attachment effect
             this.createAttachmentEffect(bubble);

@@ -248,6 +248,9 @@ class BubbleShooterGame {
         });
         
         this.gameManager.eventBus.on('bubbleAttached', (data) => {
+            // Clear current bubble reference immediately
+            this.gameState.currentBubble = null;
+            
             this.gameLogic.checkMatches(data.bubble);
             
             // Check game over

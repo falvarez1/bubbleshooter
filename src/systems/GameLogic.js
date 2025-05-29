@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG } from '../core/Config.js';
+import { Bubble } from '../entities/Bubble.js';
 import { ParticleFactory } from '../entities/Particle.js';
 
 /**
