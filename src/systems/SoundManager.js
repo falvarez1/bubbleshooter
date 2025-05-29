@@ -61,6 +61,7 @@ export class SoundManager {
         
         this.loadingSounds = new Set();
         this.loadedSounds = new Set();
+        this.failedSounds = new Set(); // Cache failed sound loads to prevent repeated requests
     }
     
     async init() {
@@ -74,18 +75,19 @@ export class SoundManager {
             await this.loadSound(soundName);
         }
         
-        // Load remaining sounds asynchronously
-        for (const soundName in this.soundDefinitions) {
-            if (!criticalSounds.includes(soundName)) {
-                this.loadSound(soundName).catch(err => 
-                    console.warn(`Failed to load sound: ${soundName}`, err)
-                );
+        // Load remaining sounds asynchronously without blocking
+        setTimeout(() => {
+            for (const soundName in this.soundDefinitions) {
+                if (!criticalSounds.includes(soundName)) {
+                    this.loadSound(soundName); // Errors are already handled in loadSound()
+                }
             }
-        }
+        }, 100); // Small delay to let the game start first
     }
     
     async loadSound(soundName) {
-        if (this.loadingSounds.has(soundName) || this.loadedSounds.has(soundName)) {
+        // Skip if already loading, loaded, or failed
+        if (this.loadingSounds.has(soundName) || this.loadedSounds.has(soundName) || this.failedSounds.has(soundName)) {
             return;
         }
         
@@ -94,6 +96,8 @@ export class SoundManager {
         
         if (!soundDef) {
             console.warn(`Sound definition not found: ${soundName}`);
+            this.failedSounds.add(soundName);
+            this.loadingSounds.delete(soundName);
             return;
         }
         
@@ -102,8 +106,20 @@ export class SoundManager {
             audio.volume = soundDef.volume * this.soundCategories[soundDef.category] * this.volume;
             
             await new Promise((resolve, reject) => {
-                audio.addEventListener('canplaythrough', resolve, { once: true });
-                audio.addEventListener('error', reject, { once: true });
+                const timeout = setTimeout(() => {
+                    reject(new Error('Sound load timeout'));
+                }, 5000); // 5 second timeout
+                
+                audio.addEventListener('canplaythrough', () => {
+                    clearTimeout(timeout);
+                    resolve();
+                }, { once: true });
+                
+                audio.addEventListener('error', (e) => {
+                    clearTimeout(timeout);
+                    reject(e);
+                }, { once: true });
+                
                 audio.load();
             });
             
@@ -114,8 +130,10 @@ export class SoundManager {
             });
             
             this.loadedSounds.add(soundName);
+            console.log(`Successfully loaded sound: ${soundName}`);
         } catch (error) {
-            console.error(`Failed to load sound ${soundName}:`, error);
+            console.warn(`Failed to load sound ${soundName} (will not retry):`, error.message);
+            this.failedSounds.add(soundName); // Cache the failure to prevent future attempts
         } finally {
             this.loadingSounds.delete(soundName);
         }
@@ -124,10 +142,17 @@ export class SoundManager {
     play(soundName, options = {}) {
         if (!this.enabled) return;
         
+        // Skip if this sound previously failed to load
+        if (this.failedSounds.has(soundName)) {
+            return;
+        }
+        
         const soundData = this.sounds.get(soundName);
         if (!soundData) {
-            // Try to load it if not yet loaded
-            this.loadSound(soundName);
+            // Try to load it if not yet loaded (and not failed)
+            if (!this.loadingSounds.has(soundName)) {
+                this.loadSound(soundName);
+            }
             return;
         }
         
@@ -219,5 +244,37 @@ export class SoundManager {
                 }
             }
         }
+    }
+    
+    /**
+     * Get status of all sounds for debugging
+     * @returns {Object} Status object with loaded/failed/pending counts
+     */
+    getStatus() {
+        const total = Object.keys(this.soundDefinitions).length;
+        const loaded = this.loadedSounds.size;
+        const failed = this.failedSounds.size;
+        const loading = this.loadingSounds.size;
+        const pending = total - loaded - failed - loading;
+        
+        return {
+            total,
+            loaded,
+            failed,
+            loading,
+            pending,
+            failedSounds: Array.from(this.failedSounds),
+            loadedSounds: Array.from(this.loadedSounds)
+        };
+    }
+    
+    /**
+     * Manually mark a sound as failed (for testing)
+     * @param {string} soundName - Name of sound to mark as failed
+     */
+    markSoundAsFailed(soundName) {
+        this.failedSounds.add(soundName);
+        this.loadingSounds.delete(soundName);
+        console.warn(`Manually marked sound as failed: ${soundName}`);
     }
 }

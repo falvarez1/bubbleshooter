@@ -47,17 +47,31 @@ export class PowerUp {
         });
         const glowGeometry = new THREE.SphereGeometry(CONFIG.BUBBLE_RADIUS * 1.5, 16, 16);
         const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+        // Ensure glow is centered on the bubble
+        glow.position.set(0, 0, 0);
         bubble.mesh.add(glow);
-        bubble.glowMesh = glow;
+        bubble.powerUpGlow = glow;  // Use different property name to avoid conflict
         
         // Add pulsing animation
         bubble.powerUpAnimation = {
+            bubble: bubble,
             time: 0,
+            active: true,
             update: function(deltaTime) {
+                if (!this.active) return false;
+                
                 this.time += deltaTime;
                 const scale = 1 + Math.sin(this.time * 3) * 0.1;
-                glow.scale.set(scale, scale, scale);
-                glow.material.opacity = 0.3 + Math.sin(this.time * 2) * 0.1;
+                // Use the closure reference to glow, which is the power-up glow
+                if (glow && glow.parent) {
+                    glow.scale.set(scale, scale, scale);
+                    glow.material.opacity = 0.3 + Math.sin(this.time * 2) * 0.1;
+                } else if (this.bubble && this.bubble.powerUpGlow) {
+                    // Fallback to check bubble.powerUpGlow if closure reference is lost
+                    this.bubble.powerUpGlow.scale.set(scale, scale, scale);
+                    this.bubble.powerUpGlow.material.opacity = 0.3 + Math.sin(this.time * 2) * 0.1;
+                }
+                return true;
             }
         };
     }

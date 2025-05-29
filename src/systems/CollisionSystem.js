@@ -9,6 +9,8 @@ export class CollisionSystem {
     constructor(gameState, gameManager) {
         this.gameState = gameState;
         this.gameManager = gameManager;
+        this.lastCollisionCheck = 0;
+        this.collisionCheckInterval = 1000 / 120; // Limit to 120fps for collision checks
     }
     
     /**
@@ -17,6 +19,13 @@ export class CollisionSystem {
      */
     checkBubbleCollisions() {
         if (!this.gameState.currentBubble || !this.gameState.currentBubble.isMoving) return false;
+        
+        // Throttle collision checks to prevent performance spikes
+        const now = Date.now();
+        if (now - this.lastCollisionCheck < this.collisionCheckInterval) {
+            return false;
+        }
+        this.lastCollisionCheck = now;
         
         const current = this.gameState.currentBubble;
         
@@ -107,6 +116,17 @@ export class CollisionSystem {
      * @returns {Object|null} Grid coordinates {x, y} or null
      */
     findNearestGridPosition(position) {
+        // Use a more efficient spatial approach - start from bubble's approximate grid position
+        // and search outward in a spiral pattern
+        
+        // First, estimate the grid position from world coordinates
+        const centerY = Math.round((CONFIG.GRID_TOP_Y - position.y) / CONFIG.HEX_HEIGHT);
+        const estimatedY = Math.max(0, Math.min(CONFIG.GRID_HEIGHT - 1, centerY));
+        const isOddRow = estimatedY % 2 === 1;
+        const xOffset = isOddRow ? CONFIG.HEX_WIDTH / 2 : 0;
+        const centerX = Math.round((position.x + CONFIG.GRID_WIDTH / 2 * CONFIG.HEX_WIDTH - 0.5 * CONFIG.HEX_WIDTH - xOffset) / CONFIG.HEX_WIDTH);
+        const estimatedX = Math.max(0, Math.min(CONFIG.GRID_WIDTH - 1, centerX));
+        
         let bestDistance = Infinity;
         let bestX = -1;
         let bestY = -1;
@@ -114,17 +134,25 @@ export class CollisionSystem {
         let fallbackY = -1;
         let fallbackDistance = Infinity;
         
-        // Check all possible attachment points
-        for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
-            const isOddRow = y % 2 === 1;
-            const bubblesInRow = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
+        // Search in expanding rings around the estimated position
+        const maxRadius = Math.max(CONFIG.GRID_WIDTH, CONFIG.GRID_HEIGHT);
+        
+        for (let radius = 0; radius < maxRadius; radius++) {
+            // For radius 0, just check the center position
+            const positions = radius === 0 ? [[estimatedX, estimatedY]] : this.getPositionsAtRadius(estimatedX, estimatedY, radius);
             
-            for (let x = 0; x < bubblesInRow; x++) {
+            for (let [x, y] of positions) {
+                // Skip if out of bounds
+                if (y < 0 || y >= CONFIG.GRID_HEIGHT) continue;
+                const isOddRowCheck = y % 2 === 1;
+                const bubblesInRow = isOddRowCheck ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
+                if (x < 0 || x >= bubblesInRow) continue;
+                
                 // Skip if position is occupied
                 if (this.gameState.bubbleGrid[y][x]) continue;
                 
                 // Calculate world position for this grid cell
-                const xPos = (x - CONFIG.GRID_WIDTH / 2 + 0.5) * CONFIG.HEX_WIDTH + (isOddRow ? CONFIG.HEX_WIDTH / 2 : 0);
+                const xPos = (x - CONFIG.GRID_WIDTH / 2 + 0.5) * CONFIG.HEX_WIDTH + (isOddRowCheck ? CONFIG.HEX_WIDTH / 2 : 0);
                 const yPos = CONFIG.GRID_TOP_Y - y * CONFIG.HEX_HEIGHT;
                 
                 const distance = Math.sqrt(
@@ -156,8 +184,16 @@ export class CollisionSystem {
                     bestDistance = distance;
                     bestX = x;
                     bestY = y;
+                    
+                    // Early exit if we found a good position close to the bubble
+                    if (distance < CONFIG.HEX_WIDTH) {
+                        return { x: bestX, y: bestY };
+                    }
                 }
             }
+            
+            // If we found a valid position, we can stop searching
+            if (bestX !== -1) break;
         }
         
         // Use best position if found, otherwise use fallback
@@ -175,6 +211,29 @@ export class CollisionSystem {
         }
         
         return null;
+    }
+    
+    /**
+     * Get all positions at a given radius from center point
+     * @param {number} centerX - Center x coordinate
+     * @param {number} centerY - Center y coordinate
+     * @param {number} radius - Search radius
+     * @returns {Array} Array of [x, y] positions
+     */
+    getPositionsAtRadius(centerX, centerY, radius) {
+        const positions = [];
+        
+        // Generate positions in a square pattern at the given radius
+        for (let dx = -radius; dx <= radius; dx++) {
+            for (let dy = -radius; dy <= radius; dy++) {
+                // Only include positions that are exactly at the radius distance (Manhattan distance)
+                if (Math.abs(dx) === radius || Math.abs(dy) === radius) {
+                    positions.push([centerX + dx, centerY + dy]);
+                }
+            }
+        }
+        
+        return positions;
     }
     
     /**

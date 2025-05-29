@@ -150,8 +150,8 @@ export class Bubble {
             this.glowMesh.rotation.y = -this.mesh.rotation.y;
         }
         
-        // Update power-up animation if present
-        if (this.powerUpAnimation) {
+        // Update power-up animation if present and active
+        if (this.powerUpAnimation && this.powerUpAnimation.active !== false) {
             this.powerUpAnimation.update(deltaTime);
         }
     }
@@ -165,6 +165,23 @@ export class Bubble {
     }
     
     destroy() {
+        // First, properly dispose of all children of the mesh
+        if (this.mesh.children.length > 0) {
+            // Create a copy of the children array since we'll be modifying it
+            const children = [...this.mesh.children];
+            children.forEach(child => {
+                this.mesh.remove(child);
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(mat => mat.dispose());
+                    } else {
+                        child.material.dispose();
+                    }
+                }
+            });
+        }
+        
         if (this.mesh.parent) {
             this.mesh.parent.remove(this.mesh);
         }
@@ -173,7 +190,67 @@ export class Bubble {
         if (this.glowMesh) {
             this.glowMesh.material.dispose();
             this.glowMesh.geometry.dispose();
+            this.glowMesh = null; // Nullify the reference
         }
+        
+        // Clean up power-up glow if it exists
+        if (this.powerUpGlow) {
+            if (this.powerUpGlow.parent) {
+                this.powerUpGlow.parent.remove(this.powerUpGlow);
+            }
+            this.powerUpGlow.material.dispose();
+            this.powerUpGlow.geometry.dispose();
+            this.powerUpGlow = null;
+        }
+
+        // Nullify power-up related properties when the bubble is destroyed.
+        // This helps prevent lingering effects if timeouts or async operations
+        // in power-up animations try to act on a destroyed bubble.
+        this.isPowerUp = false;
+        this.powerUpType = null;
+
+        // If the active power-up animation has a specific cleanup method (e.g., for bombs), call it.
+        if (this.powerUpAnimation) {
+            this.powerUpAnimation.active = false;
+            if (typeof this.powerUpAnimation.cleanupBombVisuals === 'function') {
+                this.powerUpAnimation.cleanupBombVisuals();
+            } else if (typeof this.powerUpAnimation.clear === 'function') {
+                // Fallback to a generic clear if it exists (hypothetical for other power-ups)
+                this.powerUpAnimation.clear();
+            }
+        }
+        this.powerUpAnimation = null;
+        
+        // Clean up any power-up specific child meshes
+        if (this.lightningCore) {
+            if (this.lightningCore.parent) {
+                this.lightningCore.parent.remove(this.lightningCore);
+            }
+            this.lightningCore.geometry.dispose();
+            this.lightningCore.material.dispose();
+            this.lightningCore = null;
+        }
+        
+        if (this.electricArcs) {
+            this.electricArcs.forEach(arc => {
+                if (arc.mesh.parent) {
+                    arc.mesh.parent.remove(arc.mesh);
+                }
+                arc.mesh.geometry.dispose();
+                arc.mesh.material.dispose();
+            });
+            this.electricArcs = null;
+        }
+
+        // It's generally good practice to nullify references to complex objects
+        // like mesh and material after disposal to potentially help garbage collection,
+        // though JavaScript's GC is usually smart enough if scopes are managed well.
+        // However, ensure this doesn't break other parts of the code that might
+        // expect these to exist (even if disposed) for a short period.
+        // For now, let's keep them as they were in the reverted version to minimize risk,
+        // as the main issue seems to be the powerUpAnimation state.
+        // this.mesh = null; // Re-evaluating if this is safe/needed
+        // this.material = null; // Re-evaluating if this is safe/needed
     }
     
     // Set grid position and update base position for physics

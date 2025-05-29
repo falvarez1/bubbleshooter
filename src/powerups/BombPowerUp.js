@@ -183,18 +183,78 @@ export class BombPowerUp extends PowerUp {
         
         // Add timer ticking effect
         let tickTime = 0;
-        const originalUpdate = bubble.powerUpAnimation.update;
-        bubble.powerUpAnimation.update = function(deltaTime) {
-            originalUpdate.call(this, deltaTime);
+        const currentAnimation = bubble.powerUpAnimation; // The animation object set by super.createVisualEffect
+        const originalUpdate = currentAnimation.update;
+        const bombPowerUpType = this.type; // 'bomb'
+
+        // Store timeout ID on the animation object itself
+        currentAnimation.bombTickTimeoutID = null;
+
+        currentAnimation.update = function(deltaTime) { // 'this' refers to currentAnimation
+            // Check if animation is still active
+            if (this.active === false) {
+                // Clean up any pending timeouts
+                if (this.bombTickTimeoutID) {
+                    clearTimeout(this.bombTickTimeoutID);
+                    this.bombTickTimeoutID = null;
+                }
+                return false;
+            }
+            
+            originalUpdate.call(this, deltaTime); // 'this.bubble' is the bubble associated with this animation
+
+            if (!this.bubble || !this.bubble.mesh || !this.bubble.mesh.material) {
+                // If bubble is gone, try to clear any pending timeout for safety
+                if (this.bombTickTimeoutID) {
+                    clearTimeout(this.bombTickTimeoutID);
+                    this.bombTickTimeoutID = null;
+                }
+                return;
+            }
+
             tickTime += deltaTime;
             if (tickTime > 0.5) {
                 tickTime = 0;
-                // Flash effect
-                bubble.mesh.material.emissiveIntensity = 1;
-                setTimeout(() => {
-                    bubble.mesh.material.emissiveIntensity = 0.5;
+
+                // Ensure this animation is still the active one for this bubble and it's still this power-up type
+                if (this.bubble.powerUpAnimation !== this || this.bubble.powerUpType !== bombPowerUpType) {
+                    if (this.bombTickTimeoutID) { // Clear timeout if state is no longer valid
+                        clearTimeout(this.bombTickTimeoutID);
+                        this.bombTickTimeoutID = null;
+                    }
+                    return;
+                }
+                
+                this.bubble.mesh.material.emissiveIntensity = 1;
+
+                // Clear any existing timeout before setting a new one to prevent multiple stacked timeouts
+                if (this.bombTickTimeoutID) {
+                    clearTimeout(this.bombTickTimeoutID);
+                }
+
+                this.bombTickTimeoutID = setTimeout(() => {
+                    this.bombTickTimeoutID = null; // Clear the ID once the timeout starts executing
+                    if (this.bubble && this.bubble.mesh && this.bubble.mesh.material &&
+                        this.bubble.powerUpAnimation === this && // Check if this animation object is still current
+                        this.bubble.powerUpType === bombPowerUpType) { // Check if bubble is still this power-up type
+                        
+                        this.bubble.mesh.material.emissiveIntensity = 0.5;
+                    }
                 }, 100);
             }
+        };
+
+        // Add a specific cleanup method to this animation object
+        currentAnimation.cleanupBombVisuals = function() {
+            if (this.bombTickTimeoutID) {
+                clearTimeout(this.bombTickTimeoutID);
+                this.bombTickTimeoutID = null;
+            }
+            // Optionally, reset material properties if this animation was the last one to modify them
+            // However, the main.js reset should handle the next bubble's material.
+            // This cleanup is primarily for the timeout.
+            // If the bubble still exists and is a bomb, we might want to set intensity back to 0.5
+            // But if it's being destroyed or reset, other logic will take over.
         };
     }
 }

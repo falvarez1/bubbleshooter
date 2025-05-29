@@ -46,8 +46,21 @@ class BubbleShooterGame {
         this.lastTime = 0;
         this.precisionTickTimer = 0;
         
+        // Performance optimization timers
+        this.audioUpdateTimer = 0;
+        this.uiUpdateTimer = 0;
+        
         // Initialize
         this.initialize();
+        
+        // Add debug console commands for sound system
+        if (this.DEBUG_MODE) {
+            window.soundStatus = () => {
+                const status = this.gameManager.soundManager.getStatus();
+                console.log('Sound System Status:', status);
+                return status;
+            };
+        }
     }
     
     async initialize() {
@@ -226,6 +239,31 @@ class BubbleShooterGame {
     }
     
     createShootingBubble() {
+        // Force cleanup of any orphaned meshes at shooting position before creating new bubble
+        // Use a more efficient approach - only check direct children of scene at shooting position
+        const shootingY = CONFIG.SHOOTER_Y;
+        const meshesToRemove = [];
+        
+        // Only check immediate children of scene to avoid expensive traversal
+        this.scene.children.forEach(child => {
+            if (child.isMesh && Math.abs(child.position.y - shootingY) < 0.1 && 
+                child !== this.gameBoard && !child.name?.includes('wall') && !child.name?.includes('floor')) {
+                meshesToRemove.push(child);
+            }
+        });
+        
+        meshesToRemove.forEach(mesh => {
+            this.scene.remove(mesh);
+            if (mesh.geometry) mesh.geometry.dispose();
+            if (mesh.material) {
+                if (Array.isArray(mesh.material)) {
+                    mesh.material.forEach(mat => mat.dispose());
+                } else {
+                    mesh.material.dispose();
+                }
+            }
+        });
+        
         let color;
         let powerUpToApply = null;
         let forcedTypeWasUsed = false;
@@ -245,6 +283,82 @@ class BubbleShooterGame {
         
         const bubble = new Bubble(0, CONFIG.SHOOTER_Y, color);
         bubble.isMoving = false;
+
+        // // Explicitly reset material to default to prevent lingering power-up effects
+        // // This ensures that any modifications made by a previous power-up's visual effect
+        // // on a bubble that might be reused or whose properties might otherwise persist
+        // // are cleared before a new power-up (or no power-up) is applied.
+        // const defaultMaterial = new THREE.MeshPhysicalMaterial({
+        //     color: bubble.color, // Use the current bubble's intended color
+        //     metalness: 0.1,
+        //     roughness: 0.1,
+        //     transmission: 0.5,
+        //     thickness: 0.5,
+        //     clearcoat: 1.0,
+        //     clearcoatRoughness: 0.0,
+        //     envMapIntensity: 1.5,
+        //     ior: 1.5,
+        //     reflectivity: 0.8,
+        //     emissive: bubble.color,
+        //     emissiveIntensity: 0.2,
+        //     sheen: 1.0,
+        //     sheenRoughness: 0.3,
+        //     sheenColor: new THREE.Color(bubble.color).multiplyScalar(1.5)
+        // });
+        // // Dispose of the old material to prevent any lingering effects
+        // if (bubble.mesh && bubble.mesh.material) {
+        //     bubble.mesh.material.dispose();
+        // }
+        // if (bubble.material) {
+        //     bubble.material.dispose();
+        // }
+        
+        // // Set the new default material
+        // if (bubble.mesh) {
+        //     bubble.mesh.material = defaultMaterial;
+        // }
+        // bubble.material = defaultMaterial; // Ensure the bubble's own reference is updated
+
+        // // Also reset power-up specific properties on the bubble instance itself
+        // bubble.isPowerUp = false;
+        // bubble.powerUpType = null;
+
+        // // Before nullifying, explicitly clean up bomb visuals if the animation object has the method
+        // if (bubble.powerUpAnimation) {
+        //     // Mark as inactive first
+        //     bubble.powerUpAnimation.active = false;
+            
+        //     if (typeof bubble.powerUpAnimation.cleanupBombVisuals === 'function') {
+        //         bubble.powerUpAnimation.cleanupBombVisuals();
+        //     }
+        //     // Add similar checks for other power-ups if they have specific cleanup needs for their animations.
+        // }
+
+        // bubble.powerUpAnimation = null;
+        
+        // // Remove any power-up glow that might have been added
+        // if (bubble.powerUpGlow && bubble.mesh) {
+        //     bubble.mesh.remove(bubble.powerUpGlow);
+        //     if (bubble.powerUpGlow.geometry) bubble.powerUpGlow.geometry.dispose();
+        //     if (bubble.powerUpGlow.material) bubble.powerUpGlow.material.dispose();
+        //     bubble.powerUpGlow = null;
+        // }
+        // // If power-ups add child meshes (like lightningCore), ensure they are removed.
+        // // This might be better handled in a dedicated bubble.resetForShooter() method.
+        // if (bubble.mesh && bubble.lightningCore) { // Example for ChainLightning
+        //     bubble.mesh.remove(bubble.lightningCore);
+        //     bubble.lightningCore.geometry.dispose();
+        //     bubble.lightningCore.material.dispose();
+        //     bubble.lightningCore = null;
+        // }
+        // if (bubble.mesh && bubble.electricArcs) { // Example for ChainLightning
+        //     bubble.electricArcs.forEach(arc => {
+        //         bubble.mesh.remove(arc.mesh);
+        //         arc.mesh.geometry.dispose();
+        //         arc.mesh.material.dispose();
+        //     });
+        //     bubble.electricArcs = [];
+        // }
         
         // Override onWallBounce to play sound
         bubble.onWallBounce = () => {
@@ -274,6 +388,21 @@ class BubbleShooterGame {
             const randomPowerUp = this.gameManager.applyPowerUpToBubble(bubble);
             if (randomPowerUp) {
                 appliedPowerUpDetails = randomPowerUp;
+            } else {
+                // Explicitly ensure bubble is not a power-up if no power-up was applied
+                bubble.isPowerUp = false;
+                bubble.powerUpType = null;
+                // Double-check no power-up visual elements exist
+                if (bubble.powerUpGlow) {
+                    bubble.mesh.remove(bubble.powerUpGlow);
+                    bubble.powerUpGlow.geometry.dispose();
+                    bubble.powerUpGlow.material.dispose();
+                    bubble.powerUpGlow = null;
+                }
+                if (bubble.powerUpAnimation) {
+                    bubble.powerUpAnimation.active = false;
+                    bubble.powerUpAnimation = null;
+                }
             }
         }
         
@@ -322,6 +451,27 @@ class BubbleShooterGame {
         
         const speed = CONFIG.SHOOTING_SPEED + (CONFIG.MAX_SHOOTING_SPEED - CONFIG.SHOOTING_SPEED) * power;
         this.gameState.currentBubble.velocity = direction.multiplyScalar(speed);
+        
+        // Clean up any power-up visual effects before shooting
+        const bubble = this.gameState.currentBubble;
+        if (bubble.powerUpAnimation) {
+            // Stop the animation from updating
+            bubble.powerUpAnimation.active = false;
+            
+            // Call any specific cleanup methods
+            if (typeof bubble.powerUpAnimation.cleanupBombVisuals === 'function') {
+                bubble.powerUpAnimation.cleanupBombVisuals();
+            }
+            
+            // Remove the animation from the game state
+            const animIndex = this.gameState.animations.indexOf(bubble.powerUpAnimation);
+            if (animIndex !== -1) {
+                this.gameState.animations.splice(animIndex, 1);
+            }
+            
+            bubble.powerUpAnimation = null;
+        }
+        
         this.gameState.currentBubble.isMoving = true;
         
         this.gameManager.playSound('bubbleShoot');
@@ -528,15 +678,25 @@ class BubbleShooterGame {
                 }
             }
             
-            // Update all grid bubbles
-            const allBubbles = this.gameState.getAllBubbles();
-            allBubbles.forEach(bubble => bubble.update(deltaTime));
+            // Update all grid bubbles and count non-power-up bubbles in one pass
+            let bubblesRemaining = 0;
+            for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
+                for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
+                    const bubble = this.gameState.getBubbleAt(x, y);
+                    if (bubble) {
+                        bubble.update(deltaTime);
+                        if (!bubble.isPowerUp) {
+                            bubblesRemaining++;
+                        }
+                    }
+                }
+            }
             
-            // Count bubbles for audio swelling
-            const bubblesRemaining = this.gameState.countBubbles(bubble => !bubble.isPowerUp);
-            
-            // Update ambient audio based on game state
-            if (this.audioSystem.isInitialized && !this.gameState.isGameOver) {
+            // Update ambient audio based on game state (throttled to 30fps)
+            this.audioUpdateTimer += deltaTime;
+            if (this.audioUpdateTimer >= 0.033 && this.audioSystem.isInitialized && !this.gameState.isGameOver) {
+                this.audioUpdateTimer = 0;
+                
                 // Calculate how close we are to clearing the board
                 const clearPercentage = 1 - (bubblesRemaining / 50); // Assume ~50 bubbles is "full"
                 
@@ -583,9 +743,13 @@ class BubbleShooterGame {
                 this.gameLogic.addNewRow();
             }
             
-            // Update UI scores
-            this.uiManager.updateScore(this.gameState.score);
-            this.uiManager.updateLevel(this.gameState.level);
+            // Update UI scores (throttled to 20fps)
+            this.uiUpdateTimer += deltaTime;
+            if (this.uiUpdateTimer >= 0.05) {
+                this.uiUpdateTimer = 0;
+                this.uiManager.updateScore(this.gameState.score);
+                this.uiManager.updateLevel(this.gameState.level);
+            }
             
             // Render trajectory
             this.trajectorySystem.renderTrajectory(this.gameState);
