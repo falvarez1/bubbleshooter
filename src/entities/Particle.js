@@ -21,20 +21,43 @@ export class ParticlePool {
     }
     
     createParticle() {
-        // Use shared geometry
-        const size = 0.15;
+        // Use shared geometry - create spark-like elongated shape
+        const config = PARTICLE_CONFIG?.rocketExhaust || {
+            // Fallback configuration
+            sparkBaseSize: 0.05,
+            sparkTaper: { base: 0.3, tip: 0.1 },
+            sparkLength: 4.0,
+            sparkSegments: 4,
+            opacity: 0.9,
+            blending: 'additive',
+            depthWrite: false,
+            decay: 0.04,
+            shrinkRate: 0.97,
+            orientToVelocity: true,
+            minVelocityForOrientation: 0.1
+        };
+        const size = config.sparkBaseSize;
         let geometry = this.geometryCache.get(size);
         if (!geometry) {
-            const segments = PARTICLE_CONFIG.quality.particleSegments;
-            geometry = new THREE.SphereGeometry(size, segments, segments);
+            // Create elongated spark geometry instead of sphere
+            geometry = new THREE.CylinderGeometry(
+                size * config.sparkTaper.base, 
+                size * config.sparkTaper.tip, 
+                size * config.sparkLength, 
+                config.sparkSegments, 
+                1
+            );
             this.geometryCache.set(size, geometry);
         }
         
-        // Create unique material for each particle
+        // Create spark-like material for rocket exhaust effect
         const material = new THREE.MeshBasicMaterial({
             color: 0xffffff,
             transparent: true,
-            opacity: 1.0
+            opacity: config.opacity,
+            blending: config.blending === 'additive' ? THREE.AdditiveBlending : THREE.NormalBlending,
+            depthWrite: config.depthWrite,
+            side: THREE.DoubleSide
         });
         
         const mesh = new THREE.Mesh(geometry, material);
@@ -77,11 +100,110 @@ export class ParticlePool {
             );
         }
         
+        const config = PARTICLE_CONFIG?.rocketExhaust || {
+            decay: 0.04,
+            opacity: 0.9,
+            orientToVelocity: true,
+            minVelocityForOrientation: 0.1,
+            sparkBaseSize: 0.05
+        };
+        
         particle.life = 1.0;
-        particle.decay = 0.02;
+        particle.decay = config.decay;
         particle.material.color.set(color);
-        particle.material.opacity = 1.0;
-        particle.mesh.scale.setScalar(size / 0.15); // Scale relative to base size
+        particle.material.opacity = config.opacity;
+        
+        // Orient spark along velocity direction for realistic exhaust
+        if (config.orientToVelocity && velocity && velocity.length() > config.minVelocityForOrientation) {
+            const direction = velocity.clone().normalize();
+            particle.mesh.lookAt(
+                particle.position.x + direction.x,
+                particle.position.y + direction.y,
+                particle.position.z + direction.z
+            );
+        }
+        
+        particle.mesh.scale.setScalar(size / config.sparkBaseSize);
+        particle.mesh.visible = true;
+        particle.active = true;
+        
+        this.activeParticles.push(particle);
+        return particle;
+    }
+    
+    // Power-based spawning method for enhanced effects
+    spawnPower(x, y, z, color, size, velocity = null, power = 0) {
+        let particle = this.pool.pop();
+        
+        if (!particle) {
+            // Pool exhausted, reuse oldest active particle
+            if (this.activeParticles.length > 0) {
+                particle = this.activeParticles.shift();
+                this.reset(particle);
+            } else {
+                return null; // Cannot spawn
+            }
+        }
+        
+        // Initialize particle with power-based properties
+        particle.position.set(x, y, z);
+        particle.mesh.position.copy(particle.position);
+        
+        if (velocity) {
+            // Scale velocity by power
+            const powerMultiplier = 1 + power * 2; // 1x to 3x velocity
+            particle.velocity.set(
+                velocity.x * powerMultiplier,
+                velocity.y * powerMultiplier,
+                velocity.z * powerMultiplier
+            );
+        } else {
+            // Default velocity with power scaling
+            const baseSpeed = 10 * (1 + power);
+            particle.velocity.set(
+                (Math.random() - 0.5) * baseSpeed,
+                (Math.random() - 0.5) * baseSpeed,
+                (Math.random() - 0.5) * baseSpeed * 0.5
+            );
+        }
+        
+        // Power affects life and size
+        particle.life = 1.0 + power * 0.5; // Longer lasting for higher power
+        particle.decay = 0.02 / (1 + power * 0.5); // Slower decay for higher power
+        
+        // Power-based color enhancement
+        if (power > 0.5) {
+            // Mix in hot colors for high power
+            const baseColor = new THREE.Color(color);
+            const hotness = power * 0.3;
+            const hotColor = new THREE.Color(
+                Math.min(1, baseColor.r + hotness),
+                Math.min(1, baseColor.g + hotness * 0.5),
+                Math.max(0, baseColor.b - hotness * 0.5)
+            );
+            particle.material.color.copy(hotColor);
+        } else {
+            particle.material.color.set(color);
+        }
+        
+        // Power-based spark intensity
+        const sparkIntensity = 0.7 + power * 0.3; // Brighter sparks for more power
+        particle.material.opacity = sparkIntensity;
+        
+        // Orient spark along velocity direction for realistic exhaust
+        if (velocity && velocity.length() > 0) {
+            const direction = velocity.clone().normalize();
+            particle.mesh.lookAt(
+                particle.position.x + direction.x,
+                particle.position.y + direction.y,
+                particle.position.z + direction.z
+            );
+        }
+        
+        // Power affects size - sparks get longer and brighter with more power
+        const config = PARTICLE_CONFIG?.rocketExhaust || { sparkBaseSize: 0.05 };
+        const powerSizeMultiplier = 1 + power * 0.8; // Up to 1.8x size for dramatic effect
+        particle.mesh.scale.setScalar((size / config.sparkBaseSize) * powerSizeMultiplier);
         particle.mesh.visible = true;
         particle.active = true;
         
@@ -102,8 +224,28 @@ export class ParticlePool {
             
             // Update life
             particle.life -= particle.decay;
-            particle.material.opacity = particle.life;
-            particle.mesh.scale.multiplyScalar(0.98); // Gradual shrink
+            
+            // Spark-like fading with intensity
+            const config = PARTICLE_CONFIG?.rocketExhaust || {
+                opacity: 0.9,
+                orientToVelocity: true,
+                minVelocityForOrientation: 0.1,
+                shrinkRate: 0.97
+            };
+            particle.material.opacity = config.opacity * particle.life;
+            
+            // Maintain spark orientation along velocity
+            if (config.orientToVelocity && particle.velocity && particle.velocity.length() > config.minVelocityForOrientation) {
+                const direction = particle.velocity.clone().normalize();
+                particle.mesh.lookAt(
+                    particle.position.x + direction.x,
+                    particle.position.y + direction.y,
+                    particle.position.z + direction.z
+                );
+            }
+            
+            // Sparks shrink as they fade
+            particle.mesh.scale.multiplyScalar(config.shrinkRate);
             
             // Return to pool if dead
             if (particle.life <= 0) {

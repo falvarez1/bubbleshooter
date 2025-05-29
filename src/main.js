@@ -101,9 +101,65 @@ class BubbleShooterGame {
         // Apply particle preset
         applyParticlePreset(PARTICLE_CONFIG.preset);
         
-        // Initialize particle pool
-        this.gameState.particlePool = new ParticlePool(PARTICLE_CONFIG.poolSize);
-        this.gameState.particlePool.addToScene(this.scene);
+        // Create optimal particle system based on capabilities
+        // TODO: GPU particles need debugging, using CPU for now
+        const USE_GPU_PARTICLES = true; // Temporarily disabled
+        this.gpuParticles = USE_GPU_PARTICLES ? this.performanceManager.createOptimalParticleSystem(this.scene) : null;
+        
+        if (this.gpuParticles) {
+            console.log('Using GPU particle system');
+            // Create a hybrid particle pool that uses GPU particles
+            this.gameState.particlePool = {
+                spawn: (x, y, z, color, size, velocity) => {
+                    return this.gpuParticles.spawn(x, y, z, color, size, velocity);
+                },
+                spawnPower: (x, y, z, color, size, velocity, power) => {
+                    // Use power-based spawning for enhanced effects
+                    const pos = new THREE.Vector3(x, y, z);
+                    const count = Math.max(1, Math.floor(1 + power * 1.5)); // Reduced particle count
+                    return this.gpuParticles.spawnPowerParticles(pos, velocity, color, count, power);
+                },
+                update: (deltaTime) => {
+                    this.gpuParticles.update(deltaTime, this.renderer);
+                },
+                clear: () => {
+                    this.gpuParticles.clear();
+                },
+                addToScene: (scene) => {
+                    this.gpuParticles.addToScene(scene);
+                },
+                removeFromScene: (scene) => {
+                    this.gpuParticles.removeFromScene(scene);
+                }
+            };
+            this.gameState.particlePool.addToScene(this.scene);
+        } else {
+            console.log('Using CPU particle system');
+            // Fallback to CPU particle pool with power support
+            const cpuPool = new ParticlePool(PARTICLE_CONFIG.poolSize);
+            this.gameState.particlePool = {
+                spawn: (x, y, z, color, size, velocity) => {
+                    return cpuPool.spawn(x, y, z, color, size, velocity);
+                },
+                spawnPower: (x, y, z, color, size, velocity, power) => {
+                    // Use power-based spawning for enhanced effects
+                    return cpuPool.spawnPower(x, y, z, color, size, velocity, power);
+                },
+                update: (deltaTime) => {
+                    cpuPool.update(deltaTime);
+                },
+                clear: () => {
+                    cpuPool.clear();
+                },
+                addToScene: (scene) => {
+                    cpuPool.addToScene(scene);
+                },
+                removeFromScene: (scene) => {
+                    cpuPool.removeFromScene(scene);
+                }
+            };
+            this.gameState.particlePool.addToScene(this.scene);
+        }
         
         // Initialize audio
         await this.audioSystem.initialize();
@@ -569,29 +625,218 @@ class BubbleShooterGame {
         this.gameState.currentBubble.isMoving = true;
         
         this.gameManager.playSound('bubbleShoot');
-        this.createShootingEffect(this.gameState.currentBubble.position.clone());
+        this.createShootingEffect(this.gameState.currentBubble.position.clone(), power);
     }
     
-    createShootingEffect(position) {
-        for (let i = 0; i < 8; i++) {
-            const angle = (Math.PI * 2 * i) / 8;
-            const velocity = new THREE.Vector3(
-                Math.cos(angle) * 3,
-                Math.sin(angle) * 3,
-                0
-            );
+    createShootingEffect(position, power = 0) {
+        // Calculate the shooting direction from current bubble to mouse position
+        const shootingDirection = new THREE.Vector3(
+            this.gameState.mousePosition.x - this.gameState.currentBubble.position.x,
+            this.gameState.mousePosition.y - this.gameState.currentBubble.position.y,
+            0
+        ).normalize();
+        
+        // Create rocket exhaust effect - particles go opposite to shooting direction
+        const exhaustDirection = shootingDirection.clone().multiplyScalar(-1);
+        
+        // Scale effects based on power using configuration
+        const config = PARTICLE_CONFIG?.rocketExhaust || {
+            // Fallback configuration in case config not loaded
+            baseParticles: 4,
+            powerMultiplier: 1.2,
+            sparkBaseSize: 0.05,
+            sparkPowerSize: 0.03,
+            baseSpeed: 4,
+            maxSpeed: 10,
+            speedVariation: 0.6,
+            coneSpread: { 
+                base: 0.3, 
+                power: 0.5 
+            },
+            burstThreshold: 0.6,
+            burstParticles: 6,
+            burstConeAngle: 0.4,
+            burstDecay: 0.08,
+            colors: {
+                low: 0x1e90ff,
+                medium: 0xff8c00,
+                high: 0xff4500,
+                burst: { 
+                    intensity: 0.8, 
+                    yellow: 0.9, 
+                    orange: 0.3 
+                }
+            },
+            colorThresholds: { 
+                medium: 0.4, 
+                high: 0.7 
+            }
+        };
+        
+        const baseParticleCount = config.baseParticles;
+        const powerMultiplier = 1 + power * config.powerMultiplier;
+        const particleCount = Math.floor(baseParticleCount * powerMultiplier);
+        
+        // Enhanced colors based on power - like rocket exhaust
+        const powerColor = power > config.colorThresholds.high ? config.colors.high :
+                          power > config.colorThresholds.medium ? config.colors.medium :
+                          config.colors.low;
+        
+        for (let i = 0; i < particleCount; i++) {
+            // Create cone-shaped exhaust spread using config
+            const spreadAngle = (power * config.coneSpread.power + config.coneSpread.base) * Math.PI;
+            const randomAngle = (Math.random() - 0.5) * spreadAngle;
+            const randomDistance = Math.random() * (power * 0.4 + 0.2);
             
-            const particle = this.gameState.particlePool.spawn(
-                position.x,
-                position.y,
-                position.z,
-                0x00ffff,
-                0.15,
-                velocity
-            );
+            // Base speed increases with power using config
+            const speedRange = config.maxSpeed - config.baseSpeed;
+            const baseSpeed = config.baseSpeed + power * speedRange;
+            const speedVariation = 1 - config.speedVariation + Math.random() * config.speedVariation * 2;
             
-            if (particle) {
-                particle.decay = 0.04;
+            // Create exhaust velocity in cone behind the bubble
+            const exhaustVel = exhaustDirection.clone();
+            
+            // Add perpendicular spread for cone effect
+            const perpendicular = new THREE.Vector3(-exhaustDirection.y, exhaustDirection.x, 0);
+            exhaustVel.add(perpendicular.clone().multiplyScalar(Math.sin(randomAngle) * randomDistance));
+            exhaustVel.add(new THREE.Vector3(0, 0, (Math.random() - 0.5) * 0.3));
+            
+            exhaustVel.normalize().multiplyScalar(baseSpeed * speedVariation);
+            
+            const velocity = exhaustVel;
+            
+            // Color variation based on power
+            const colorVariation = Math.random() * 0.3;
+            let finalColor = powerColor;
+            if (power > 0.5) {
+                // Mix in some hot colors for powerful shots
+                const hotness = power * colorVariation;
+                const r = ((finalColor >> 16) & 255) / 255;
+                const g = ((finalColor >> 8) & 255) / 255;
+                const b = (finalColor & 255) / 255;
+                
+                const hotColor = new THREE.Color(
+                    Math.min(1, r + hotness), 
+                    Math.min(1, g + hotness * 0.5), 
+                    Math.max(0, b - hotness * 0.5)
+                );
+                finalColor = hotColor.getHex();
+            }
+            
+            // Use smaller spark particles for rocket exhaust effect
+            const sparkSize = config.sparkBaseSize + power * config.sparkPowerSize;
+            
+            // Use power-based spawning if available, otherwise fall back to regular spawn
+            const particle = this.gameState.particlePool.spawnPower ? 
+                this.gameState.particlePool.spawnPower(
+                    position.x,
+                    position.y,
+                    position.z,
+                    finalColor,
+                    sparkSize,
+                    velocity,
+                    power
+                ) :
+                this.gameState.particlePool.spawn(
+                    position.x,
+                    position.y,
+                    position.z,
+                    finalColor,
+                    sparkSize,
+                    velocity
+                );
+            
+            if (particle && !this.gameState.particlePool.spawnPower) {
+                // Apply power effects manually for systems without spawnPower
+                particle.decay = 0.04 / (1 + power * 0.5);
+            }
+        }
+        
+        // Add extra burst effect for high power shots
+        if (power > config.burstThreshold) {
+            this.createPowerBurstEffect(position, power);
+        }
+    }
+    
+    createPowerBurstEffect(position, power) {
+        // Calculate the shooting direction for exhaust effect
+        const shootingDirection = new THREE.Vector3(
+            this.gameState.mousePosition.x - this.gameState.currentBubble.position.x,
+            this.gameState.mousePosition.y - this.gameState.currentBubble.position.y,
+            0
+        ).normalize();
+        
+        // Create rocket exhaust burst - particles go opposite to shooting direction
+        const exhaustDirection = shootingDirection.clone().multiplyScalar(-1);
+        
+        // Create an inner burst of high-energy sparks using config
+        const config = PARTICLE_CONFIG?.rocketExhaust || {
+            // Fallback configuration
+            burstParticles: 6,
+            burstConeAngle: 0.4,
+            maxSpeed: 10,
+            sparkBaseSize: 0.05,
+            sparkPowerSize: 0.03,
+            burstDecay: 0.08,
+            colors: {
+                burst: { 
+                    intensity: 0.8, 
+                    yellow: 0.9, 
+                    orange: 0.3 
+                }
+            }
+        };
+        const burstCount = Math.floor(power * config.burstParticles);
+        
+        for (let i = 0; i < burstCount; i++) {
+            // Create tight cone of high-speed exhaust sparks
+            const coneAngle = Math.PI * config.burstConeAngle;
+            const randomAngle = (Math.random() - 0.5) * coneAngle;
+            const speed = config.maxSpeed * 1.2 + Math.random() * 8; // 20% higher than max speed
+            
+            // Create burst velocity in exhaust direction
+            const burstVel = exhaustDirection.clone();
+            
+            // Add cone spread
+            const perpendicular = new THREE.Vector3(-exhaustDirection.y, exhaustDirection.x, 0);
+            burstVel.add(perpendicular.clone().multiplyScalar(Math.sin(randomAngle) * 0.3));
+            burstVel.add(new THREE.Vector3(0, 0, (Math.random() - 0.5) * 0.4));
+            
+            burstVel.normalize().multiplyScalar(speed);
+            
+            const velocity = burstVel;
+            
+            // Hot white/yellow particles using config
+            const burstConfig = config.colors.burst;
+            const intensity = burstConfig.intensity + Math.random() * 0.2;
+            const hotColor = new THREE.Color(intensity, intensity * burstConfig.yellow, intensity * burstConfig.orange);
+            
+            // Smaller spark size for burst effect
+            const sparkSize = config.sparkBaseSize * 0.8 + power * config.sparkPowerSize * 0.5;
+            
+            // Use power-based spawning for burst effect
+            const particle = this.gameState.particlePool.spawnPower ? 
+                this.gameState.particlePool.spawnPower(
+                    position.x,
+                    position.y,
+                    position.z,
+                    hotColor.getHex(),
+                    sparkSize,
+                    velocity,
+                    power
+                ) :
+                this.gameState.particlePool.spawn(
+                    position.x,
+                    position.y,
+                    position.z,
+                    hotColor.getHex(),
+                    sparkSize,
+                    velocity
+                );
+            
+            if (particle && !this.gameState.particlePool.spawnPower) {
+                // Apply power effects manually for systems without spawnPower
+                particle.decay = config.burstDecay;
             }
         }
     }

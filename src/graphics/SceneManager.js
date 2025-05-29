@@ -28,6 +28,9 @@ export class SceneManager {
         
         // Setup lighting
         this.setupLighting();
+        
+        // Setup environment map for refractive effects
+        this.setupEnvironmentMap();
     }
     
     setupCamera() {
@@ -173,5 +176,73 @@ export class SceneManager {
                 clearInterval(fadeInterval);
             }
         }, 16);
+    }
+    
+    /**
+     * Setup environment map for refractive effects
+     */
+    setupEnvironmentMap() {
+        // Create a procedural cube texture for environment reflections
+        const size = 512;
+        const cubeTexture = new THREE.CubeTexture();
+        
+        // Create 6 faces for the cube texture with subtle gradients
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        
+        const faces = [];
+        const colors = [
+            ['#001122', '#003366'], // Right - Blue gradient
+            ['#001122', '#003366'], // Left - Blue gradient  
+            ['#000814', '#001d3d'], // Top - Dark blue gradient
+            ['#000814', '#001122'], // Bottom - Darker gradient
+            ['#001122', '#003366'], // Front - Blue gradient
+            ['#001122', '#003366']  // Back - Blue gradient
+        ];
+        
+        for (let i = 0; i < 6; i++) {
+            // Create gradient for each face
+            const gradient = ctx.createLinearGradient(0, 0, 0, size);
+            gradient.addColorStop(0, colors[i][0]);
+            gradient.addColorStop(1, colors[i][1]);
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            
+            // Add some subtle noise for more interesting reflections
+            ctx.globalAlpha = 0.1;
+            for (let x = 0; x < size; x += 8) {
+                for (let y = 0; y < size; y += 8) {
+                    if (Math.random() > 0.7) {
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(x, y, 2, 2);
+                    }
+                }
+            }
+            ctx.globalAlpha = 1.0;
+            
+            // Convert to texture
+            const imageData = ctx.getImageData(0, 0, size, size);
+            const texture = new THREE.DataTexture(
+                imageData.data,
+                size,
+                size,
+                THREE.RGBAFormat
+            );
+            texture.needsUpdate = true;
+            faces.push(texture);
+        }
+        
+        cubeTexture.image = faces;
+        cubeTexture.needsUpdate = true;
+        
+        // Set as scene environment
+        this.scene.environment = cubeTexture;
+        this.scene.background = null; // Keep transparent background
+        
+        // Store reference for particle materials
+        this.environmentMap = cubeTexture;
     }
 }

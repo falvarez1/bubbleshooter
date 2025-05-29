@@ -175,6 +175,63 @@ export const PARTICLE_CONFIG = {
         speed: 8
     },
     
+    // Rocket Exhaust Spark Effects
+    rocketExhaust: {
+        // Base particle counts
+        baseParticles: 4,           // Base number of exhaust sparks
+        powerMultiplier: 1.2,       // Multiplier for high power (1x to 2.2x)
+        burstParticles: 6,          // Extra particles for power burst
+        burstThreshold: 0.6,        // Power level to trigger burst
+        
+        // Spark geometry
+        sparkBaseSize: 0.05,        // Base spark size
+        sparkPowerSize: 0.03,       // Additional size per power unit
+        sparkLength: 4.0,           // Length multiplier for cylinder
+        sparkTaper: {
+            base: 0.3,              // Base width ratio
+            tip: 0.1                // Tip width ratio
+        },
+        sparkSegments: 4,           // Radial segments for performance
+        
+        // Exhaust physics
+        baseSpeed: 4,               // Minimum exhaust velocity
+        maxSpeed: 10,               // Maximum exhaust velocity  
+        speedVariation: 0.6,        // Random speed variation (±30%)
+        coneSpread: {
+            base: 0.3,              // Base cone angle (radians)
+            power: 0.5              // Additional spread per power unit
+        },
+        burstConeAngle: 0.4,        // Burst particle cone angle
+        
+        // Visual properties
+        colors: {
+            low: 0x1e90ff,          // Blue for low power
+            medium: 0xff8c00,       // Dark orange for medium power
+            high: 0xff4500,         // Bright orange-red for high power
+            burst: {
+                intensity: 0.8,     // Base white intensity
+                yellow: 0.9,        // Yellow component
+                orange: 0.3         // Orange component  
+            }
+        },
+        colorThresholds: {
+            medium: 0.4,            // Power level for medium color
+            high: 0.7               // Power level for high color
+        },
+        
+        // Material properties
+        opacity: 0.9,               // Base spark opacity
+        blending: 'additive',       // Blending mode for bright sparks
+        depthWrite: false,          // Allow overlapping sparks
+        
+        // Animation properties
+        decay: 0.04,                // How fast sparks fade
+        shrinkRate: 0.97,           // Scale reduction per frame
+        burstDecay: 0.08,           // Faster decay for burst sparks
+        orientToVelocity: true,     // Align sparks with movement
+        minVelocityForOrientation: 0.1  // Minimum velocity to maintain orientation
+    },
+    
     // Visual quality
     quality: {
         particleSegments: 8,    // Sphere segments (6 for performance, 8+ for quality)
@@ -193,6 +250,7 @@ export const PARTICLE_PRESETS = {
         bombExplosion: { particles: 15 },
         lightning: { particles: 15, electricArcs: 8 },
         rainbow: { particles: 10 },
+        rocketExhaust: { baseParticles: 2, burstParticles: 3, sparkSegments: 3 },
         quality: { particleSegments: 4, useLighting: false, glowEffects: false }
     },
     medium: {
@@ -202,6 +260,7 @@ export const PARTICLE_PRESETS = {
         bombExplosion: { particles: 30 },
         lightning: { particles: 30, electricArcs: 15 },
         rainbow: { particles: 20 },
+        rocketExhaust: { baseParticles: 3, burstParticles: 4, sparkSegments: 4 },
         quality: { particleSegments: 6, useLighting: false, glowEffects: true }
     },
     high: {
@@ -211,6 +270,7 @@ export const PARTICLE_PRESETS = {
         bombExplosion: { particles: 40 },
         lightning: { particles: 40, electricArcs: 20 },
         rainbow: { particles: 30 },
+        rocketExhaust: { baseParticles: 4, burstParticles: 6, sparkSegments: 4 },
         quality: { particleSegments: 8, useLighting: true, glowEffects: true }
     },
     ultra: {
@@ -220,6 +280,7 @@ export const PARTICLE_PRESETS = {
         bombExplosion: { particles: 60 },
         lightning: { particles: 50, electricArcs: 30 },
         rainbow: { particles: 40 },
+        rocketExhaust: { baseParticles: 5, burstParticles: 8, sparkSegments: 6 },
         quality: { particleSegments: 12, useLighting: true, glowEffects: true }
     }
 };
@@ -228,7 +289,21 @@ export const PARTICLE_PRESETS = {
 export function applyParticlePreset(presetName, particleConfig = PARTICLE_CONFIG) {
     const preset = PARTICLE_PRESETS[presetName];
     if (preset) {
-        Object.assign(particleConfig, preset);
+        // Deep merge preset values instead of overwriting entire objects
+        for (const key in preset) {
+            if (preset.hasOwnProperty(key)) {
+                if (typeof preset[key] === 'object' && preset[key] !== null && !Array.isArray(preset[key])) {
+                    // For objects, merge properties instead of replacing
+                    if (!particleConfig[key]) {
+                        particleConfig[key] = {};
+                    }
+                    Object.assign(particleConfig[key], preset[key]);
+                } else {
+                    // For primitives, replace directly
+                    particleConfig[key] = preset[key];
+                }
+            }
+        }
         particleConfig.preset = presetName;
         console.log(`Applied particle preset: ${presetName}`);
         return true;
