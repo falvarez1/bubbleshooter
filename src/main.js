@@ -9,6 +9,7 @@ import { TrajectorySystem } from './systems/TrajectorySystem.js';
 import { CollisionSystem } from './systems/CollisionSystem.js';
 import { GameLogic } from './systems/GameLogic.js';
 import { UIManager } from './ui/VisualTextDisplay.js';
+import { PerformanceManager } from './core/PerformanceManager.js';
 import { Bubble } from './entities/Bubble.js';
 import { ParticlePool, Particle } from './entities/Particle.js';
 import { 
@@ -28,6 +29,7 @@ class BubbleShooterGame {
         this.sceneManager = new SceneManager(document.getElementById('gameCanvas'));
         this.audioSystem = new AudioSystem();
         this.uiManager = new UIManager();
+        this.performanceManager = new PerformanceManager();
         
         // Get Three.js objects
         this.scene = this.sceneManager.getScene();
@@ -64,6 +66,38 @@ class BubbleShooterGame {
     }
     
     async initialize() {
+        // Initialize performance manager first
+        await this.performanceManager.initialize();
+        
+        // Create optimal bubble renderer based on capabilities
+        this.bubbleRenderer = this.performanceManager.createOptimalBubbleRenderer(this.scene, 200);
+        if (this.bubbleRenderer) {
+            console.log('Using instanced bubble rendering for grid bubbles');
+            
+            this.bubbleRenderer.setQualityPreset('low'); // Set initial quality preset
+            // Configure bubble special effects
+            // Enable multiple effects for better visibility
+            this.bubbleRenderer.setEffects({
+                enableTransmission: true,
+                enableRainbow: true,
+                enableFoam: true,
+                enableWobble: true
+            });
+            
+            // Alternative: Use a quality preset for all effects
+            // this.bubbleRenderer.setQualityPreset('ultra');
+            
+            // Debug: Check if uniforms are properly set
+            const material = this.bubbleRenderer.instancedMesh.material;
+            console.log('Sparkles uniform value:', material.uniforms.enableSparkles.value);
+            console.log('Rainbow uniform value:', material.uniforms.enableRainbow.value);
+            
+            // Log current effect settings
+            console.log('Bubble effects:', this.bubbleRenderer.getEffects());
+        } else {
+            console.log('Using individual meshes for all bubbles');
+        }
+        
         // Apply particle preset
         applyParticlePreset(PARTICLE_CONFIG.preset);
         
@@ -77,6 +111,11 @@ class BubbleShooterGame {
         
         // Initialize game manager with camera and scene
         this.gameManager.initialize(this.camera, this.scene);
+        
+        // Pass bubble renderer to game logic for proper cleanup
+        if (this.bubbleRenderer) {
+            this.gameLogic.setBubbleRenderer(this.bubbleRenderer);
+        }
         
         // Register power-ups
         this.gameManager.registerPowerUp(new RainbowPowerUp());
@@ -93,8 +132,14 @@ class BubbleShooterGame {
         this.createInitialBubbles();
         this.createShootingBubble();
         
+        // Initialize power-up collection UI
+        this.uiManager.updateCollectedPowerUps([]);
+        
         // Start game
         this.gameManager.eventBus.emit('gameStart');
+        
+        // Start performance monitoring
+        this.performanceManager.startPerformanceMonitoring();
         
         // Start animation loop
         this.animate(0);
@@ -131,6 +176,7 @@ class BubbleShooterGame {
         const gameOverlay = document.getElementById('gameOverlay');
         const musicToggle = document.getElementById('musicToggle');
         const volumeSlider = document.getElementById('volumeSlider');
+        const powerupSlots = document.querySelectorAll('.powerup-collection-slot');
         
         settingsIcon?.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -158,6 +204,14 @@ class BubbleShooterGame {
             const volume = parseInt(e.target.value) / 100;
             this.audioSystem.setMusicVolume(volume);
             this.uiManager.updateVolume(volume);
+        });
+        
+        // Power-up collection slots click handlers
+        powerupSlots.forEach((slot, index) => {
+            slot.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.activateCollectedPowerUp(index);
+            });
         });
         
         // Game manager events
@@ -226,7 +280,18 @@ class BubbleShooterGame {
                         );
                     };
                     
-                    this.scene.add(bubble.mesh);
+                    // Add to instanced renderer if available, otherwise use individual mesh
+                    if (this.bubbleRenderer) {
+                        this.bubbleRenderer.addBubble(bubble);
+                        // Mark bubble as using instanced rendering
+                        bubble.useInstancedRendering = true;
+                        // Hide the individual mesh since we're using instanced rendering
+                        bubble.mesh.visible = false;
+                    } else {
+                        this.scene.add(bubble.mesh);
+                        bubble.useInstancedRendering = false;
+                    }
+                    
                     this.gameState.setBubbleAt(x, y, bubble);
                     
                     // Apply power-up with lower rate for initial bubbles
@@ -374,20 +439,49 @@ class BubbleShooterGame {
             );
         };
         
+        // Always use individual mesh for shooting bubble (needs special effects)
         this.scene.add(bubble.mesh);
+        bubble.useInstancedRendering = false;
         this.gameState.currentBubble = bubble;
         
         let appliedPowerUpDetails = null;
         if (powerUpToApply) {
             const powerUpInstance = this.gameManager.powerUpSystem.getPowerUp(powerUpToApply);
             if (powerUpInstance) {
-                powerUpInstance.createVisualEffect(bubble);
-                appliedPowerUpDetails = powerUpInstance;
+                // Check if this is a collectable power-up
+                if (powerUpToApply === 'precision') {
+                    // Don't apply visual effect to bubble, collect it instead
+                    if (this.gameState.collectPowerUp(powerUpToApply, powerUpInstance)) {
+                        this.uiManager.updateCollectedPowerUps(this.gameState.getCollectedPowerUps());
+                        this.gameManager.playSound('powerUpCollect');
+                        // Don't make this bubble a power-up
+                        bubble.isPowerUp = false;
+                        bubble.powerUpType = null;
+                    }
+                } else {
+                    // Apply visual effect for non-collectable power-ups
+                    powerUpInstance.createVisualEffect(bubble);
+                    appliedPowerUpDetails = powerUpInstance;
+                }
             }
         } else if (!forcedTypeWasUsed) {
-            const randomPowerUp = this.gameManager.applyPowerUpToBubble(bubble);
-            if (randomPowerUp) {
-                appliedPowerUpDetails = randomPowerUp;
+            // Random power-up chance
+            if (this.gameManager.powerUpSystem.shouldSpawnPowerUp()) {
+                const randomPowerUp = this.gameManager.powerUpSystem.getRandomPowerUp();
+                if (randomPowerUp) {
+                    // Check if this is a collectable power-up
+                    if (randomPowerUp.type === 'precision') {
+                        // Collect it instead of applying to bubble
+                        if (this.gameState.collectPowerUp(randomPowerUp.type, randomPowerUp)) {
+                            this.uiManager.updateCollectedPowerUps(this.gameState.getCollectedPowerUps());
+                            this.gameManager.playSound('powerUpCollect');
+                        }
+                    } else {
+                        // Apply visual effect for non-collectable power-ups
+                        randomPowerUp.createVisualEffect(bubble);
+                        appliedPowerUpDetails = randomPowerUp;
+                    }
+                }
             } else {
                 // Explicitly ensure bubble is not a power-up if no power-up was applied
                 bubble.isPowerUp = false;
@@ -589,17 +683,37 @@ class BubbleShooterGame {
     }
     
     handleKeyDown(event) {
+        const key = event.key.toLowerCase();
+        
+        // Number keys 1-3 activate collected power-ups (not debug-only)
+        if (key >= '1' && key <= '3') {
+            const slotIndex = parseInt(key) - 1;
+            this.activateCollectedPowerUp(slotIndex);
+            return;
+        }
+        
         if (!this.DEBUG_MODE) return;
         
-        const key = event.key;
         let forcedType = null;
         
-        if (key >= '1' && key <= '7') {
-            const colorIndex = parseInt(key) - 1;
-            if (colorIndex < CONFIG.BUBBLE_COLORS.length) {
-                forcedType = CONFIG.BUBBLE_COLORS[colorIndex];
-                console.log(`Debug: Forcing bubble color ${forcedType.toString(16)}`);
+        // In debug mode, use A/S to cycle through bubble colors
+        if (key === 'a' || key === 's') {
+            // Get current color index
+            let currentColorIndex = 0;
+            if (this.gameState.currentBubble) {
+                currentColorIndex = CONFIG.BUBBLE_COLORS.indexOf(this.gameState.currentBubble.color);
+                if (currentColorIndex === -1) currentColorIndex = 0;
             }
+            
+            // Cycle forward (A) or backward (S)
+            if (key === 'a') {
+                currentColorIndex = (currentColorIndex + 1) % CONFIG.BUBBLE_COLORS.length;
+            } else {
+                currentColorIndex = (currentColorIndex - 1 + CONFIG.BUBBLE_COLORS.length) % CONFIG.BUBBLE_COLORS.length;
+            }
+            
+            forcedType = CONFIG.BUBBLE_COLORS[currentColorIndex];
+            console.log(`Debug: Cycling to bubble color ${forcedType.toString(16)}`);
         } else {
             switch (key) {
                 case '8':
@@ -625,11 +739,21 @@ class BubbleShooterGame {
         }
         
         if (forcedType !== null) {
-            this.FORCED_NEXT_BUBBLE_TYPE = forcedType;
-            if (this.gameState.currentBubble && !this.gameState.currentBubble.isMoving) {
-                this.gameState.currentBubble.destroy();
-                this.gameState.currentBubble = null;
-                this.createShootingBubble();
+            // For collectable power-ups, just collect them without changing current bubble
+            if (forcedType === 'precision') {
+                const powerUpInstance = this.gameManager.powerUpSystem.getPowerUp(forcedType);
+                if (powerUpInstance && this.gameState.collectPowerUp(forcedType, powerUpInstance)) {
+                    this.uiManager.updateCollectedPowerUps(this.gameState.getCollectedPowerUps());
+                    this.gameManager.playSound('powerUpCollect');
+                }
+            } else {
+                // For other power-ups, force them on the next bubble
+                this.FORCED_NEXT_BUBBLE_TYPE = forcedType;
+                if (this.gameState.currentBubble && !this.gameState.currentBubble.isMoving) {
+                    this.gameState.currentBubble.destroy();
+                    this.gameState.currentBubble = null;
+                    this.createShootingBubble();
+                }
             }
         }
     }
@@ -646,6 +770,28 @@ class BubbleShooterGame {
     closeSettings() {
         this.uiManager.hideSettings();
         this.gameState.resume();
+    }
+    
+    activateCollectedPowerUp(slotIndex) {
+        if (!this.gameState.currentBubble || this.gameState.currentBubble.isMoving || 
+            this.gameState.isGameOver || this.gameState.isPaused) return;
+        
+        const powerUpData = this.gameState.consumeCollectedPowerUpAt(slotIndex);
+        if (powerUpData) {
+            // For precision aim, activate it immediately
+            if (powerUpData.type === 'precision') {
+                const powerUp = this.gameManager.powerUpSystem.getPowerUp(powerUpData.type);
+                if (powerUp) {
+                    this.gameManager.eventBus.emit('precisionAimActivated', { 
+                        duration: powerUp.duration 
+                    });
+                    this.uiManager.updateCollectedPowerUps(this.gameState.getCollectedPowerUps());
+                    this.uiManager.flashCollectionSlot(slotIndex);
+                    this.gameManager.playSound('powerUpActivate');
+                }
+            }
+            // Add handling for other collectable power-ups here in the future
+        }
     }
     
     animate(currentTime) {
@@ -685,11 +831,22 @@ class BubbleShooterGame {
                     const bubble = this.gameState.getBubbleAt(x, y);
                     if (bubble) {
                         bubble.update(deltaTime);
+                        
+                        // Update instanced bubble position if using instanced rendering
+                        if (bubble.useInstancedRendering && this.bubbleRenderer) {
+                            this.bubbleRenderer.updateBubble(bubble);
+                        }
+                        
                         if (!bubble.isPowerUp) {
                             bubblesRemaining++;
                         }
                     }
                 }
+            }
+            
+            // Update bubble renderer
+            if (this.bubbleRenderer) {
+                this.bubbleRenderer.update(deltaTime, this.camera);
             }
             
             // Update ambient audio based on game state (throttled to 30fps)

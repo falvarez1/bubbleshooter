@@ -110,9 +110,10 @@ export class Bubble {
         if (this.connectionAnimating) {
             this.connectionScale = 1.0 + Math.sin(Date.now() * 0.01) * 0.1 * this.connectionAnimating;
             this.mesh.scale.setScalar(this.connectionScale);
-            this.connectionAnimating *= 0.95; // Decay
+            this.connectionAnimating *= 0.85; // Faster decay (was 0.95)
             if (this.connectionAnimating < 0.01) {
                 this.connectionAnimating = false;
+                this.connectionScale = 1.0; // Reset scale value
                 this.mesh.scale.setScalar(1.0);
             }
         }

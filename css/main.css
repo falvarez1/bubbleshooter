@@ -17,6 +17,47 @@ body {
 #gameCanvas {
     display: block;
     cursor: crosshair;
+    width: 100%;
+    height: 100%;
+}
+
+/* Game UI Container for responsive scaling */
+.game-ui-wrapper {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.game-ui-wrapper > * {
+    pointer-events: auto;
+}
+
+/* Responsive font sizes and dimensions */
+@media (max-width: 768px) {
+    .ui-panel { padding: 15px; }
+    .score-label { font-size: 12px; }
+    .score-value { font-size: 22px; }
+    .combo-display { font-size: 20px; }
+    .powerup-collection-bar { padding: 8px; gap: 8px; }
+    .powerup-collection-slot { width: 50px; height: 50px; }
+    .powerup-slot-icon { width: 35px; height: 35px; }
+    .next-bubble { width: 60px; height: 60px; }
+}
+
+/* Use viewport units for responsive sizing */
+.ui-panel {
+    font-size: clamp(12px, 2vw, 14px);
+}
+
+.score-value {
+    font-size: clamp(20px, 4vw, 28px);
+}
+
+.combo-display {
+    font-size: clamp(18px, 3vw, 24px);
 }
 
 .ui-container {
@@ -63,27 +104,29 @@ body {
 
 .combo-display {
     position: absolute;
-    top: 120px;
+    top: 50%;
     right: 20px;
+    transform: translateY(-50%);
     font-size: 24px;
     font-weight: 700;
     color: #ff6b35;
     text-shadow: 0 0 20px rgba(255, 107, 53, 0.8);
     opacity: 0;
     transition: all 0.3s ease;
+    z-index: 200;
 }
 
 .combo-display.active {
     opacity: 1;
-    transform: scale(1.2);
+    transform: translateY(-50%) scale(1.2);
 }
 
 .power-meter {
     position: absolute;
-    bottom: 100px;
+    bottom: 15vh;
     left: 50%;
     transform: translateX(-50%);
-    width: 200px;
+    width: min(200px, 40vw);
     height: 20px;
     background: rgba(0, 20, 40, 0.7);
     border: 2px solid rgba(0, 255, 255, 0.3);
@@ -107,10 +150,10 @@ body {
 
 .next-bubble {
     position: absolute;
-    bottom: 20px;
-    right: 20px;
-    width: 80px;
-    height: 80px;
+    bottom: 3vh;
+    right: 3vw;
+    width: clamp(60px, 8vw, 80px);
+    height: clamp(60px, 8vw, 80px);
     background: rgba(0, 20, 40, 0.7);
     backdrop-filter: blur(20px);
     border: 2px solid rgba(0, 255, 255, 0.3);
@@ -235,4 +278,120 @@ body {
     0% { transform: scale(0.8) translateY(10px); }
     50% { transform: scale(1.1) translateY(-5px); }
     100% { transform: scale(1) translateY(0); }
+}
+
+/* Power-Up Collection Bar */
+.powerup-collection-bar {
+    position: absolute;
+    bottom: 10vh;
+    left: 3vw;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(8px, 1vw, 10px);
+    padding: clamp(8px, 1vw, 10px);
+    background: rgba(0, 20, 40, 0.7);
+    backdrop-filter: blur(20px);
+    border: 2px solid rgba(0, 255, 255, 0.3);
+    border-radius: 20px;
+    box-shadow: 0 4px 20px rgba(0, 255, 255, 0.2),
+                inset 0 0 20px rgba(0, 0, 0, 0.5);
+    z-index: 150;
+}
+
+/* Individual Power-Up Slot */
+.powerup-collection-slot {
+    width: clamp(50px, 6vw, 60px);
+    height: clamp(50px, 6vw, 60px);
+    background: rgba(0, 20, 40, 0.9);
+    border: 2px solid rgba(0, 255, 255, 0.3);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 10px rgba(0, 255, 255, 0.2),
+                inset 0 0 15px rgba(0, 0, 0, 0.5);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    overflow: hidden;
+    position: relative;
+}
+
+.powerup-collection-slot:hover {
+    border-color: rgba(0, 255, 255, 0.6);
+    box-shadow: 0 6px 30px rgba(0, 255, 255, 0.5),
+                inset 0 0 40px rgba(0, 255, 255, 0.1);
+}
+
+.powerup-collection-slot.active {
+    border-color: rgba(0, 255, 255, 0.8);
+    background: rgba(0, 40, 60, 0.9);
+    animation: pulseGlow 2s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+    0%, 100% { 
+        box-shadow: 0 4px 20px rgba(0, 255, 255, 0.3),
+                    inset 0 0 30px rgba(0, 255, 255, 0.2);
+    }
+    50% { 
+        box-shadow: 0 6px 40px rgba(0, 255, 255, 0.6),
+                    inset 0 0 50px rgba(0, 255, 255, 0.4);
+    }
+}
+
+.powerup-slot-content {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+}
+
+.powerup-slot-label {
+    position: absolute;
+    bottom: -18px;
+    font-size: 8px;
+    color: rgba(0, 255, 255, 0.6);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    text-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+    white-space: nowrap;
+}
+
+.powerup-slot-index {
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 10px;
+    color: rgba(0, 255, 255, 0.4);
+    font-weight: bold;
+}
+
+.powerup-slot-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, var(--powerup-color-light), var(--powerup-color-dark));
+    box-shadow: 0 0 15px var(--powerup-glow-color),
+                inset 0 0 10px rgba(255, 255, 255, 0.3);
+    animation: floatBubble 3s ease-in-out infinite;
+}
+
+@keyframes floatBubble {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-5px) scale(1.05); }
+}
+
+.powerup-slot-empty {
+    width: 40px;
+    height: 40px;
+    border: 2px dashed rgba(0, 255, 255, 0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: rgba(0, 255, 255, 0.3);
 }

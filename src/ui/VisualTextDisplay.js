@@ -159,7 +159,9 @@ export class UIManager {
             gameOverlay: document.getElementById('gameOverlay'),
             musicToggle: document.getElementById('musicToggle'),
             volumeSlider: document.getElementById('volumeSlider'),
-            volumeValue: document.getElementById('volumeValue')
+            volumeValue: document.getElementById('volumeValue'),
+            powerupCollectionBar: document.getElementById('powerupCollectionBar'),
+            powerupSlots: document.querySelectorAll('.powerup-collection-slot')
         };
     }
     
@@ -299,5 +301,51 @@ export class UIManager {
             this.elements.volumeSlider.value = percentage;
             this.elements.volumeValue.textContent = `${percentage}%`;
         }
+    }
+    
+    updateCollectedPowerUps(collectedPowerUps) {
+        if (!this.elements.powerupSlots) return;
+        
+        // Update each slot
+        this.elements.powerupSlots.forEach((slot, index) => {
+            const content = slot.querySelector('.powerup-slot-content');
+            const powerUp = collectedPowerUps[index];
+            
+            if (powerUp) {
+                // Show power-up
+                slot.classList.add('active');
+                const iconHtml = `
+                    <div class="powerup-slot-icon" style="
+                        --powerup-color-light: #${powerUp.info.color.toString(16).padStart(6, '0')}88;
+                        --powerup-color-dark: #${powerUp.info.color.toString(16).padStart(6, '0')}44;
+                        --powerup-glow-color: #${powerUp.info.glowColor.toString(16).padStart(6, '0')};
+                    "></div>
+                    <span class="powerup-slot-index">${index + 1}</span>
+                `;
+                content.innerHTML = iconHtml;
+            } else {
+                // Show empty slot
+                slot.classList.remove('active');
+                const emptyHtml = `
+                    <div class="powerup-slot-empty">+</div>
+                    <span class="powerup-slot-index">${index + 1}</span>
+                `;
+                content.innerHTML = emptyHtml;
+            }
+        });
+    }
+    
+    flashCollectionSlot(slotIndex) {
+        if (this.elements.powerupSlots && this.elements.powerupSlots[slotIndex]) {
+            const slot = this.elements.powerupSlots[slotIndex];
+            slot.style.animation = 'none';
+            setTimeout(() => {
+                slot.style.animation = 'bubbleBounce 0.5s ease-out';
+            }, 10);
+        }
+    }
+    
+    showPowerUpCollected(slotIndex) {
+        this.flashCollectionSlot(slotIndex);
     }
 }

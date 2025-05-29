@@ -31,6 +31,8 @@ export class SoundManager {
             precisionTick: { category: 'effects', volume: 0.5, file: 'sounds/precision-tick.wav' },
             colorSplash: { category: 'effects', volume: 0.9, file: 'sounds/color-splash.wav' },
             powerUpSpawn: { category: 'effects', volume: 0.7, file: 'sounds/powerup-spawn.wav' },
+            powerUpCollect: { category: 'effects', volume: 0.8, file: 'sounds/powerup-collect.wav' },
+            powerUpActivate: { category: 'effects', volume: 0.9, file: 'sounds/powerup-activate.wav' },
             
             // UI/Feedback
             uiHover: { category: 'ui', volume: 0.3, file: 'sounds/ui-hover.wav' },

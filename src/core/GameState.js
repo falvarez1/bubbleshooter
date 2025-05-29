@@ -41,6 +41,10 @@ export class GameState {
         this.precisionAimTime = 0;
         this.extendedTrajectory = false;
         
+        // Collected power-ups
+        this.collectedPowerUps = [];
+        this.activePowerUp = null;
+        
         // Starfield and background effects
         this.starfieldLayers = [];
         this.shootingStars = [];
@@ -272,5 +276,40 @@ export class GameState {
     togglePause() {
         this.isPaused = !this.isPaused;
         return this.isPaused;
+    }
+    
+    // Power-up collection management
+    collectPowerUp(powerUpType, powerUpInfo) {
+        // Allow up to 3 power-ups to be collected
+        const MAX_COLLECTED_POWERUPS = 3;
+        if (this.collectedPowerUps.length < MAX_COLLECTED_POWERUPS) {
+            this.collectedPowerUps.push({ type: powerUpType, info: powerUpInfo });
+            return true;
+        }
+        return false;
+    }
+    
+    hasCollectedPowerUp() {
+        return this.collectedPowerUps.length > 0;
+    }
+    
+    getCollectedPowerUps() {
+        return this.collectedPowerUps;
+    }
+    
+    getCollectedPowerUpAt(index) {
+        return this.collectedPowerUps[index] || null;
+    }
+    
+    consumeCollectedPowerUpAt(index) {
+        if (index >= 0 && index < this.collectedPowerUps.length) {
+            return this.collectedPowerUps.splice(index, 1)[0];
+        }
+        return null;
+    }
+    
+    clearCollectedPowerUps() {
+        this.collectedPowerUps = [];
+        this.activePowerUp = null;
     }
 }

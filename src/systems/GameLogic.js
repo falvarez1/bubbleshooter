@@ -11,9 +11,14 @@ export class GameLogic {
         this.gameState = gameState;
         this.gameManager = gameManager;
         this.scene = scene;
+        this.bubbleRenderer = null;
         
         // Set up event listeners for power-up effects
         this.setupEventListeners();
+    }
+    
+    setBubbleRenderer(bubbleRenderer) {
+        this.bubbleRenderer = bubbleRenderer;
     }
     
     setupEventListeners() {
@@ -444,16 +449,30 @@ export class GameLogic {
     removeBubble(bubble) {
         this.gameState.removeBubbleAt(bubble.gridX, bubble.gridY);
         
+        // Reset animation states to prevent updates during removal
+        bubble.connectionAnimating = false;
+        bubble.connectionScale = 1.0;
+        bubble.impactVelocity.set(0, 0, 0);
+        
+        // Remove from instanced renderer if applicable
+        if (bubble.useInstancedRendering && this.bubbleRenderer) {
+            this.bubbleRenderer.removeBubble(bubble);
+        }
+        
         // Animate removal
         const removeAnimation = {
             bubble: bubble,
             progress: 0,
             update: function(deltaTime) {
                 this.progress += deltaTime * 3;
-                bubble.mesh.scale.setScalar(1 - this.progress);
-                bubble.mesh.rotation.x += 0.3;
-                bubble.mesh.rotation.y += 0.2;
-                bubble.material.opacity = 1 - this.progress;
+                
+                // Only animate individual meshes (instanced bubbles are already removed)
+                if (!bubble.useInstancedRendering && bubble.mesh) {
+                    bubble.mesh.scale.setScalar(1 - this.progress);
+                    bubble.mesh.rotation.x += 0.3;
+                    bubble.mesh.rotation.y += 0.2;
+                    bubble.material.opacity = 1 - this.progress;
+                }
                 
                 if (this.progress >= 1) {
                     bubble.destroy();
