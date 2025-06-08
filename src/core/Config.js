@@ -69,7 +69,7 @@ export const CONFIG = {
     // Trajectory Visual Configuration
     TRAJECTORY: {
         // Style selection
-        USE_ANIMATED_STYLE: false,     // true = flowing laser, false = static dots
+        USE_ANIMATED_STYLE: true,     // true = flowing laser, false = static dots
         
         // Dot count
         NORMAL_DOT_COUNT: 10,         // Number of dots in normal mode
@@ -220,9 +220,9 @@ export const PARTICLE_CONFIG = {
         },
         
         // Material properties
-        opacity: 0.9,               // Base spark opacity
+        opacity: 0.5,               // Base spark opacity
         blending: 'additive',       // Blending mode for bright sparks
-        depthWrite: false,          // Allow overlapping sparks
+        depthWrite: true,          // Allow overlapping sparks
         
         // Animation properties
         decay: 0.04,                // How fast sparks fade
