@@ -358,10 +358,8 @@ class BubbleShooterGame {
                     // Emit bubbleCreated event for effects controller
                     this.gameManager.eventBus.emit('bubbleCreated', bubble);
                     
-                    // Apply power-up with lower rate for initial bubbles
-                    if (Math.random() < 0.05) { // 5% chance for initial bubbles
-                        this.gameManager.applyPowerUpToBubble(bubble);
-                    }
+                    // Initial bubbles should always be regular bubbles (no power-ups)
+                    // Power-ups are only applied to shooting bubbles during gameplay
                 }
             }
         }

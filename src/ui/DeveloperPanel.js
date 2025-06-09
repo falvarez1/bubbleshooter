@@ -1189,18 +1189,18 @@ export class DeveloperPanel {
         
         // Create bubble based on type
         let bubble;
-        let color;
+        let colorValue; // Use the same format as CONFIG.BUBBLE_COLORS
         
         if (colorHex) {
-            // Convert hex string to number if needed
+            // Convert to hex number value (same format as CONFIG.BUBBLE_COLORS)
             if (typeof colorHex === 'string') {
-                const hexValue = parseInt(colorHex, 16);
-                color = new THREE.Color(hexValue);
+                colorValue = parseInt(colorHex, 16);
             } else {
-                color = new THREE.Color(colorHex);
+                colorValue = colorHex;
             }
         } else {
-            color = this.getRandomValidColor();
+            // Get random valid color from CONFIG
+            colorValue = CONFIG.BUBBLE_COLORS[Math.floor(Math.random() * CONFIG.BUBBLE_COLORS.length)];
         }
         
         if (type === 'empty') {
@@ -1214,7 +1214,10 @@ export class DeveloperPanel {
         
         // Import Bubble class dynamically
         import('../entities/Bubble.js').then(({ Bubble }) => {
-            bubble = new Bubble(0, 0, color);
+            // Create bubble with the hex number value (same as normal gameplay)
+            bubble = new Bubble(0, 0, colorValue);
+            
+            console.log(`Created design mode bubble with color ${colorValue.toString(16)} at (${x},${y})`);
             
             if (type !== 'normal') {
                 bubble.isPowerUp = true;
@@ -1231,6 +1234,9 @@ export class DeveloperPanel {
                 this.game.scene.add(bubble.mesh);
             }
             
+            // Emit bubbleCreated event for effects controller (same as normal gameplay)
+            this.game.gameManager.eventBus.emit('bubbleCreated', bubble);
+            
             // Trigger spring physics
             this.triggerSpringPhysicsAt(x, y);
         }).catch(error => {
@@ -1240,12 +1246,12 @@ export class DeveloperPanel {
     
     getRandomValidColor() {
         const randomIndex = Math.floor(Math.random() * CONFIG.BUBBLE_COLORS.length);
-        return new THREE.Color(CONFIG.BUBBLE_COLORS[randomIndex]);
+        return CONFIG.BUBBLE_COLORS[randomIndex]; // Return hex number, not THREE.Color
     }
     
     getRandomColor() {
         const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff, 0xffa500];
-        return new THREE.Color(colors[Math.floor(Math.random() * colors.length)]);
+        return colors[Math.floor(Math.random() * colors.length)]; // Return hex number, not THREE.Color
     }
     
     getNearestGridPosition(worldPos) {
@@ -1387,12 +1393,29 @@ export class DeveloperPanel {
     }
     
     changeBubbleColor(bubble, color) {
-        bubble.color = color;
-        bubble.material.color.copy(color);
-        bubble.material.emissive.copy(color).multiplyScalar(0.2);
+        // Ensure we store the color as a hex number (same format as CONFIG.BUBBLE_COLORS)
+        let colorValue;
+        if (typeof color === 'number') {
+            colorValue = color;
+        } else if (color && typeof color.getHex === 'function') {
+            colorValue = color.getHex();
+        } else {
+            // Fallback to first valid color
+            colorValue = CONFIG.BUBBLE_COLORS[0];
+        }
+        
+        console.log(`Changing bubble color to ${colorValue.toString(16)}`);
+        
+        // Store the color as hex number (same as normal gameplay)
+        bubble.color = colorValue;
+        
+        // Update visual appearance
+        const threeColor = new THREE.Color(colorValue);
+        bubble.material.color.copy(threeColor);
+        bubble.material.emissive.copy(threeColor).multiplyScalar(0.2);
         
         if (bubble.glowMesh) {
-            bubble.glowMesh.material.color.copy(color);
+            bubble.glowMesh.material.color.copy(threeColor);
         }
     }
     
@@ -1464,7 +1487,9 @@ export class DeveloperPanel {
         const neighbors = this.getEmptyNeighbors(bubble.gridX, bubble.gridY);
         if (neighbors.length > 0) {
             const pos = neighbors[0];
-            this.createBubbleAt(pos.x, pos.y, bubble.isPowerUp ? bubble.powerUpType : 'normal', bubble.color);
+            // Ensure we pass the color as a hex string for createBubbleAt
+            const colorHex = bubble.color.toString(16).toUpperCase().padStart(6, '0');
+            this.createBubbleAt(pos.x, pos.y, bubble.isPowerUp ? bubble.powerUpType : 'normal', colorHex);
         }
     }
     
