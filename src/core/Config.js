@@ -19,7 +19,7 @@ export const CONFIG = {
     // Colors
     BUBBLE_COLORS: [
         0xFF0000, // Pure Red - vibrant and distinct
-        0x0080FF, // Sky Blue - clear contrast from red
+        0x0000ff, // Deep Blue - clear contrast from red
         0xFFD700, // Gold/Yellow - bright and distinguishable
         0x00FF00, // Bright Green - pure green, very distinct
         0xFF1493, // Deep Pink - different from red

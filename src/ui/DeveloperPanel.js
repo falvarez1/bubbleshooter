@@ -18,6 +18,18 @@ export class DeveloperPanel {
         this.draggedBubble = null;
         this.isDragging = false;
         this.designModeOverlay = null;
+        
+        // Color name mapping for CONFIG.BUBBLE_COLORS
+        this.colorNames = {
+            0xFF0000: 'Red',
+            0x0000ff: 'Deep Blue', 
+            0xFFD700: 'Gold',
+            0x00FF00: 'Green',
+            0xFF1493: 'Deep Pink',
+            0x9400D3: 'Violet',
+            0xFF8C00: 'Orange',
+            0x00CED1: 'Turquoise'
+        };
         this.bubblePalette = null;
         this.propertyPanel = null;
         this.levelData = null;
@@ -30,6 +42,15 @@ export class DeveloperPanel {
             dampening: 0.9,
             restThreshold: 0.01
         };
+    }
+    
+    /**
+     * Get a human-readable name for a color value
+     * @param {number} color - Hex color value
+     * @returns {string} Color name
+     */
+    getColorName(color) {
+        return this.colorNames[color] || `Color #${color.toString(16).padStart(6, '0')}`;
     }
 
     async initialize(game) {
@@ -457,6 +478,13 @@ export class DeveloperPanel {
         
         this.bubblePalette = document.createElement('div');
         this.bubblePalette.className = 'bubble-palette';
+        // Generate palette items dynamically from CONFIG.BUBBLE_COLORS
+        const colorPaletteItems = CONFIG.BUBBLE_COLORS.map(color => {
+            const hexColor = `#${color.toString(16).padStart(6, '0')}`;
+            const colorName = this.getColorName(color);
+            return `<div class="palette-item" data-bubble-type="normal" data-color="0x${color.toString(16)}" style="background: ${hexColor};" title="${colorName}"></div>`;
+        }).join('');
+
         this.bubblePalette.innerHTML = `
             <div class="palette-header">
                 <h4>Palette</h4>
@@ -466,13 +494,7 @@ export class DeveloperPanel {
                 <div class="palette-section">
                     <h5>Colors</h5>
                     <div class="palette-grid">
-                        <div class="palette-item" data-bubble-type="normal" data-color="0xff0000" style="background: #ff0000;" title="Red"></div>
-                        <div class="palette-item" data-bubble-type="normal" data-color="0x00ff00" style="background: #00ff00;" title="Green"></div>
-                        <div class="palette-item" data-bubble-type="normal" data-color="0x0000ff" style="background: #0000ff;" title="Blue"></div>
-                        <div class="palette-item" data-bubble-type="normal" data-color="0xffff00" style="background: #ffff00;" title="Yellow"></div>
-                        <div class="palette-item" data-bubble-type="normal" data-color="0xff00ff" style="background: #ff00ff;" title="Purple"></div>
-                        <div class="palette-item" data-bubble-type="normal" data-color="0x00ffff" style="background: #00ffff;" title="Cyan"></div>
-                        <div class="palette-item" data-bubble-type="normal" data-color="0xffa500" style="background: #ffa500;" title="Orange"></div>
+                        ${colorPaletteItems}
                         <div class="palette-item" data-bubble-type="empty" style="background: transparent; border: 2px dashed #666;" title="Empty"></div>
                     </div>
                 </div>
@@ -1250,8 +1272,7 @@ export class DeveloperPanel {
     }
     
     getRandomColor() {
-        const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff, 0x00ffff, 0xffa500];
-        return colors[Math.floor(Math.random() * colors.length)]; // Return hex number, not THREE.Color
+        return CONFIG.BUBBLE_COLORS[Math.floor(Math.random() * CONFIG.BUBBLE_COLORS.length)]; // Return hex number, not THREE.Color
     }
     
     getNearestGridPosition(worldPos) {
