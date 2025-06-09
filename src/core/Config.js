@@ -113,7 +113,49 @@ export const CONFIG = {
             BEAM_RADIUS: 0.12,        // Beam thickness (0.02-0.15)
             GLOW_RADIUS: 0.22,        // Glow thickness (0.05-0.25)
             OPACITY: 1.0,             // Overall opacity (0.1-1.0)
-            INTENSITY: 3.5            // Overall brightness (0.5-3.0)
+            INTENSITY: 3.5,           // Overall brightness (0.5-3.0)
+            
+            // Power-responsive settings
+            POWER_SCALING: {
+                THICKNESS_MULTIPLIER: 1.6,    // Max thickness multiplier at full power
+                INTENSITY_MULTIPLIER: 2.0,    // Max intensity multiplier at full power
+                FLOW_SPEED_MULTIPLIER: 3.0,   // Max flow speed multiplier at full power
+                PARALLEL_BEAMS_THRESHOLD: 0.8, // Power level to show multiple beams
+                MAX_PARALLEL_BEAMS: 3,        // Maximum number of parallel beams
+                POWER_SURGE_THRESHOLD: 0.9,   // Power level to trigger surge effects
+                SURGE_INTENSITY: 5.0,         // Intensity multiplier for power surge
+                CRACKLING_FREQUENCY: 15.0,    // Frequency of crackling effects
+                CRACKLING_AMPLITUDE: 1.5      // Amplitude of crackling effects
+            },
+            
+            // Bounce effects
+            BOUNCE_EFFECTS: {
+                FLASH_INTENSITY: 8.0,         // Brightness of bounce flash
+                FLASH_DURATION: 0.3,          // Duration of bounce flash (seconds)
+                FLASH_RADIUS: 0.4,            // Size of bounce flash effect
+                DISPERSION_PARTICLES: 12,     // Number of dispersion particles
+                REFRACTION_ANGLE: 0.2,        // Visual refraction angle at bounce
+                CONFIDENCE_FADE: 0.7          // Opacity reduction after each bounce
+            },
+            
+            // Color coding
+            COLOR_CODING: {
+                OPTIMAL_SHOT_HUE: 120,        // Green hue for optimal shots (0-360)
+                RISKY_SHOT_HUE: 0,            // Red hue for risky shots (0-360)
+                RISK_THRESHOLD: 0.3,          // Risk assessment threshold
+                COLOR_TRANSITION_SPEED: 2.0,  // Speed of color transitions
+                SATURATION_BOOST: 0.3,        // Saturation increase for color coding
+                RAINBOW_CYCLE_SPEED: 2.0      // Speed of rainbow cycling for rainbow bubbles
+            },
+            
+            // Collision prediction
+            PREDICTION: {
+                ATTACHMENT_GLOW_SIZE: 0.3,    // Size of attachment point glow
+                ATTACHMENT_GLOW_INTENSITY: 4.0, // Intensity of attachment glow
+                MATCH_GROUP_HIGHLIGHT: 0.5,   // Opacity of match group highlighting
+                CASCADE_TRAIL_OPACITY: 0.4,   // Opacity of cascade prediction trails
+                PREDICTION_CONFIDENCE: 0.8    // Confidence threshold for predictions
+            }
         },
         
         // Static style settings
