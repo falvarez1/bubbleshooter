@@ -36,9 +36,14 @@ export class TrajectorySystem {
         direction.normalize();
         
         let pos = startPos.clone();
-        let vel = direction.multiplyScalar(CONFIG.SHOOTING_SPEED);
-        const step = 0.015; // Smaller steps for more accurate trajectory
-        const maxSteps = gameState.precisionAimActive ? 500 : 200;
+        // Use the same speed calculation as the actual shooting
+        const power = gameState.shootingPower || 0;
+        const speed = gameState.precisionAimActive ? 
+            CONFIG.SHOOTING_SPEED : 
+            CONFIG.SHOOTING_SPEED + (CONFIG.MAX_SHOOTING_SPEED - CONFIG.SHOOTING_SPEED) * power;
+        let vel = direction.multiplyScalar(speed);
+        const step = 0.01; // Smaller steps for more accurate trajectory matching actual physics
+        const maxSteps = gameState.precisionAimActive ? 750 : 300;
         let bounceCount = 0;
         const maxBounces = gameState.precisionAimActive ? 5 : 2;
         
@@ -54,9 +59,9 @@ export class TrajectorySystem {
                 
                 for (let x = 0; x < bubblesInRow; x++) {
                     const bubble = gameState.bubbleGrid[y][x];
-                    if (bubble) {
+                    if (bubble && !bubble.isDestroyed && !bubble.isFloating) {
                         const distance = nextPos.distanceTo(bubble.position);
-                        if (distance < CONFIG.BUBBLE_RADIUS * 1.15) {
+                        if (distance < CONFIG.BUBBLE_RADIUS * 1.8) {
                             hitBubble = true;
                             break;
                         }
@@ -78,10 +83,10 @@ export class TrajectorySystem {
             // Now move to next position
             pos = nextPos;
             
-            // Check wall bounce
-            const wallLimit = 6;
+            // Check wall bounce - use same values as actual bubble physics
+            const wallLimit = 5.5;
             if (Math.abs(pos.x) > wallLimit - CONFIG.BUBBLE_RADIUS) {
-                vel.x *= -1;
+                vel.x *= -CONFIG.WALL_BOUNCE_DAMPING; // Apply same damping as actual bubble
                 pos.x = Math.sign(pos.x) * (wallLimit - CONFIG.BUBBLE_RADIUS);
                 bounceCount++;
                 
@@ -90,8 +95,9 @@ export class TrajectorySystem {
                 }
             }
             
-            // Stop at ceiling
+            // Stop at ceiling - match actual bubble physics
             if (pos.y > CONFIG.CEILING_Y - 0.5 - CONFIG.BUBBLE_RADIUS) {
+                pos.y = CONFIG.CEILING_Y - 0.5 - CONFIG.BUBBLE_RADIUS;
                 gameState.trajectoryEndPosition = pos.clone();
                 break;
             }
