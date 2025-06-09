@@ -304,6 +304,18 @@ export class GameLogic {
         const targetColor = startBubble.color;
         const isRainbowStart = startBubble.isPowerUp && startBubble.powerUpType === 'rainbow';
         
+        // For rainbow bubbles, track which colors we've touched initially
+        let touchedColors = new Set();
+        if (isRainbowStart) {
+            // Find all colors that the rainbow bubble directly touches
+            const neighbors = this.getNeighbors(startBubble.gridX, startBubble.gridY);
+            neighbors.forEach(neighbor => {
+                if (neighbor && !neighbor.isPowerUp) {
+                    touchedColors.add(neighbor.color);
+                }
+            });
+        }
+        
         while (queue.length > 0) {
             const current = queue.shift();
             const key = `${current.gridX},${current.gridY}`;
@@ -312,12 +324,20 @@ export class GameLogic {
             visited.add(key);
             
             const isRainbowCurrent = current.isPowerUp && current.powerUpType === 'rainbow';
-            const colorsMatch = current.color === targetColor || isRainbowStart || isRainbowCurrent;
+            let shouldInclude = false;
             
-            if (colorsMatch) {
+            if (isRainbowStart) {
+                // Rainbow mode: include rainbow bubble and bubbles of touched colors
+                shouldInclude = isRainbowCurrent || touchedColors.has(current.color);
+            } else {
+                // Normal mode: same color or rainbow bubbles
+                shouldInclude = current.color === targetColor || isRainbowCurrent;
+            }
+            
+            if (shouldInclude) {
                 connected.push(current);
                 
-                // Check neighbors
+                // Check neighbors - rainbow bubbles can spread through any color
                 const neighbors = this.getNeighbors(current.gridX, current.gridY);
                 neighbors.forEach(neighbor => {
                     if (neighbor && !visited.has(`${neighbor.gridX},${neighbor.gridY}`)) {
