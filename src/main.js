@@ -145,8 +145,8 @@ class BubbleShooterGame {
         await this.audioSystem.initialize();
         this.audioSystem.startAmbientAudio();
         
-        // Initialize game manager with camera, scene, and effects system
-        this.gameManager.initialize(this.camera, this.scene, this.effectsSystem);
+        // Initialize game manager with camera, scene, effects system, and renderer
+        this.gameManager.initialize(this.camera, this.scene, this.effectsSystem, this.renderer);
         
         // Register power-ups
         this.gameManager.registerPowerUp(new RainbowPowerUp());
@@ -1303,8 +1303,10 @@ class BubbleShooterGame {
         // Animate lights
         this.sceneManager.animateLights(currentTime * 0.001);
         
-        // Render
-        this.sceneManager.render();
+        // Render blast wave effect if active, otherwise render normally
+        if (!this.gameManager.render()) {
+            this.sceneManager.render();
+        }
     }
 }
 

@@ -172,8 +172,8 @@ export class GameLogic {
             this.gameState.incrementCombo();
             this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
             
-            // Update UI
-            this.gameManager.eventBus.emit('comboAchieved', { comboSize: this.gameState.combo + 1 });
+            // Update UI - combo size should be the current combo value
+            this.gameManager.eventBus.emit('comboAchieved', { comboSize: this.gameState.combo });
             
             // Show mega clear text for large matches
             if (matches.length >= 7) {

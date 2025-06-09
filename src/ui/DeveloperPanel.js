@@ -1588,7 +1588,7 @@ export class DeveloperPanel {
             bubbles: bubbles.map(bubble => ({
                 x: bubble.gridX,
                 y: bubble.gridY,
-                color: bubble.color.getHex(),
+                color: typeof bubble.color === 'number' ? bubble.color : bubble.color.getHex(),
                 type: bubble.isPowerUp ? bubble.powerUpType : 'normal'
             }))
         };

@@ -181,12 +181,28 @@ export class UIManager {
         if (this.elements.comboDisplay && this.elements.comboValue) {
             this.elements.comboDisplay.classList.add('active');
             this.elements.comboValue.textContent = comboValue;
+            
+            // Clear any existing timeout
+            if (this.comboTimeout) {
+                clearTimeout(this.comboTimeout);
+            }
+            
+            // Auto-hide after 2 seconds
+            this.comboTimeout = setTimeout(() => {
+                this.hideCombo();
+            }, 2000);
         }
     }
     
     hideCombo() {
         if (this.elements.comboDisplay) {
             this.elements.comboDisplay.classList.remove('active');
+        }
+        
+        // Clear timeout if it exists
+        if (this.comboTimeout) {
+            clearTimeout(this.comboTimeout);
+            this.comboTimeout = null;
         }
     }
     
