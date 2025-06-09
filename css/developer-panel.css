@@ -16,10 +16,12 @@
     transform: translateX(-100%); /* Initially hidden */
     transition: transform 0.3s ease-in-out;
     font-family: 'Orbitron', monospace;
+    pointer-events: none; /* Allow clicks to pass through when hidden */
 }
 
 .developer-panel.visible {
     transform: translateX(0);
+    pointer-events: auto; /* Re-enable clicks when visible */
 }
 
 .developer-panel h2,
@@ -126,4 +128,89 @@
 }
 .developer-panel::-webkit-scrollbar-thumb:hover {
     background: rgba(0, 255, 255, 0.8);
+}
+
+/* Effect Controls */
+.developer-panel h4 {
+    font-size: 14px;
+    color: #ffd93d;
+    text-shadow: 0 0 5px rgba(255, 217, 61, 0.6);
+    margin: 15px 0 8px 0;
+}
+
+.effect-presets,
+.effect-combinations {
+    margin-bottom: 15px;
+}
+
+.effect-presets select,
+.effect-combinations select {
+    width: 100%;
+    padding: 6px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(0, 255, 255, 0.5);
+    color: #fff;
+    border-radius: 5px;
+    font-family: 'Orbitron', monospace;
+    margin-top: 5px;
+}
+
+.effect-combinations {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.effect-combinations > div {
+    display: flex;
+    gap: 8px;
+}
+
+.effect-combinations button {
+    flex: 1;
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
+.effect-toggles {
+    max-height: 300px;
+    overflow-y: auto;
+    padding-right: 5px;
+    margin-top: 15px;
+}
+
+.effect-toggles label {
+    display: flex;
+    align-items: center;
+    margin: 5px 0;
+    font-size: 12px;
+    color: #e0e0e0;
+    cursor: pointer;
+}
+
+.effect-toggles label:hover {
+    color: #00ffff;
+}
+
+.effect-toggles input[type="checkbox"] {
+    margin-right: 8px;
+    cursor: pointer;
+}
+
+.effect-toggles::-webkit-scrollbar {
+    width: 6px;
+}
+
+.effect-toggles::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+}
+
+.effect-toggles::-webkit-scrollbar-thumb {
+    background: rgba(0, 255, 255, 0.4);
+    border-radius: 3px;
+}
+
+.effect-toggles::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 255, 255, 0.6);
 }

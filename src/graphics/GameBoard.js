@@ -54,7 +54,7 @@ export class GameBoard {
         const canvas = document.createElement('canvas');
         canvas.width = 512;
         canvas.height = 512;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         
         // Create multiple gradients for nebula effect
         const gradient1 = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
@@ -368,7 +368,7 @@ class StarfieldLayer {
         const canvas = document.createElement('canvas');
         canvas.width = 32;
         canvas.height = 32;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         
         // Create gradient
         const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);

@@ -11,6 +11,9 @@ import { GameLogic } from './systems/GameLogic.js';
 import { UIManager } from './ui/VisualTextDisplay.js';
 import { PerformanceManager } from './core/PerformanceManager.js';
 import { BubbleEffectsSystem } from './graphics/BubbleEffectsSystem.js';
+import { developerPanel } from './ui/DeveloperPanel.js';
+import { settingsStorage } from './core/SettingsStorage.js';
+import { bubbleEffectsController } from './graphics/BubbleEffectsController.js';
 import { Bubble } from './entities/Bubble.js';
 import { ParticlePool, Particle } from './entities/Particle.js';
 import { 
@@ -162,6 +165,19 @@ class BubbleShooterGame {
         // Initialize power-up collection UI
         this.uiManager.updateCollectedPowerUps([]);
         
+        // Initialize developer panel
+        await developerPanel.initialize(this);
+        
+        // Initialize bubble effects controller with game manager's event bus
+        await bubbleEffectsController.initialize(this.gameManager.eventBus);
+        
+        // Make game instance globally accessible for developer panel
+        window.game = this;
+        
+        // Make effects controller available for debugging
+        window.testEffect = (effectName) => bubbleEffectsController.testEffect(effectName);
+        window.effectsController = bubbleEffectsController;
+        
         // Start game
         this.gameManager.eventBus.emit('gameStart');
         
@@ -192,7 +208,11 @@ class BubbleShooterGame {
             this.handleMouseMove(touch);
         });
         
-        window.addEventListener('touchend', (e) => this.handleMouseUp(e));
+        window.addEventListener('touchend', (e) => {
+            // For touchend, use the last known touch position if no touches remain
+            const touch = e.changedTouches[0];
+            this.handleMouseUp(touch);
+        });
         
         // Debug keyboard controls
         window.addEventListener('keydown', (e) => this.handleKeyDown(e));
@@ -315,6 +335,9 @@ class BubbleShooterGame {
                     bubble.useInstancedRendering = false;
                     
                     this.gameState.setBubbleAt(x, y, bubble);
+                    
+                    // Emit bubbleCreated event for effects controller
+                    this.gameManager.eventBus.emit('bubbleCreated', bubble);
                     
                     // Apply power-up with lower rate for initial bubbles
                     if (Math.random() < 0.05) { // 5% chance for initial bubbles
@@ -497,6 +520,9 @@ class BubbleShooterGame {
         // Add bubble mesh to scene
         this.scene.add(bubble.mesh);
         bubble.useInstancedRendering = false;
+        
+        // Emit bubbleCreated event for effects controller
+        this.gameManager.eventBus.emit('bubbleCreated', bubble);
         
         let appliedPowerUpDetails = null;
         if (powerUpToApply) {
@@ -869,6 +895,22 @@ class BubbleShooterGame {
     handleMouseMove(event) {
         if (this.gameState.isPaused) return;
         
+        // Check if mouse is over developer panel
+        const developerPanel = document.getElementById('developerPanel');
+        if (developerPanel && developerPanel.classList.contains('visible')) {
+            const panelRect = developerPanel.getBoundingClientRect();
+            if (event.clientX >= panelRect.left && event.clientX <= panelRect.right &&
+                event.clientY >= panelRect.top && event.clientY <= panelRect.bottom) {
+                // Clear trajectory when hovering over developer panel
+                this.gameState.trajectory = [];
+                if (this.trajectorySystem.trajectoryGroup) {
+                    this.trajectorySystem.trajectoryGroup.visible = false;
+                }
+                this.renderer.domElement.style.cursor = 'default';
+                return; // Mouse is over developer panel, ignore it
+            }
+        }
+        
         const rect = this.renderer.domElement.getBoundingClientRect();
         const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -906,6 +948,16 @@ class BubbleShooterGame {
     }
     
     handleMouseDown(event) {
+        // Check if click is on developer panel
+        const developerPanel = document.getElementById('developerPanel');
+        if (developerPanel && developerPanel.classList.contains('visible')) {
+            const rect = developerPanel.getBoundingClientRect();
+            if (event.clientX >= rect.left && event.clientX <= rect.right &&
+                event.clientY >= rect.top && event.clientY <= rect.bottom) {
+                return; // Click is on developer panel, ignore it
+            }
+        }
+        
         if (this.gameState.isGameOver || this.gameState.isPaused || 
             !this.gameState.currentBubble || this.gameState.currentBubble.isMoving) return;
         
@@ -914,6 +966,26 @@ class BubbleShooterGame {
     }
     
     handleMouseUp(event) {
+        // Check if click is on developer panel
+        const developerPanel = document.getElementById('developerPanel');
+        if (developerPanel && developerPanel.classList.contains('visible')) {
+            const rect = developerPanel.getBoundingClientRect();
+            if (event.clientX >= rect.left && event.clientX <= rect.right &&
+                event.clientY >= rect.top && event.clientY <= rect.bottom) {
+                // Reset charging state but don't shoot
+                if (this.gameState.isCharging) {
+                    if (this.gameState.currentBubble) {
+                        this.gameState.currentBubble.mesh.scale.setScalar(1);
+                        this.gameState.currentBubble.material.emissiveIntensity = 0.1;
+                    }
+                    this.gameState.isCharging = false;
+                    this.gameState.shootingPower = 0;
+                    this.uiManager.hidePowerMeter();
+                }
+                return; // Click is on developer panel, ignore it
+            }
+        }
+        
         if (this.gameState.isGameOver || this.gameState.isPaused || 
             !this.gameState.currentBubble || this.gameState.currentBubble.isMoving) return;
         

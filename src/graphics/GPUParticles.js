@@ -290,7 +290,7 @@ export class GPUParticleSystem {
         const canvas = document.createElement('canvas');
         canvas.width = size;
         canvas.height = size;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         
         // Create sparkle pattern
         const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);

@@ -64,6 +64,61 @@
             <button class="bubble-select-btn" data-bubble-type="Chain Bubbles">Chain Bubbles</button>
             <button class="bubble-select-btn" data-bubble-type="Mimic Bubbles">Mimic Bubbles</button>
         </div>
+
+        <div class="dev-tool-group">
+            <h3>Visual Effects</h3>
+            <div class="effect-presets">
+                <label for="effectPreset">Quality Preset:</label>
+                <select id="effectPreset" name="effectPreset">
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high" selected>High</option>
+                    <option value="ultra">Ultra</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+            
+            <div class="effect-combinations">
+                <label for="effectCombination">Effect Combination:</label>
+                <select id="effectCombination" name="effectCombination">
+                    <option value="">None</option>
+                    <option value="glass">Glass Bubble</option>
+                    <option value="magical">Magical Bubble</option>
+                    <option value="soap">Soap Bubble</option>
+                    <option value="underwater">Underwater</option>
+                </select>
+                <div>
+                    <button id="saveEffectCombo">Save Current</button>
+                    <button id="deleteEffectCombo">Delete</button>
+                </div>
+            </div>
+            
+            <div class="effect-toggles" id="effectToggles">
+                <!-- Core Effects -->
+                <h4>Core Effects</h4>
+                <label><input type="checkbox" data-effect="enablePBR" checked> PBR Rendering</label>
+                <label><input type="checkbox" data-effect="enableTransmission" checked> Transmission</label>
+                <label><input type="checkbox" data-effect="enableClearcoat" checked> Clearcoat</label>
+                <label><input type="checkbox" data-effect="enableSheen" checked> Sheen</label>
+                <label><input type="checkbox" data-effect="enableEnvironmentMap" checked> Environment Map</label>
+                
+                <!-- Animation Effects -->
+                <h4>Animation Effects</h4>
+                <label><input type="checkbox" data-effect="enablePulse" checked> Pulse</label>
+                <label><input type="checkbox" data-effect="enableColorShift" checked> Color Shift</label>
+                <label><input type="checkbox" data-effect="enableDistortion" checked> Distortion</label>
+                <label><input type="checkbox" data-effect="enableSparkles" checked> Sparkles</label>
+                <label><input type="checkbox" data-effect="enableRainbow" checked> Rainbow</label>
+                
+                <!-- Advanced Effects -->
+                <h4>Advanced Effects</h4>
+                <label><input type="checkbox" data-effect="enableSubsurface" checked> Subsurface</label>
+                <label><input type="checkbox" data-effect="enableCaustics" checked> Caustics</label>
+                <label><input type="checkbox" data-effect="enableFoam" checked> Foam</label>
+                <label><input type="checkbox" data-effect="enableWobble" checked> Wobble</label>
+                <label><input type="checkbox" data-effect="enableHolographic"> Holographic</label>
+            </div>
+        </div>
     </div>
     <canvas id="gameCanvas"></canvas>
     
@@ -181,79 +236,11 @@
     }
     </script>
     
-    <!-- Developer Panel Script -->
+    <!-- Developer Panel initialization is handled in main.js -->
     <script type="module">
-        // Developer Panel Logic
-        const developerPanel = document.getElementById('developerPanel');
-        const bubbleSelectButtons = document.querySelectorAll('.bubble-select-btn');
-
-        // Toggle developer panel with 'd' key
-        document.addEventListener('keydown', (event) => {
-            if (event.key.toLowerCase() === 'd') {
-                const activeElement = document.activeElement;
-                if (activeElement && (activeElement.tagName.toLowerCase() === 'input' ||
-                    activeElement.tagName.toLowerCase() === 'textarea')) {
-                    return;
-                }
-                if (developerPanel) {
-                    developerPanel.classList.toggle('visible');
-                }
-            }
-        });
-
-        // Placeholder for bubble select buttons
-        if (bubbleSelectButtons.length > 0) {
-            bubbleSelectButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    const bubbleType = button.dataset.bubbleType;
-                    if (bubbleType) {
-                        console.log(`Developer Panel: Setting next bubble to: ${bubbleType}`);
-                        alert(`Next bubble set to: ${bubbleType}`);
-                    }
-                });
-            });
-        }
-        
-        // Placeholders for other dev tools
-        const loadLevelInput = document.getElementById('loadLevelInput');
-        if (loadLevelInput) {
-            loadLevelInput.addEventListener('change', (event) => {
-                console.log(`Dev: Load level: ${event.target.value}`);
-                alert(`Dev: Load level: ${event.target.value}`);
-            });
-        }
-
-        const nextLevelBtn = document.getElementById('nextLevelBtn');
-        if (nextLevelBtn) {
-            nextLevelBtn.addEventListener('click', () => {
-                console.log('Dev: Next Level');
-                alert('Dev: Next Level');
-            });
-        }
-
-        const prevLevelBtn = document.getElementById('prevLevelBtn');
-        if (prevLevelBtn) {
-            prevLevelBtn.addEventListener('click', () => {
-                console.log('Dev: Previous Level');
-                alert('Dev: Previous Level');
-            });
-        }
-        
-        const godModeToggle = document.getElementById('godModeToggle');
-        if (godModeToggle) {
-            godModeToggle.addEventListener('change', (event) => {
-                console.log(`Dev: God Mode: ${event.target.checked}`);
-                alert(`Dev: God Mode: ${event.target.checked}`);
-            });
-        }
-
-        const showCoordsToggle = document.getElementById('showCoordsToggle');
-        if (showCoordsToggle) {
-            showCoordsToggle.addEventListener('change', (event) => {
-                console.log(`Dev: Show Bubble Coords: ${event.target.checked}`);
-                alert(`Dev: Show Bubble Coords: ${event.target.checked}`);
-            });
-        }
+        // The developer panel is initialized when the game starts
+        // This ensures proper integration with the game systems
+        console.log('Developer panel will be initialized with game startup');
     </script>
     
     <!-- Main Game Module -->
