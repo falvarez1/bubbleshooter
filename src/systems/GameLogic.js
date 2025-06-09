@@ -648,7 +648,22 @@ export class GameLogic {
                 
                 this.scene.add(bubble.mesh);
                 this.gameState.setBubbleAt(x, 0, bubble);
+                
+                // Apply current effect combination settings from developer panel
+                this.applyCurrentEffectSettings(bubble);
             }
+        }
+    }
+    
+    /**
+     * Apply current effect combination settings to a bubble
+     * @param {Bubble} bubble - The bubble to apply effects to
+     */
+    applyCurrentEffectSettings(bubble) {
+        // Access the effects controller through the game manager
+        if (this.gameManager && this.gameManager.eventBus) {
+            // Emit event to notify that a new bubble was created and needs effects applied
+            this.gameManager.eventBus.emit('bubbleCreated', bubble);
         }
     }
     
