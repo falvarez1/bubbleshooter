@@ -917,6 +917,15 @@ class BubbleShooterGame {
     handleMouseMove(event) {
         if (this.gameState.isPaused) return;
         
+        // Check if in design mode - hide trajectory
+        if (this.designModeActive) {
+            this.gameState.trajectory = [];
+            if (this.trajectorySystem.trajectoryGroup) {
+                this.trajectorySystem.trajectoryGroup.visible = false;
+            }
+            return;
+        }
+        
         // Check if mouse is over developer panel
         const developerPanel = document.getElementById('developerPanel');
         if (developerPanel && developerPanel.classList.contains('visible')) {
@@ -983,6 +992,9 @@ class BubbleShooterGame {
     }
     
     handleMouseDown(event) {
+        // Check if in design mode
+        if (this.designModeActive) return;
+        
         // Check if click is on developer panel
         const developerPanel = document.getElementById('developerPanel');
         if (developerPanel && developerPanel.classList.contains('visible')) {
@@ -1004,6 +1016,9 @@ class BubbleShooterGame {
     }
     
     handleMouseUp(event) {
+        // Check if in design mode
+        if (this.designModeActive) return;
+        
         // Check if click is on developer panel
         const developerPanel = document.getElementById('developerPanel');
         if (developerPanel && developerPanel.classList.contains('visible')) {

@@ -27,6 +27,23 @@
                 <input type="checkbox" id="showCoordsToggle" name="showCoordsToggle">
                 <label for="showCoordsToggle">Show Bubble Coordinates</label>
             </div>
+            <div class="checkbox-group">
+                <input type="checkbox" id="designModeToggle" name="designModeToggle">
+                <label for="designModeToggle">Enable Design Mode</label>
+            </div>
+        </div>
+
+        <div class="dev-tool-group">
+            <h3>Level Designer</h3>
+            <label for="levelNameInput">Level Name:</label>
+            <input type="text" id="levelNameInput" name="levelNameInput" placeholder="Enter level name">
+            <button id="saveLevelBtn">Save Level as JSON</button>
+            <label for="loadLevelFile">Load Level File:</label>
+            <input type="file" id="loadLevelFile" name="loadLevelFile" accept=".json">
+            <button id="clearGridBtn">Clear Grid</button>
+            <div class="level-info">
+                <p><small>Use design mode to click, drag, and edit bubbles. Drag from palette to add new bubbles.</small></p>
+            </div>
         </div>
 
         <div class="dev-tool-group">
