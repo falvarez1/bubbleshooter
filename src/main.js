@@ -281,6 +281,9 @@ class BubbleShooterGame {
         this.gameManager.eventBus.on('startPrecisionAim', (data) => {
             this.gameState.activatePrecisionAim(data.duration);
             this.uiManager.showPrecisionAim(data.duration);
+            
+            // Immediately update trajectory and precision aim indicator
+            this.updateTrajectoryAndIndicator();
         });
         
         this.gameManager.eventBus.on('bubbleAttached', (data) => {
@@ -958,6 +961,11 @@ class BubbleShooterGame {
             }
         }
         
+        // Update trajectory and precision aim indicator
+        this.updateTrajectoryAndIndicator();
+    }
+    
+    updateTrajectoryAndIndicator() {
         // Calculate trajectory
         this.trajectorySystem.calculateTrajectory(
             this.gameState.currentBubble,
@@ -1174,6 +1182,9 @@ class BubbleShooterGame {
                 this.precisionTickTimer = 0;
                 this.uiManager.hidePrecisionAim();
                 this.precisionAimIndicator.hide();
+                
+                // Immediately update trajectory to revert to normal mode
+                this.updateTrajectoryAndIndicator();
             }
             
             // Update precision aim indicator
