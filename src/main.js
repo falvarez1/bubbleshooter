@@ -184,6 +184,16 @@ class BubbleShooterGame {
             this.gameManager.eventBus.emit('precisionAimActivated', { duration: 10 });
         };
         
+        // Debug command to test ceiling collision
+        window.testCeilingShot = () => {
+            if (this.gameState.currentBubble) {
+                const bubble = this.gameState.currentBubble;
+                bubble.velocity.set(0, 100, 0); // High upward velocity
+                bubble.startMoving();
+                console.log('Shooting bubble at ceiling with high velocity');
+            }
+        };
+        
         // Start game
         this.gameManager.eventBus.emit('gameStart');
         
@@ -661,7 +671,7 @@ class BubbleShooterGame {
             bubble.powerUpAnimation = null;
         }
         
-        this.gameState.currentBubble.isMoving = true;
+        this.gameState.currentBubble.startMoving();
         
         this.gameManager.playSound('bubbleShoot');
         this.createShootingEffect(this.gameState.currentBubble.position.clone(), power);

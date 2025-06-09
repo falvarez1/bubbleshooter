@@ -81,10 +81,38 @@ export class Bubble {
         
         // Destruction state - used to prevent collision with bubbles being destroyed
         this.isDestroyed = false;
+        
+        // Attachment state - used when bubble hits ceiling
+        this.needsAttachment = false;
+        
+        // Movement timeout - prevent bubbles from being stuck in moving state
+        this.movementStartTime = 0;
+    }
+    
+    startMoving() {
+        this.isMoving = true;
+        this.movementStartTime = Date.now();
+    }
+    
+    stopMoving() {
+        this.isMoving = false;
+        this.movementStartTime = 0;
     }
     
     update(deltaTime) {
         if (this.isMoving) {
+            // Track movement time to prevent infinite movement
+            if (this.movementStartTime === 0) {
+                this.movementStartTime = Date.now();
+            } else if (Date.now() - this.movementStartTime > 10000) { // 10 second timeout
+                console.warn('Bubble movement timeout, forcing attachment');
+                this.position.y = CONFIG.CEILING_Y - 0.5 - this.radius;
+                this.velocity.set(0, 0, 0);
+                this.isMoving = false;
+                this.needsAttachment = true;
+                return;
+            }
+            
             // Update position
             this.position.add(this.velocity.clone().multiplyScalar(deltaTime));
             this.mesh.position.copy(this.position);
@@ -97,11 +125,24 @@ export class Bubble {
                 this.onWallBounce();
             }
             
-            // Check ceiling
-            if (this.position.y > CONFIG.CEILING_Y - this.radius) {
-                this.position.y = CONFIG.CEILING_Y - this.radius;
-                this.velocity.y = 0;
+            // Check ceiling - use same threshold as CollisionSystem
+            if (this.position.y > CONFIG.CEILING_Y - 0.5 - this.radius) {
+                this.position.y = CONFIG.CEILING_Y - 0.5 - this.radius;
+                this.velocity.set(0, 0, 0);
                 this.isMoving = false;
+                this.movementStartTime = 0; // Reset movement timer
+                // Mark as needing attachment - will be handled by CollisionSystem
+                this.needsAttachment = true;
+            }
+            
+            // Safety check: if bubble goes way out of bounds, force attachment
+            if (this.position.y > CONFIG.CEILING_Y + 2) {
+                console.warn('Bubble went out of bounds, forcing attachment');
+                this.position.y = CONFIG.CEILING_Y - 0.5 - this.radius;
+                this.velocity.set(0, 0, 0);
+                this.isMoving = false;
+                this.movementStartTime = 0; // Reset movement timer
+                this.needsAttachment = true;
             }
         }
         

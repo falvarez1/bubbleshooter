@@ -70,7 +70,17 @@ export class CollisionSystem {
      * @returns {boolean} Whether a collision occurred
      */
     checkBubbleCollisions() {
-        if (!this.gameState.currentBubble || !this.gameState.currentBubble.isMoving) return false;
+        if (!this.gameState.currentBubble) return false;
+        
+        // Check if bubble needs attachment (even if not moving - ceiling collision case)
+        if (this.gameState.currentBubble.needsAttachment) {
+            this.gameState.currentBubble.needsAttachment = false;
+            this.attachBubble(this.gameState.currentBubble);
+            return true;
+        }
+        
+        // Skip other collision checks if not moving
+        if (!this.gameState.currentBubble.isMoving) return false;
         
         // Throttle collision checks to prevent performance spikes
         const now = Date.now();
