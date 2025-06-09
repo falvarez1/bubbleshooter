@@ -142,17 +142,29 @@ export class GameLogic {
      * @param {Bubble} bubble - The newly attached bubble
      */
     checkMatches(bubble) {
-        // Check if bubble is a power-up and activate it
-        if (bubble.isPowerUp) {
+        // Check if bubble is a power-up (except rainbow, which uses normal matching)
+        if (bubble.isPowerUp && bubble.powerUpType !== 'rainbow') {
             this.handlePowerUpActivation(bubble);
             return;
         }
         
         const matches = this.findConnectedBubbles(bubble);
         
-        if (matches.length >= 3) {
+        // Rainbow bubbles only need 1+ matches, regular bubbles need 3+
+        const isRainbowMatch = bubble.isPowerUp && bubble.powerUpType === 'rainbow';
+        const minMatches = isRainbowMatch ? 1 : 3;
+        
+        if (matches.length >= minMatches) {
             // Remove matched bubbles
             let points = matches.length * 10;
+            
+            // Bonus points for rainbow bubble matches
+            const hasRainbow = matches.some(b => b.isPowerUp && b.powerUpType === 'rainbow');
+            if (hasRainbow) {
+                points *= 2; // Double points for rainbow matches
+                this.gameManager.eventBus.emit('rainbowActivated', { position: bubble.position });
+            }
+            
             const comboMultiplier = Math.min(this.gameState.combo + 1, 5);
             points *= comboMultiplier;
             
@@ -218,48 +230,11 @@ export class GameLogic {
     }
     
     /**
-     * Handle legacy power-ups (rainbow and bomb)
+     * Handle legacy power-ups (bomb only - rainbow now uses normal matching)
      * @param {Bubble} bubble - The power-up bubble
      */
     handleLegacyPowerUp(bubble) {
-        if (bubble.powerUpType === 'rainbow') {
-            // Rainbow bubble matches all adjacent bubbles
-            const neighbors = this.getNeighbors(bubble.gridX, bubble.gridY);
-            const bubblesRemoved = [bubble];
-            
-            neighbors.forEach(neighbor => {
-                if (neighbor && !neighbor.isPowerUp) {
-                    bubblesRemoved.push(neighbor);
-                    // Find all connected bubbles of the same color
-                    const connected = this.findConnectedBubbles(neighbor);
-                    connected.forEach(b => {
-                        if (!bubblesRemoved.includes(b)) {
-                            bubblesRemoved.push(b);
-                        }
-                    });
-                }
-            });
-            
-            // Remove all affected bubbles
-            let points = bubblesRemoved.length * 20; // Double points for rainbow
-            this.gameState.addScore(points);
-            this.gameState.incrementCombo();
-            
-            this.gameManager.showFloatingScore(bubble.position, points);
-            
-            bubblesRemoved.forEach((b, index) => {
-                setTimeout(() => {
-                    this.removeBubble(b);
-                    this.createExplosionEffect(b, true);
-                }, index * 30);
-            });
-            
-            // Check for floating bubbles
-            setTimeout(() => {
-                this.removeFloatingBubbles();
-            }, bubblesRemoved.length * 30 + 100);
-            
-        } else if (bubble.powerUpType === 'bomb') {
+        if (bubble.powerUpType === 'bomb') {
             // Bomb bubble destroys 3x3 area
             const bombRadius = 1.5;
             const destroyed = [bubble];
@@ -318,7 +293,7 @@ export class GameLogic {
     }
     
     /**
-     * Find connected bubbles of the same color
+     * Find connected bubbles of the same color or rainbow bubbles
      * @param {Bubble} startBubble - The starting bubble
      * @returns {Array} Array of connected bubbles
      */
@@ -327,6 +302,7 @@ export class GameLogic {
         const visited = new Set();
         const queue = [startBubble];
         const targetColor = startBubble.color;
+        const isRainbowStart = startBubble.isPowerUp && startBubble.powerUpType === 'rainbow';
         
         while (queue.length > 0) {
             const current = queue.shift();
@@ -335,7 +311,10 @@ export class GameLogic {
             if (visited.has(key)) continue;
             visited.add(key);
             
-            if (current.color === targetColor) {
+            const isRainbowCurrent = current.isPowerUp && current.powerUpType === 'rainbow';
+            const colorsMatch = current.color === targetColor || isRainbowStart || isRainbowCurrent;
+            
+            if (colorsMatch) {
                 connected.push(current);
                 
                 // Check neighbors
