@@ -14,10 +14,12 @@ export class TrajectorySystem {
     calculateTrajectory(startBubble, mousePosition, gameState) {
         if (!startBubble || startBubble.isMoving || gameState.isPaused) {
             gameState.trajectory = [];
+            gameState.trajectoryEndPosition = null;
             return;
         }
         
         gameState.trajectory = [];
+        gameState.trajectoryEndPosition = null;
         const startPos = startBubble.position.clone();
         const direction = new THREE.Vector3(
             mousePosition.x - startPos.x,
@@ -64,6 +66,8 @@ export class TrajectorySystem {
             
             // Stop if we would hit a bubble
             if (hitBubble) {
+                // Store the end position for precision aim indicator
+                gameState.trajectoryEndPosition = pos.clone();
                 // Add a few more points to show where it stops
                 for (let j = 0; j < 6; j++) {
                     gameState.trajectory.push(pos.clone());
@@ -88,6 +92,7 @@ export class TrajectorySystem {
             
             // Stop at ceiling
             if (pos.y > CONFIG.CEILING_Y - 0.5 - CONFIG.BUBBLE_RADIUS) {
+                gameState.trajectoryEndPosition = pos.clone();
                 break;
             }
             

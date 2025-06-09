@@ -7,15 +7,15 @@ import { GameBoard } from './graphics/GameBoard.js';
 import { AudioSystem } from './systems/AudioSystem.js';
 import { TrajectorySystem } from './systems/TrajectorySystem.js';
 import { CollisionSystem } from './systems/CollisionSystem.js';
+import { PrecisionAimIndicator } from './systems/PrecisionAimIndicator.js';
 import { GameLogic } from './systems/GameLogic.js';
 import { UIManager } from './ui/VisualTextDisplay.js';
 import { PerformanceManager } from './core/PerformanceManager.js';
 import { BubbleEffectsSystem } from './graphics/BubbleEffectsSystem.js';
 import { developerPanel } from './ui/DeveloperPanel.js';
-import { settingsStorage } from './core/SettingsStorage.js';
 import { bubbleEffectsController } from './graphics/BubbleEffectsController.js';
 import { Bubble } from './entities/Bubble.js';
-import { ParticlePool, Particle } from './entities/Particle.js';
+import { ParticlePool } from './entities/Particle.js';
 import { 
     RainbowPowerUp, 
     BombPowerUp, 
@@ -46,6 +46,7 @@ class BubbleShooterGame {
         this.collisionSystem = new CollisionSystem(this.gameState, this.gameManager);
         this.gameLogic = new GameLogic(this.gameState, this.gameManager, this.scene);
         this.effectsSystem = new BubbleEffectsSystem(this.scene);
+        this.precisionAimIndicator = new PrecisionAimIndicator(this.scene);
         
         // Game properties
         this.DEBUG_MODE = true;
@@ -89,8 +90,8 @@ class BubbleShooterGame {
             console.log('Using GPU particle system');
             // Create a hybrid particle pool that uses GPU particles
             this.gameState.particlePool = {
-                spawn: (x, y, z, color, size, velocity) => {
-                    return this.gpuParticles.spawn(x, y, z, color, size, velocity);
+                spawn: (x, y, z, color, _size, velocity) => {
+                    return this.gpuParticles.spawn(x, y, z, color, _size, velocity);
                 },
                 spawnPower: (x, y, z, color, size, velocity, power) => {
                     // Use power-based spawning for enhanced effects
@@ -177,6 +178,11 @@ class BubbleShooterGame {
         // Make effects controller available for debugging
         window.testEffect = (effectName) => bubbleEffectsController.testEffect(effectName);
         window.effectsController = bubbleEffectsController;
+        
+        // Debug command for precision aim
+        window.testPrecisionAim = () => {
+            this.gameManager.eventBus.emit('precisionAimActivated', { duration: 10 });
+        };
         
         // Start game
         this.gameManager.eventBus.emit('gameStart');
@@ -629,7 +635,10 @@ class BubbleShooterGame {
         
         direction.normalize();
         
-        const speed = CONFIG.SHOOTING_SPEED + (CONFIG.MAX_SHOOTING_SPEED - CONFIG.SHOOTING_SPEED) * power;
+        // During precision aim, use fixed speed to prevent bubble from pushing through
+        const speed = this.gameState.precisionAimActive ? 
+            CONFIG.SHOOTING_SPEED : 
+            CONFIG.SHOOTING_SPEED + (CONFIG.MAX_SHOOTING_SPEED - CONFIG.SHOOTING_SPEED) * power;
         this.gameState.currentBubble.velocity = direction.multiplyScalar(speed);
         
         // Clean up any power-up visual effects before shooting
@@ -945,6 +954,14 @@ class BubbleShooterGame {
             this.gameState.mousePosition,
             this.gameState
         );
+        
+        // Show/hide precision aim indicator
+        if (this.gameState.precisionAimActive && this.gameState.trajectoryEndPosition) {
+            const bubbleColor = this.gameState.currentBubble ? this.gameState.currentBubble.color : 0x00ffff;
+            this.precisionAimIndicator.showAt(this.gameState.trajectoryEndPosition, bubbleColor);
+        } else {
+            this.precisionAimIndicator.hide();
+        }
     }
     
     handleMouseDown(event) {
@@ -960,6 +977,9 @@ class BubbleShooterGame {
         
         if (this.gameState.isGameOver || this.gameState.isPaused || 
             !this.gameState.currentBubble || this.gameState.currentBubble.isMoving) return;
+        
+        // Don't allow power charging during precision aim
+        if (this.gameState.precisionAimActive) return;
         
         this.gameState.isCharging = true;
         this.uiManager.showPowerMeter();
@@ -988,6 +1008,12 @@ class BubbleShooterGame {
         
         if (this.gameState.isGameOver || this.gameState.isPaused || 
             !this.gameState.currentBubble || this.gameState.currentBubble.isMoving) return;
+        
+        // Allow shooting during precision aim with no power
+        if (this.gameState.precisionAimActive) {
+            this.shootBubble(0); // Shoot with no power
+            return;
+        }
         
         if (this.gameState.isCharging) {
             // Reset bubble scale
@@ -1137,7 +1163,11 @@ class BubbleShooterGame {
             } else if (this.precisionTickTimer > 0) {
                 this.precisionTickTimer = 0;
                 this.uiManager.hidePrecisionAim();
+                this.precisionAimIndicator.hide();
             }
+            
+            // Update precision aim indicator
+            this.precisionAimIndicator.update(deltaTime);
             
             // Update current bubble
             if (this.gameState.currentBubble) {
