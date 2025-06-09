@@ -46,14 +46,19 @@ export class GameLogic {
     }
     
     handleChainLightningDestroy(bubbles, points) {
+        // Calculate points per individual bubble
+        const pointsPerBubble = Math.floor(points / bubbles.length);
+        
         // Add score
         this.gameState.addScore(points);
         this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
         
-        // Show floating score at center of destruction
-        const centerX = bubbles.reduce((sum, b) => sum + b.position.x, 0) / bubbles.length;
-        const centerY = bubbles.reduce((sum, b) => sum + b.position.y, 0) / bubbles.length;
-        this.gameManager.showFloatingScore(new THREE.Vector3(centerX, centerY, 0), points);
+        // Show individual floating score for each destroyed bubble
+        bubbles.forEach((bubble, index) => {
+            setTimeout(() => {
+                this.gameManager.showFloatingScore(bubble.position, pointsPerBubble);
+            }, index * 25); // Quick succession for lightning effect
+        });
         
         // Bubbles have already been removed from grid and instanced renderer by the power-up
         // Clean up any remaining effects and dispose resources
@@ -86,18 +91,19 @@ export class GameLogic {
     }
     
     handleColorSplashDestroy(bubbles, points) {
+        // Calculate points per individual bubble
+        const pointsPerBubble = Math.floor(points / bubbles.length);
+        
         // Add score
         this.gameState.addScore(points);
         this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
         
-        // Show floating score
-        const centerX = bubbles.reduce((sum, b) => sum + b.position.x, 0) / bubbles.length;
-        const centerY = bubbles.reduce((sum, b) => sum + b.position.y, 0) / bubbles.length;
-        this.gameManager.showFloatingScore(new THREE.Vector3(centerX, centerY, 0), points);
-        
-        // Remove bubbles
+        // Remove bubbles with individual point displays
         bubbles.forEach((bubble, index) => {
             setTimeout(() => {
+                // Show individual points for this bubble
+                this.gameManager.showFloatingScore(bubble.position, pointsPerBubble);
+                
                 this.createExplosionEffect(bubble, true);
                 this.removeBubble(bubble);
             }, index * 30);
@@ -113,18 +119,20 @@ export class GameLogic {
         // Add score with combo multiplier
         const comboMultiplier = Math.min(this.gameState.combo + 1, 5);
         const totalPoints = points * comboMultiplier;
+        
+        // Calculate points per individual bubble
+        const pointsPerBubble = Math.floor(totalPoints / bubbles.length);
+        
         this.gameState.addScore(totalPoints);
         this.gameState.incrementCombo();
         this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
         
-        // Show floating score at center of explosion
-        const centerX = bubbles.reduce((sum, b) => sum + b.position.x, 0) / bubbles.length;
-        const centerY = bubbles.reduce((sum, b) => sum + b.position.y, 0) / bubbles.length;
-        this.gameManager.showFloatingScore(new THREE.Vector3(centerX, centerY, 0), totalPoints);
-        
-        // Remove bubbles with enhanced explosion effects
+        // Remove bubbles with enhanced explosion effects and individual point displays
         bubbles.forEach((bubble, index) => {
             setTimeout(() => {
+                // Show individual points for this bubble
+                this.gameManager.showFloatingScore(bubble.position, pointsPerBubble);
+                
                 this.createExplosionEffect(bubble, true); // Enhanced explosion for bomb
                 this.removeBubble(bubble);
             }, index * 20); // Faster destruction for bomb
@@ -155,20 +163,23 @@ export class GameLogic {
         const minMatches = isRainbowMatch ? 1 : 3;
         
         if (matches.length >= minMatches) {
-            // Remove matched bubbles
-            let points = matches.length * 10;
+            // Calculate base points and modifiers
+            let basePoints = matches.length * 10;
             
             // Bonus points for rainbow bubble matches
             const hasRainbow = matches.some(b => b.isPowerUp && b.powerUpType === 'rainbow');
             if (hasRainbow) {
-                points *= 2; // Double points for rainbow matches
+                basePoints *= 2; // Double points for rainbow matches
                 this.gameManager.eventBus.emit('rainbowActivated', { position: bubble.position });
             }
             
             const comboMultiplier = Math.min(this.gameState.combo + 1, 5);
-            points *= comboMultiplier;
+            const totalPoints = basePoints * comboMultiplier;
             
-            this.gameState.addScore(points);
+            // Calculate points per individual bubble
+            const pointsPerBubble = Math.floor(totalPoints / matches.length);
+            
+            this.gameState.addScore(totalPoints);
             this.gameState.incrementCombo();
             this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
             
@@ -180,14 +191,12 @@ export class GameLogic {
                 this.gameManager.showEffectText('megaClear');
             }
             
-            // Create floating score at center of match group
-            const centerX = matches.reduce((sum, b) => sum + b.position.x, 0) / matches.length;
-            const centerY = matches.reduce((sum, b) => sum + b.position.y, 0) / matches.length;
-            this.gameManager.showFloatingScore(new THREE.Vector3(centerX, centerY, 0), points);
-            
-            // Remove bubbles with animation
+            // Remove bubbles with animation and individual point displays
             matches.forEach((matchedBubble, index) => {
                 setTimeout(() => {
+                    // Show individual points for this bubble
+                    this.gameManager.showFloatingScore(matchedBubble.position, pointsPerBubble);
+                    
                     this.removeBubble(matchedBubble);
                     // Use enhanced explosion for large matches
                     this.createExplosionEffect(matchedBubble, matches.length >= 5);
@@ -414,17 +423,17 @@ export class GameLogic {
         }
         
         if (floatingCount > 0) {
-            const floatingPoints = floatingCount * 20 * Math.min(this.gameState.combo + 1, 5);
-            this.gameState.addScore(floatingPoints);
+            const totalFloatingPoints = floatingCount * 20 * Math.min(this.gameState.combo + 1, 5);
+            const pointsPerFloatingBubble = Math.floor(totalFloatingPoints / floatingCount);
             
-            // Show floating score effect
-            if (floatingBubbles.length > 0) {
-                const centerX = floatingBubbles.reduce((sum, b) => sum + b.position.x, 0) / floatingBubbles.length;
-                const centerY = floatingBubbles.reduce((sum, b) => sum + b.position.y, 0) / floatingBubbles.length;
+            this.gameState.addScore(totalFloatingPoints);
+            
+            // Show individual floating score for each bubble
+            floatingBubbles.forEach((bubble, index) => {
                 setTimeout(() => {
-                    this.gameManager.showFloatingScore(new THREE.Vector3(centerX, centerY, 0), floatingPoints);
-                }, floatingCount * 15);
-            }
+                    this.gameManager.showFloatingScore(bubble.position, pointsPerFloatingBubble);
+                }, index * 30 + 100); // Slight delay after the bubble starts floating
+            });
             
             // Emit floating cleared event
             this.gameManager.eventBus.emit('floatingCleared', { count: floatingCount });
