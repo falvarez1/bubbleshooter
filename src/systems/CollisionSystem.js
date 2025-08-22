@@ -40,8 +40,8 @@ export class CollisionSystem {
             
             for (let x = 0; x < bubblesInRow; x++) {
                 const bubble = this.gameState.bubbleGrid[y][x];
-                if (bubble && !bubble.isDestroyed && !bubble.isFloating && 
-                    bubble.mesh && bubble.mesh.parent) {
+                if (bubble && !bubble.isDestroyed && !bubble.isFloating) {
+                    // Include bubble regardless of mesh parent (for instanced rendering)
                     this.gridBubbleCache.push(bubble);
                 }
             }
@@ -168,7 +168,11 @@ export class CollisionSystem {
             bubble.position.y = CONFIG.GRID_TOP_Y - finalY * CONFIG.HEX_HEIGHT;
             bubble.gridX = finalX;
             bubble.gridY = finalY;
-            bubble.mesh.position.copy(bubble.position);
+            
+            // Update mesh position only if not using instanced rendering
+            if (!bubble.useInstancedRendering) {
+                bubble.mesh.position.copy(bubble.position);
+            }
             
             // Update base position for spring physics
             bubble.basePosition.copy(bubble.position);
@@ -181,15 +185,18 @@ export class CollisionSystem {
             // Bubble is now part of the grid
             bubble.isMoving = false;
             
-            // Ensure mesh is visible and in scene
-            bubble.mesh.visible = true;
-            bubble.mesh.scale.setScalar(1.0);
-            
-            // Make sure the mesh stays in the scene
-            if (!bubble.mesh.parent) {
-                console.warn('Bubble mesh was not in scene, re-adding it');
-                if (this.gameManager.scene) {
-                    this.gameManager.scene.add(bubble.mesh);
+            // Handle visibility based on rendering mode
+            if (!bubble.useInstancedRendering) {
+                // Ensure mesh is visible and in scene for individual meshes
+                bubble.mesh.visible = true;
+                bubble.mesh.scale.setScalar(1.0);
+                
+                // Make sure the mesh stays in the scene
+                if (!bubble.mesh.parent) {
+                    console.warn('Bubble mesh was not in scene, re-adding it');
+                    if (this.gameManager.scene) {
+                        this.gameManager.scene.add(bubble.mesh);
+                    }
                 }
             }
             

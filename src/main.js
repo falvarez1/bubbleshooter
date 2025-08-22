@@ -16,6 +16,7 @@ import { developerPanel } from './ui/DeveloperPanel.js';
 import { bubbleEffectsController } from './graphics/BubbleEffectsController.js';
 import { Bubble } from './entities/Bubble.js';
 import { ParticlePool } from './entities/Particle.js';
+import { BubbleInstances } from './graphics/BubbleInstances.js';
 import { 
     RainbowPowerUp, 
     BombPowerUp, 
@@ -48,6 +49,9 @@ class BubbleShooterGame {
         this.effectsSystem = new BubbleEffectsSystem(this.scene);
         this.precisionAimIndicator = new PrecisionAimIndicator(this.scene);
         
+        // Initialize instanced bubble renderer
+        this.bubbleInstances = null; // Will be initialized after imports
+        
         // Game properties
         this.DEBUG_MODE = true;
         this.FORCED_NEXT_BUBBLE_TYPE = null;
@@ -75,8 +79,12 @@ class BubbleShooterGame {
         // Initialize performance manager first
         await this.performanceManager.initialize();
         
-        // Using individual meshes for all bubbles
-        console.log('Using individual meshes for all bubbles');
+        // Initialize instanced bubble renderer
+        this.bubbleInstances = new BubbleInstances(this.scene, 300);
+        console.log('Initialized instanced bubble renderer for up to 300 bubbles');
+        
+        // Share instanced renderer with game logic for bubble removal
+        this.gameLogic.bubbleInstances = this.bubbleInstances;
         
         // Apply particle preset
         applyParticlePreset(PARTICLE_CONFIG.preset);
@@ -287,6 +295,11 @@ class BubbleShooterGame {
         });
         
         this.gameManager.eventBus.on('bubbleAttached', (data) => {
+            // Update bubble type in instanced renderer from 'shooting' to 'grid'
+            if (data.bubble && data.bubble.useInstancedRendering && this.bubbleInstances) {
+                this.bubbleInstances.updateBubbleType(data.bubble, 'grid');
+            }
+            
             // Clear current bubble reference immediately
             this.gameState.currentBubble = null;
             
@@ -333,6 +346,8 @@ class BubbleShooterGame {
                 if (Math.random() > 0.3) { // 70% chance to place a bubble
                     const color = CONFIG.BUBBLE_COLORS[Math.floor(Math.random() * CONFIG.BUBBLE_COLORS.length)];
                     const bubble = new Bubble(0, 0, color);
+                    // Set flag before setGridPosition so it doesn't update mesh
+                    bubble.useInstancedRendering = true;
                     bubble.setGridPosition(x, y);
                     
                     // Override onWallBounce to play sound
@@ -349,9 +364,9 @@ class BubbleShooterGame {
                         );
                     };
                     
-                    // Add bubble mesh to scene
-                    this.scene.add(bubble.mesh);
-                    bubble.useInstancedRendering = false;
+                    // Add bubble to instanced renderer instead of adding mesh to scene
+                    this.bubbleInstances.addBubble(bubble, 'grid');
+                    // useInstancedRendering already set before setGridPosition
                     
                     this.gameState.setBubbleAt(x, y, bubble);
                     
@@ -363,6 +378,11 @@ class BubbleShooterGame {
                 }
             }
         }
+        
+        // Force collision cache update for initial bubbles
+        // This ensures collision detection works immediately for initial grid bubbles
+        this.collisionSystem.lastCacheUpdate = 0;
+        this.collisionSystem.updateGridBubbleCache();
     }
     
     createShootingBubble() {
@@ -383,8 +403,11 @@ class BubbleShooterGame {
             // Log cleanup
             console.log('Cleaning up previous bubble...');
             
-            // Remove from scene if it's an individual mesh
-            if (this.gameState.currentBubble.mesh && this.gameState.currentBubble.mesh.parent) {
+            // Remove from instanced renderer or scene
+            if (this.gameState.currentBubble.useInstancedRendering && this.bubbleInstances) {
+                this.bubbleInstances.removeBubble(this.gameState.currentBubble);
+                console.log('Removed bubble from instanced renderer');
+            } else if (this.gameState.currentBubble.mesh && this.gameState.currentBubble.mesh.parent) {
                 this.scene.remove(this.gameState.currentBubble.mesh);
                 console.log('Removed individual mesh from scene');
             }
@@ -534,9 +557,9 @@ class BubbleShooterGame {
         // Set as current bubble BEFORE adding to instanced renderer
         this.gameState.currentBubble = bubble;
         
-        // Add bubble mesh to scene
-        this.scene.add(bubble.mesh);
-        bubble.useInstancedRendering = false;
+        // Add bubble to instanced renderer instead of adding mesh to scene
+        this.bubbleInstances.addBubble(bubble, 'shooting');
+        bubble.useInstancedRendering = true;
         
         // Emit bubbleCreated event for effects controller
         this.gameManager.eventBus.emit('bubbleCreated', bubble);
@@ -1128,8 +1151,10 @@ class BubbleShooterGame {
                 // For other power-ups, force them on the next bubble
                 this.FORCED_NEXT_BUBBLE_TYPE = forcedType;
                 if (this.gameState.currentBubble && !this.gameState.currentBubble.isMoving) {
-                    // Remove from scene before destroying
-                    if (this.gameState.currentBubble.mesh && this.gameState.currentBubble.mesh.parent) {
+                    // Remove from instanced renderer or scene before destroying
+                    if (this.gameState.currentBubble.useInstancedRendering && this.bubbleInstances) {
+                        this.bubbleInstances.removeBubble(this.gameState.currentBubble);
+                    } else if (this.gameState.currentBubble.mesh && this.gameState.currentBubble.mesh.parent) {
                         this.scene.remove(this.gameState.currentBubble.mesh);
                     }
                     this.gameState.currentBubble.destroy();
@@ -1207,7 +1232,10 @@ class BubbleShooterGame {
             if (this.gameState.currentBubble) {
                 this.gameState.currentBubble.update(deltaTime);
                 
-                // Bubble position is already updated in bubble.update()
+                // Update instanced renderer for moving bubble
+                if (this.gameState.currentBubble.useInstancedRendering) {
+                    this.bubbleInstances.updateBubble(this.gameState.currentBubble);
+                }
                 
                 // Check collisions
                 if (this.collisionSystem.checkBubbleCollisions()) {
@@ -1223,7 +1251,10 @@ class BubbleShooterGame {
                     if (bubble) {
                         bubble.update(deltaTime);
                         
-                        // Bubble position is already updated in bubble.update()
+                        // Update instanced renderer for grid bubbles
+                        if (bubble.useInstancedRendering) {
+                            this.bubbleInstances.updateBubble(bubble);
+                        }
                         
                         if (!bubble.isPowerUp) {
                             bubblesRemaining++;
@@ -1232,7 +1263,10 @@ class BubbleShooterGame {
                 }
             }
             
-            // All bubbles are updated individually above
+            // Update instanced renderer uniforms (time-based animations)
+            if (this.bubbleInstances) {
+                this.bubbleInstances.update(deltaTime, this.camera);
+            }
             
             // Update ambient audio based on game state (throttled to 30fps)
             this.audioUpdateTimer += deltaTime;
@@ -1272,8 +1306,14 @@ class BubbleShooterGame {
                 
                 if (this.gameState.currentBubble) {
                     const scale = 1 + this.gameState.shootingPower * 0.3;
-                    this.gameState.currentBubble.mesh.scale.setScalar(scale);
-                    this.gameState.currentBubble.material.emissiveIntensity = 0.1 + this.gameState.shootingPower * 0.4;
+                    if (this.gameState.currentBubble.useInstancedRendering) {
+                        // Update scale in instanced renderer
+                        this.gameState.currentBubble.connectionScale = scale;
+                        this.bubbleInstances.updateBubble(this.gameState.currentBubble);
+                    } else {
+                        this.gameState.currentBubble.mesh.scale.setScalar(scale);
+                        this.gameState.currentBubble.material.emissiveIntensity = 0.1 + this.gameState.shootingPower * 0.4;
+                    }
                 }
             }
             

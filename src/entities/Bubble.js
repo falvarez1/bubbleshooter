@@ -1,6 +1,38 @@
 import * as THREE from 'three';
 import { CONFIG } from '../core/Config.js';
 
+// Material pool for reusing materials
+const materialPool = new Map();
+
+function getPooledMaterial(color) {
+    const colorKey = color.toString();
+    if (!materialPool.has(colorKey)) {
+        const material = new THREE.MeshPhysicalMaterial({
+            color: color,
+            metalness: 0.1,
+            roughness: 0.1,
+            transmission: 0.5,
+            thickness: 0.5,
+            clearcoat: 1.0,
+            clearcoatRoughness: 0.0,
+            envMapIntensity: 1.5,
+            ior: 1.5,
+            reflectivity: 0.8,
+            emissive: color,
+            emissiveIntensity: 0.2,
+            sheen: 1.0,
+            sheenRoughness: 0.3,
+            sheenColor: new THREE.Color(color).multiplyScalar(1.5)
+        });
+        materialPool.set(colorKey, material);
+    }
+    return materialPool.get(colorKey);
+}
+
+// Geometry pool for reusing geometries
+let sharedGeometry = null;
+let sharedGlowGeometry = null;
+
 /**
  * Bubble Entity Class
  * Represents a single bubble in the game with physics, rendering, and animations
@@ -19,43 +51,37 @@ export class Bubble {
         this.isMoving = false;
         this.rotationSpeed = (Math.random() - 0.5) * 0.02;
         
-        // Create geometry with high detail
-        const geometry = new THREE.IcosahedronGeometry(radius, 2);
+        // Use instanced rendering flag
+        this.useInstancedRendering = false; // Will be set to true by main game
         
-        // Premium glass-like material with enhanced rim lighting
-        this.material = new THREE.MeshPhysicalMaterial({
-            color: color,
-            metalness: 0.1,
-            roughness: 0.1,
-            transmission: 0.5,
-            thickness: 0.5,
-            clearcoat: 1.0,
-            clearcoatRoughness: 0.0,
-            envMapIntensity: 1.5,
-            ior: 1.5,
-            reflectivity: 0.8,
-            emissive: color,
-            emissiveIntensity: 0.2,
-            sheen: 1.0,
-            sheenRoughness: 0.3,
-            sheenColor: new THREE.Color(color).multiplyScalar(1.5)
-        });
+        // Create shared geometry once
+        if (!sharedGeometry) {
+            sharedGeometry = new THREE.IcosahedronGeometry(CONFIG.BUBBLE_RADIUS, 2);
+            sharedGlowGeometry = new THREE.IcosahedronGeometry(CONFIG.BUBBLE_RADIUS * 1.1, 2);
+        }
         
-        this.mesh = new THREE.Mesh(geometry, this.material);
+        // Get pooled material
+        this.material = getPooledMaterial(color);
+        
+        // Create mesh with shared geometry and pooled material
+        this.mesh = new THREE.Mesh(sharedGeometry, this.material);
         this.mesh.position.set(x, y, 0);
         this.mesh.castShadow = true;
         this.mesh.receiveShadow = true;
         
-        // Add rim light glow
-        const glowGeometry = new THREE.IcosahedronGeometry(radius * 1.1, 2);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-            color: color,
-            transparent: true,
-            opacity: 0.15,
-            side: THREE.BackSide
-        });
-        this.glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-        this.mesh.add(this.glowMesh);
+        // Don't create glow mesh if using instanced rendering (handled by shader)
+        this.glowMesh = null;
+        if (!this.useInstancedRendering) {
+            // Add rim light glow for individual meshes only
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.15,
+                side: THREE.BackSide
+            });
+            this.glowMesh = new THREE.Mesh(sharedGlowGeometry, glowMaterial);
+            this.mesh.add(this.glowMesh);
+        }
         
         // Connection animation properties
         this.connectionScale = 1.0;
@@ -245,11 +271,12 @@ export class Bubble {
         if (this.mesh.parent) {
             this.mesh.parent.remove(this.mesh);
         }
-        this.material.dispose();
-        this.mesh.geometry.dispose();
+        // Don't dispose pooled materials and shared geometries
+        // They will be reused by other bubbles
+        // Only dispose if it's a special non-pooled material
         if (this.glowMesh) {
-            this.glowMesh.material.dispose();
-            this.glowMesh.geometry.dispose();
+            this.glowMesh.material.dispose(); // Glow materials are not pooled
+            // Don't dispose shared geometry
             this.glowMesh = null; // Nullify the reference
         }
         
@@ -325,7 +352,11 @@ export class Bubble {
         
         this.position.set(xPos, yPos, 0);
         this.basePosition.copy(this.position);
-        this.mesh.position.copy(this.position);
+        
+        // Only update mesh position if not using instanced rendering
+        if (!this.useInstancedRendering) {
+            this.mesh.position.copy(this.position);
+        }
     }
     
     // Apply impact force

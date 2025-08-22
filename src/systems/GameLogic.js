@@ -12,6 +12,7 @@ export class GameLogic {
         this.gameState = gameState;
         this.gameManager = gameManager;
         this.scene = scene;
+        this.bubbleInstances = null; // Will be set by main game
         
         // Set up event listeners for power-up effects
         this.setupEventListeners();
@@ -478,8 +479,10 @@ export class GameLogic {
         bubble.connectionScale = 1.0;
         bubble.impactVelocity.set(0, 0, 0);
         
-        // Remove mesh from scene
-        if (bubble.mesh && bubble.mesh.parent) {
+        // Remove from instanced renderer or scene
+        if (bubble.useInstancedRendering && this.bubbleInstances) {
+            this.bubbleInstances.removeBubble(bubble);
+        } else if (bubble.mesh && bubble.mesh.parent) {
             this.scene.remove(bubble.mesh);
         }
         

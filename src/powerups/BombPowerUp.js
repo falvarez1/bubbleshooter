@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CONFIG } from '../core/Config.js';
 import { PowerUp } from './PowerUp.js';
 import { ParticleFactory } from '../entities/Particle.js';
+import { powerUpCleanupManager } from './PowerUpCleanupManager.js';
 
 /**
  * Bomb Bubble Power-Up
@@ -74,8 +75,10 @@ export class BombPowerUp extends PowerUp {
                         // Check for chain reaction with other bombs
                         if (target.isPowerUp && target.powerUpType === 'bomb') {
                             // Trigger chain reaction after a short delay
-                            setTimeout(() => {
+                            const powerUpId = `bomb_chain_${Date.now()}_${Math.random()}`;
+                            powerUpCleanupManager.setTimeout(powerUpId, () => {
                                 this.executeBombExplosion(target, gameState, gameManager);
+                                powerUpCleanupManager.cleanup(powerUpId);
                             }, 200);
                         }
                     }
@@ -97,11 +100,13 @@ export class BombPowerUp extends PowerUp {
         gameManager.addScreenShake(0.5, 10);
         
         // Emit event to handle bubble destruction through game logic
-        setTimeout(() => {
+        const powerUpId = `bomb_destroy_${Date.now()}_${Math.random()}`;
+        powerUpCleanupManager.setTimeout(powerUpId, () => {
             gameManager.eventBus.emit('bombDestroy', {
                 bubbles: destroyed,
                 points: destroyed.length * 30 // Triple points for bomb
             });
+            powerUpCleanupManager.cleanup(powerUpId);
         }, 300);
     }
     
@@ -112,14 +117,17 @@ export class BombPowerUp extends PowerUp {
         explosionLight.position.z = 2;
         if (gameManager.scene) gameManager.scene.add(explosionLight);
         
+        // Register light for cleanup
+        const powerUpId = `bomb_light_${Date.now()}_${Math.random()}`;
+        powerUpCleanupManager.registerLight(powerUpId, explosionLight, gameManager.scene);
+        
         // Fade out explosion light over time
         let explosionIntensity = 8;
-        const explosionFade = setInterval(() => {
+        const explosionFade = powerUpCleanupManager.setInterval(powerUpId, () => {
             explosionIntensity -= 0.6;
             explosionLight.intensity = Math.max(0, explosionIntensity);
             if (explosionIntensity <= 0) {
-                if (gameManager.scene) gameManager.scene.remove(explosionLight);
-                clearInterval(explosionFade);
+                powerUpCleanupManager.cleanup(powerUpId);
             }
         }, 50);
         

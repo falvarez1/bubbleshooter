@@ -229,7 +229,7 @@ export class GPUParticleSystem {
         });
         
         this.particlesMesh = new THREE.Points(geometry, material);
-        this.scene.add(this.particlesMesh);
+        // Don't add to scene here - will be added via addToScene() method
     }
     
     createDataTexture(width, height) {
@@ -532,12 +532,14 @@ export class GPUParticleSystem {
     
     // Add scene management methods for compatibility
     addToScene(scene) {
-        if (!this.particlesMesh.parent) {
+        if (this.particlesMesh && !this.particlesMesh.parent) {
             scene.add(this.particlesMesh);
         }
     }
     
     removeFromScene(scene) {
-        scene.remove(this.particlesMesh);
+        if (this.particlesMesh && this.particlesMesh.parent) {
+            scene.remove(this.particlesMesh);
+        }
     }
 }
