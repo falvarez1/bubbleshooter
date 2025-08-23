@@ -26,7 +26,8 @@ export class PostProcessingManager {
         this.bloomObjects = new Set();
         
         // Bloom categories - track objects by type (more specific)
-        this.bloomCategories = {
+        // Use a Proxy to track modifications
+        const categories = {
             trajectoryLine: new Set(),
             trajectoryGlow: new Set(),
             impactIndicator: new Set(),
@@ -37,6 +38,15 @@ export class PostProcessingManager {
             wallImpact: new Set(),
             shootingParticles: new Set()
         };
+        
+        // Add proxy to track when categories are modified
+        this.bloomCategories = new Proxy(categories, {
+            set(target, prop, value) {
+                console.warn(`BLOOM CATEGORY MODIFIED: ${prop} replaced with new Set (size: ${value?.size || 0})`);
+                target[prop] = value;
+                return true;
+            }
+        });
         
         // Category enable states from config
         this.categoryEnabled = { ...CONFIG.BLOOM.CATEGORIES };
@@ -343,10 +353,15 @@ export class PostProcessingManager {
         this.materialCache.clear();
         
         this.scene.traverse((obj) => {
-            if (obj.isMesh && !this.bloomObjects.has(obj)) {
-                this.materialCache.set(obj, obj.material);
-                obj.material = this.darkMaterial;
-            }
+            // Skip if object is not a mesh or has no material
+            if (!obj.isMesh || !obj.material) return;
+            
+            // Skip if object is in bloom set
+            if (this.bloomObjects.has(obj)) return;
+            
+            // Store and replace material
+            this.materialCache.set(obj, obj.material);
+            obj.material = this.darkMaterial;
         });
     }
     
@@ -355,7 +370,10 @@ export class PostProcessingManager {
      */
     restoreMaterials() {
         this.materialCache.forEach((material, obj) => {
-            obj.material = material;
+            // Only restore if object still exists and has a material property
+            if (obj && obj.material !== undefined) {
+                obj.material = material;
+            }
         });
         this.materialCache.clear();
     }
@@ -364,12 +382,13 @@ export class PostProcessingManager {
      * Render the scene with selective bloom
      */
     render(deltaTime = 0) {
-        // Check if bloom is disabled
-        if (!this.enabled || this.bloomObjects.size === 0) {
-            // No bloom objects or bloom disabled, just render normally
-            this.renderer.render(this.scene, this.camera);
-            return;
-        }
+        try {
+            // Check if bloom is disabled
+            if (!this.enabled || this.bloomObjects.size === 0) {
+                // No bloom objects or bloom disabled, just render normally
+                this.renderer.render(this.scene, this.camera);
+                return;
+            }
         
         // Store current state
         const currentBackground = this.scene.background;
@@ -459,6 +478,26 @@ export class PostProcessingManager {
         this.renderer.setRenderTarget(currentRenderTarget);
         this.renderer.toneMapping = currentToneMapping;
         this.scene.background = currentBackground;
+        } catch (error) {
+            console.error('Error in bloom render:', error);
+            console.error('Error details:', {
+                bloomObjectsCount: this.bloomObjects.size,
+                categoryCounts: this.getCategoryStates(),
+                errorMessage: error.message,
+                errorStack: error.stack
+            });
+            
+            // Fallback to normal rendering
+            try {
+                this.renderer.render(this.scene, this.camera);
+            } catch (fallbackError) {
+                console.error('Fallback render also failed:', fallbackError);
+            }
+            
+            // Don't automatically refresh bloom state - it loses all objects!
+            // Instead, just log the error for debugging
+            console.warn('Bloom render failed but not refreshing state to preserve objects');
+        }
     }
     
     /**
@@ -524,24 +563,117 @@ export class PostProcessingManager {
      * Useful after changes to ensure consistency
      */
     refreshBloomState() {
-        // Clear current bloom objects
-        this.bloomObjects.clear();
+        // console.log('Refreshing bloom state...');
         
-        // Re-add objects based on category states
+        // Store current counts for debugging
+        const beforeCounts = {};
+        Object.keys(this.bloomCategories).forEach(cat => {
+            beforeCounts[cat] = this.bloomCategories[cat].size;
+        });
+        
+        // Build new bloom objects set first, THEN replace the old one
+        const newBloomObjects = new Set();
+        
+        // Clean up any invalid objects from categories
+        Object.keys(this.bloomCategories).forEach(cat => {
+            const categorySet = this.bloomCategories[cat];
+            const oldSize = categorySet.size;
+            const toRemove = [];
+            
+            categorySet.forEach(object => {
+                // Check if object is still valid (not disposed)
+                // Note: We don't check for parent because objects might be temporarily detached
+                if (!object) {
+                    console.warn(`Category ${cat}: null object found`);
+                    toRemove.push(object);
+                } else if (!object.layers) {
+                    console.warn(`Category ${cat}: object has no layers`, object);
+                    toRemove.push(object);
+                } else if (!object.geometry) {
+                    console.warn(`Category ${cat}: object has no geometry`, object);
+                    toRemove.push(object);
+                } else if (object.geometry.disposed) {
+                    console.warn(`Category ${cat}: object geometry is disposed`, object);
+                    toRemove.push(object);
+                }
+            });
+            
+            // Remove invalid objects from the EXISTING Set instead of replacing it
+            toRemove.forEach(obj => categorySet.delete(obj));
+            
+            if (toRemove.length > 0) {
+                console.warn(`Category ${cat}: removed ${toRemove.length} invalid objects`);
+            }
+        });
+        
+        // Build new bloom objects set based on category states
         Object.keys(this.bloomCategories).forEach(cat => {
             if (this.categoryEnabled[cat]) {
                 this.bloomCategories[cat].forEach(object => {
-                    object.layers.enable(this.BLOOM_LAYER);
-                    this.bloomObjects.add(object);
+                    if (object && object.layers) {
+                        object.layers.enable(this.BLOOM_LAYER);
+                        newBloomObjects.add(object);
+                    }
                 });
             } else {
                 this.bloomCategories[cat].forEach(object => {
-                    object.layers.disable(this.BLOOM_LAYER);
+                    if (object && object.layers) {
+                        object.layers.disable(this.BLOOM_LAYER);
+                    }
                 });
             }
         });
         
+        // Only now replace the bloom objects set
+        this.bloomObjects = newBloomObjects;
+        
+        // Log what changed
+        const afterCounts = {};
+        Object.keys(this.bloomCategories).forEach(cat => {
+            afterCounts[cat] = this.bloomCategories[cat].size;
+            if (beforeCounts[cat] !== afterCounts[cat]) {
+                console.warn(`Category ${cat} changed: ${beforeCounts[cat]} -> ${afterCounts[cat]}`);
+            }
+        });
+        
         console.log('Bloom state refreshed. Active objects:', this.bloomObjects.size);
+        console.log('Category states:', this.getCategoryStates());
+    }
+    
+    /**
+     * Debug method to check bloom system health
+     */
+    debugBloomState() {
+        console.log('=== BLOOM SYSTEM DEBUG ===');
+        console.log('Enabled:', this.enabled);
+        console.log('Total bloom objects:', this.bloomObjects.size);
+        console.log('Categories:');
+        Object.keys(this.bloomCategories).forEach(cat => {
+            console.log(`  ${cat}: ${this.bloomCategories[cat].size} objects, enabled: ${this.categoryEnabled[cat]}`);
+        });
+        
+        // Check for orphaned objects
+        let orphaned = 0;
+        this.bloomObjects.forEach(obj => {
+            let found = false;
+            Object.values(this.bloomCategories).forEach(catSet => {
+                if (catSet.has(obj)) found = true;
+            });
+            if (!found) {
+                orphaned++;
+                console.warn('Orphaned bloom object:', obj.name || 'unnamed', obj);
+            }
+        });
+        if (orphaned > 0) {
+            console.warn(`Found ${orphaned} orphaned bloom objects`);
+        }
+        
+        return {
+            enabled: this.enabled,
+            totalObjects: this.bloomObjects.size,
+            categories: this.getCategoryStates(),
+            orphanedObjects: orphaned
+        };
     }
     
     /**

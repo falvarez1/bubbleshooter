@@ -47,14 +47,14 @@ class BubbleShooterGame {
         // Game systems
         this.gameBoard = new GameBoard(this.scene, this.gameState);
         // Pass post-processing manager to trajectory system for bloom
-        const postProcessing = this.sceneManager.getPostProcessing();
-        this.trajectorySystem = new TrajectorySystem(this.scene, postProcessing);
+        this.postProcessingManager = this.sceneManager.getPostProcessing();
+        this.trajectorySystem = new TrajectorySystem(this.scene, this.postProcessingManager);
         this.collisionSystem = new CollisionSystem(this.gameState, this.gameManager);
         this.gameLogic = new GameLogic(this.gameState, this.gameManager, this.scene);
         
         // Add bloom debugger (only in development)
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-            this.bloomDebugger = new BloomDebugger(postProcessing);
+            this.bloomDebugger = new BloomDebugger(this.postProcessingManager);
             // Don't add test object - it gets in the way of gameplay
             // User can add test objects manually via debug panel if needed
         }
@@ -115,11 +115,13 @@ class BubbleShooterGame {
         if (this.gpuParticles) {
             // Using GPU particle system
             // Create a hybrid particle pool that uses GPU particles
+            // Note: GPU particles don't support bloom categorization yet
             this.gameState.particlePool = {
-                spawn: (x, y, z, color, _size, velocity) => {
+                spawn: (x, y, z, color, _size, velocity, category) => {
+                    // GPU particles don't support bloom categories yet
                     return this.gpuParticles.spawn(x, y, z, color, _size, velocity);
                 },
-                spawnPower: (x, y, z, color, size, velocity, power) => {
+                spawnPower: (x, y, z, color, size, velocity, power, category) => {
                     // Use power-based spawning for enhanced effects
                     const pos = new THREE.Vector3(x, y, z);
                     const count = Math.max(1, Math.floor(1 + power * 1.5)); // Reduced particle count
@@ -1605,4 +1607,19 @@ const game = new BubbleShooterGame();
 // Make restart function globally available
 window.restartGame = function() {
     location.reload(); // Simple reload for now
+};
+
+// Make bloom debug functions globally available
+window.debugBloom = function() {
+    if (game.postProcessingManager) {
+        return game.postProcessingManager.debugBloomState();
+    }
+    console.warn('PostProcessingManager not available');
+};
+
+window.refreshBloom = function() {
+    if (game.postProcessingManager) {
+        game.postProcessingManager.refreshBloomState();
+        console.log('Bloom state refreshed');
+    }
 };

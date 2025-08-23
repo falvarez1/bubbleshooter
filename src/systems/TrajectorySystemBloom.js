@@ -330,23 +330,30 @@ export class TrajectorySystem {
         // Create smooth curve from points
         const curve = new THREE.CatmullRomCurve3(this.points);
         
+        // Store old geometries
+        const oldLaserGeometry = this.laserBeam.geometry;
+        const oldCoreGeometry = this.energyCore.geometry;
+        const oldGlowGeometry = this.glowLayer.geometry;
+        
         // Update main laser beam geometry
         const newGeometry = new THREE.TubeGeometry(curve, Math.min(64, this.pointCount), 0.02, 8, false);
-        this.laserBeam.geometry.dispose();
         this.laserBeam.geometry = newGeometry;
         this.laserBeam.visible = true;
         
         // Update energy core
         const coreGeometry = new THREE.TubeGeometry(curve, Math.min(32, this.pointCount), 0.015, 6, false);
-        this.energyCore.geometry.dispose();
         this.energyCore.geometry = coreGeometry;
         this.energyCore.visible = true;
         
         // Update glow layer
         const glowGeometry = new THREE.TubeGeometry(curve, Math.min(16, this.pointCount), 0.04, 4, false);
-        this.glowLayer.geometry.dispose();
         this.glowLayer.geometry = glowGeometry;
         this.glowLayer.visible = true;
+        
+        // Dispose old geometries AFTER setting new ones
+        oldLaserGeometry.dispose();
+        oldCoreGeometry.dispose();
+        oldGlowGeometry.dispose();
         
         // Update colors based on state
         const color = this.getColor(gameState);

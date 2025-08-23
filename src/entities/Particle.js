@@ -127,11 +127,20 @@ export class ParticlePool {
         particle.mesh.scale.setScalar(size / config.sparkBaseSize);
         particle.mesh.visible = true;
         particle.active = true;
-        particle.category = category;
         
-        // Register with bloom system if available
-        if (this.postProcessing && particle.mesh) {
-            this.postProcessing.addBloomObject(particle.mesh, category);
+        // Only register with bloom if not already registered
+        if (particle.category !== category) {
+            // Remove from old category if exists
+            if (particle.category && this.postProcessing && particle.mesh) {
+                this.postProcessing.removeBloomObject(particle.mesh, particle.category);
+            }
+            
+            particle.category = category;
+            
+            // Register with bloom system if available
+            if (this.postProcessing && particle.mesh) {
+                this.postProcessing.addBloomObject(particle.mesh, category);
+            }
         }
         
         this.activeParticles.push(particle);
@@ -213,11 +222,20 @@ export class ParticlePool {
         particle.mesh.scale.setScalar((size / config.sparkBaseSize) * powerSizeMultiplier);
         particle.mesh.visible = true;
         particle.active = true;
-        particle.category = category;
         
-        // Register with bloom system if available
-        if (this.postProcessing && particle.mesh) {
-            this.postProcessing.addBloomObject(particle.mesh, category);
+        // Only register with bloom if not already registered
+        if (particle.category !== category) {
+            // Remove from old category if exists
+            if (particle.category && this.postProcessing && particle.mesh) {
+                this.postProcessing.removeBloomObject(particle.mesh, particle.category);
+            }
+            
+            particle.category = category;
+            
+            // Register with bloom system if available
+            if (this.postProcessing && particle.mesh) {
+                this.postProcessing.addBloomObject(particle.mesh, category);
+            }
         }
         
         this.activeParticles.push(particle);
@@ -276,8 +294,15 @@ export class ParticlePool {
         
         // Remove from bloom system if it was registered
         if (this.postProcessing && particle.mesh && particle.category) {
-            this.postProcessing.removeBloomObject(particle.mesh, particle.category);
+            try {
+                this.postProcessing.removeBloomObject(particle.mesh, particle.category);
+            } catch (e) {
+                console.warn('Error removing particle from bloom:', e);
+            }
         }
+        
+        // Clear the category to prevent double-removal
+        particle.category = null;
     }
     
     clear() {
