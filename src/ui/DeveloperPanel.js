@@ -240,6 +240,20 @@ export class DeveloperPanel {
                 }
             });
         }
+        
+        // Bloom debug panel toggle
+        const bloomDebugToggle = document.getElementById('bloomDebugToggle');
+        if (bloomDebugToggle) {
+            bloomDebugToggle.addEventListener('change', (event) => {
+                const enabled = event.target.checked;
+                const bloomDebugPanel = document.getElementById('bloom-debug-panel');
+                if (bloomDebugPanel) {
+                    bloomDebugPanel.style.display = enabled ? 'block' : 'none';
+                    console.log('Bloom debug panel:', enabled ? 'shown' : 'hidden');
+                    this.showNotification(`Bloom Debug: ${enabled ? 'ON' : 'OFF'}`);
+                }
+            });
+        }
     }
 
     showNotification(message, type = 'info') {

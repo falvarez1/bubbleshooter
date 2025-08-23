@@ -33,6 +33,8 @@ export class BloomDebugger {
             z-index: 10001;
             min-width: 250px;
             border: 1px solid #00ffff;
+            display: none;
+            pointer-events: auto;
         `;
         
         panel.innerHTML = `

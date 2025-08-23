@@ -55,10 +55,8 @@ class BubbleShooterGame {
         // Add bloom debugger (only in development)
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
             this.bloomDebugger = new BloomDebugger(postProcessing);
-            // Add a test bloom object to verify bloom is working
-            setTimeout(() => {
-                this.bloomDebugger.addTestBloomObject(this.scene);
-            }, 1000);
+            // Don't add test object - it gets in the way of gameplay
+            // User can add test objects manually via debug panel if needed
         }
         // Use event bus for communication instead of circular reference
         // GameManager can emit events that GameLogic responds to
@@ -1104,13 +1102,22 @@ class BubbleShooterGame {
         // Check if in design mode
         if (this.designModeActive) return;
         
-        // Check if click is on developer panel
-        const developerPanel = document.getElementById('developerPanel');
-        if (developerPanel && developerPanel.classList.contains('visible')) {
-            const rect = developerPanel.getBoundingClientRect();
-            if (event.clientX >= rect.left && event.clientX <= rect.right &&
-                event.clientY >= rect.top && event.clientY <= rect.bottom) {
-                return; // Click is on developer panel, ignore it
+        // Check if click is on any UI panel (developer panel, bloom debug, settings, etc.)
+        const uiPanels = [
+            document.getElementById('developerPanel'),
+            document.getElementById('bloom-debug-panel'),
+            document.getElementById('settingsOverlay'),
+            document.querySelector('.powerup-indicator'),
+            document.querySelector('.precision-aim-timer')
+        ];
+        
+        for (const panel of uiPanels) {
+            if (panel && (panel.classList?.contains('visible') || panel.style.display !== 'none')) {
+                const rect = panel.getBoundingClientRect();
+                if (event.clientX >= rect.left && event.clientX <= rect.right &&
+                    event.clientY >= rect.top && event.clientY <= rect.bottom) {
+                    return; // Click is on a UI panel, ignore it
+                }
             }
         }
         
@@ -1128,23 +1135,32 @@ class BubbleShooterGame {
         // Check if in design mode
         if (this.designModeActive) return;
         
-        // Check if click is on developer panel
-        const developerPanel = document.getElementById('developerPanel');
-        if (developerPanel && developerPanel.classList.contains('visible')) {
-            const rect = developerPanel.getBoundingClientRect();
-            if (event.clientX >= rect.left && event.clientX <= rect.right &&
-                event.clientY >= rect.top && event.clientY <= rect.bottom) {
-                // Reset charging state but don't shoot
-                if (this.gameState.isCharging) {
-                    if (this.gameState.currentBubble) {
-                        this.gameState.currentBubble.mesh.scale.setScalar(1);
-                        this.gameState.currentBubble.material.emissiveIntensity = 0.1;
+        // Check if click is on any UI panel (developer panel, bloom debug, settings, etc.)
+        const uiPanels = [
+            document.getElementById('developerPanel'),
+            document.getElementById('bloom-debug-panel'),
+            document.getElementById('settingsOverlay'),
+            document.querySelector('.powerup-indicator'),
+            document.querySelector('.precision-aim-timer')
+        ];
+        
+        for (const panel of uiPanels) {
+            if (panel && (panel.classList?.contains('visible') || panel.style.display !== 'none')) {
+                const rect = panel.getBoundingClientRect();
+                if (event.clientX >= rect.left && event.clientX <= rect.right &&
+                    event.clientY >= rect.top && event.clientY <= rect.bottom) {
+                    // Reset charging state but don't shoot
+                    if (this.gameState.isCharging) {
+                        if (this.gameState.currentBubble) {
+                            this.gameState.currentBubble.mesh.scale.setScalar(1);
+                            this.gameState.currentBubble.material.emissiveIntensity = 0.1;
+                        }
+                        this.gameState.isCharging = false;
+                        this.gameState.shootingPower = 0;
+                        this.uiManager.hidePowerMeter();
                     }
-                    this.gameState.isCharging = false;
-                    this.gameState.shootingPower = 0;
-                    this.uiManager.hidePowerMeter();
+                    return; // Click is on a UI panel, ignore it
                 }
-                return; // Click is on developer panel, ignore it
             }
         }
         

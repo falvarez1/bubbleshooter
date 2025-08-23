@@ -256,8 +256,9 @@ export class PostProcessingManager {
      * Render the scene with selective bloom
      */
     render(deltaTime = 0) {
-        if (this.bloomObjects.size === 0) {
-            // No bloom objects, just render normally
+        // Check if bloom is disabled
+        if (!this.enabled || this.bloomObjects.size === 0) {
+            // No bloom objects or bloom disabled, just render normally
             this.renderer.render(this.scene, this.camera);
             return;
         }
@@ -369,8 +370,8 @@ export class PostProcessingManager {
      * Update bloom settings dynamically
      */
     updateSettings(settings) {
-        if (settings.bloomIntensity !== undefined) {
-            this.bloomPass.strength = settings.bloomIntensity;
+        if (settings.bloomIntensity !== undefined || settings.bloomStrength !== undefined) {
+            this.bloomPass.strength = settings.bloomIntensity || settings.bloomStrength;
         }
         if (settings.bloomRadius !== undefined) {
             this.bloomPass.radius = settings.bloomRadius;
@@ -385,7 +386,19 @@ export class PostProcessingManager {
      */
     setEnabled(enabled) {
         this.enabled = enabled;
+        if (this.bloomPass) {
+            this.bloomPass.enabled = enabled;
+        }
         console.log('Bloom effect enabled:', enabled);
+    }
+    
+    /**
+     * Toggle bloom on/off
+     * @returns {boolean} New enabled state
+     */
+    toggleBloom() {
+        this.setEnabled(!this.enabled);
+        return this.enabled;
     }
     
     /**
