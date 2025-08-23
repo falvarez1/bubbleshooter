@@ -310,7 +310,9 @@ export class ChainLightningPowerUp extends PowerUp {
                         startY,
                         position.z + 0.2,
                         ring === 0 ? 0xffffff : 0x00ddff,
-                        0.12
+                        0.12,
+                        null,
+                        'powerUpEffects'
                     );
                     
                     if (particle) {
@@ -424,6 +426,9 @@ export class ChainLightningPowerUp extends PowerUp {
         glowLine.position.z = 1.4;
         if (gameManager.scene) gameManager.scene.add(glowLine);
         
+        // Store reference to this for animation
+        const self = this;
+        
         // Animate the lightning with enhanced effects
         const lightningAnimation = {
             time: 0,
@@ -442,7 +447,7 @@ export class ChainLightningPowerUp extends PowerUp {
                 
                 // Update path for dynamic movement with more segments
                 if (this.time < 0.25) {
-                    const newPoints = this.generateLightningPath(startPos, endPos, isPrimary ? 7 : 4);
+                    const newPoints = self.generateLightningPath(startPos, endPos, isPrimary ? 7 : 4);
                     geometry.setFromPoints(newPoints);
                 }
                 
@@ -463,7 +468,7 @@ export class ChainLightningPowerUp extends PowerUp {
                     }
                 }
                 return true;
-            }.bind(this)
+            }
         };
         
         gameState.addAnimation(lightningAnimation);
