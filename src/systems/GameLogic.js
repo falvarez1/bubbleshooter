@@ -472,12 +472,19 @@ export class GameLogic {
      * @param {boolean} skipAnimation - Skip the removal animation
      */
     destroyBubbleImmediately(bubble, skipAnimation = false) {
-        if (!bubble || bubble.isDestroyed) return;
+        if (!bubble) return;
         
-        console.log(`[GameLogic] Destroying bubble at grid[${bubble.gridY}][${bubble.gridX}]:`, {
-            id: bubble.id,
-            useInstancedRendering: bubble.useInstancedRendering
-        });
+        // Special handling for power-up bubbles that were hidden but not removed
+        if (bubble.isDestroyed && bubble.useInstancedRendering && this.bubbleInstances) {
+            const mapping = this.bubbleInstances.getBubbleMapping(bubble);
+            if (mapping) {
+                this.bubbleInstances.removeBubble(bubble);
+            }
+            return;
+        }
+        
+        if (bubble.isDestroyed) return;
+        
         
         // 1. Mark as destroyed FIRST to prevent any further operations
         bubble.isDestroyed = true;
@@ -485,11 +492,8 @@ export class GameLogic {
         // 2. Remove from visual representation BEFORE removing from game state
         // This ensures the visual is updated immediately
         if (bubble.useInstancedRendering && this.bubbleInstances) {
-            // Remove from instanced renderer - this will set scale to 0 and hide the instance
-            const removed = this.bubbleInstances.removeBubble(bubble);
-            if (!removed) {
-                console.warn(`Failed to remove bubble ${bubble.id} from instanced renderer`);
-            }
+            // Remove from instanced renderer
+            this.bubbleInstances.removeBubble(bubble);
         } else if (bubble.mesh && bubble.mesh.parent) {
             // Remove mesh from scene
             this.scene.remove(bubble.mesh);
@@ -518,8 +522,6 @@ export class GameLogic {
      */
     removeBubble(bubble, animationSpeed = 3) {
         if (!bubble || bubble.isDestroyed) return;
-        
-        console.log(`[GameLogic] Removing bubble with animation at grid[${bubble.gridY}][${bubble.gridX}]`);
         
         // Mark as destroyed immediately to prevent collision detection
         bubble.isDestroyed = true;
