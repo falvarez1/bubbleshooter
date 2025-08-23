@@ -169,13 +169,13 @@ export class ChainLightningPowerUp extends PowerUp {
                     this.createBubbleElectricFlash(bubble.position, gameManager);
                     this.createBubbleFlickerEffect(bubble);
                     
-                    // Mark as destroyed immediately to prevent collision
-                    bubble.isDestroyed = true;
+                    // Don't mark as destroyed here - let destroyBubbleImmediately handle it atomically
+                    // bubble.isDestroyed = true; // REMOVED - this was causing ghost bubbles!
                     
                     // Schedule proper destruction after electrical effects
                     setTimeout(() => {
                         // Use GameLogic's unified destruction method
-                        if (gameManager.gameLogic) {
+                        if (gameManager.gameLogic && !bubble.isDestroyed) {
                             gameManager.gameLogic.destroyBubbleImmediately(bubble);
                         } else {
                             // Fallback if GameLogic not available

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CONFIG } from '../core/Config.js';
 import { Bubble } from '../entities/Bubble.js';
 import { ParticleFactory } from '../entities/Particle.js';
+import { BubbleLifecycleManager } from '../managers/BubbleLifecycleManager.js';
 
 /**
  * Game Logic System
@@ -21,6 +22,12 @@ export class GameLogic {
     
     
     setupEventListeners() {
+        // Only set up event listeners if gameManager has an eventBus
+        if (!this.gameManager || !this.gameManager.eventBus) {
+            console.log('GameLogic: No event bus available, skipping event listener setup');
+            return;
+        }
+        
         // Chain Lightning destroy event
         this.gameManager.eventBus.on('chainLightningDestroy', (data) => {
             this.handleChainLightningDestroy(data.bubbles, data.points);
@@ -98,13 +105,20 @@ export class GameLogic {
         
         // Add score
         this.gameState.addScore(points);
-        this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
+        if (this.gameManager && this.gameManager.eventBus) {
+            this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
+        }
         
         // Remove bubbles with individual point displays
         bubbles.forEach((bubble, index) => {
             setTimeout(() => {
+                // Skip if already destroyed
+                if (bubble.isDestroyed) return;
+                
                 // Show individual points for this bubble
-                this.gameManager.showFloatingScore(bubble.position, pointsPerBubble);
+                if (this.gameManager && this.gameManager.showFloatingScore) {
+                    this.gameManager.showFloatingScore(bubble.position, pointsPerBubble);
+                }
                 
                 this.createExplosionEffect(bubble, true);
                 this.removeBubble(bubble);
@@ -127,13 +141,20 @@ export class GameLogic {
         
         this.gameState.addScore(totalPoints);
         this.gameState.incrementCombo();
-        this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
+        if (this.gameManager && this.gameManager.eventBus) {
+            this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
+        }
         
         // Remove bubbles with enhanced explosion effects and individual point displays
         bubbles.forEach((bubble, index) => {
             setTimeout(() => {
+                // Skip if already destroyed
+                if (bubble.isDestroyed) return;
+                
                 // Show individual points for this bubble
-                this.gameManager.showFloatingScore(bubble.position, pointsPerBubble);
+                if (this.gameManager && this.gameManager.showFloatingScore) {
+                    this.gameManager.showFloatingScore(bubble.position, pointsPerBubble);
+                }
                 
                 this.createExplosionEffect(bubble, true); // Enhanced explosion for bomb
                 this.removeBubble(bubble);
@@ -196,8 +217,13 @@ export class GameLogic {
             // Remove bubbles with animation and individual point displays
             matches.forEach((matchedBubble, index) => {
                 setTimeout(() => {
+                    // Skip if already destroyed
+                    if (matchedBubble.isDestroyed) return;
+                    
                     // Show individual points for this bubble
-                    this.gameManager.showFloatingScore(matchedBubble.position, pointsPerBubble);
+                    if (this.gameManager && this.gameManager.showFloatingScore) {
+                        this.gameManager.showFloatingScore(matchedBubble.position, pointsPerBubble);
+                    }
                     
                     this.removeBubble(matchedBubble);
                     // Use enhanced explosion for large matches
@@ -288,6 +314,9 @@ export class GameLogic {
             
             destroyed.forEach((b, index) => {
                 setTimeout(() => {
+                    // Skip if already destroyed
+                    if (b.isDestroyed) return;
+                    
                     this.removeBubble(b);
                     this.createExplosionEffect(b, true);
                 }, index * 20);
@@ -417,6 +446,9 @@ export class GameLogic {
                     floatingCount++;
                     floatingBubbles.push(bubble);
                     setTimeout(() => {
+                        // Skip if already destroyed
+                        if (bubble.isDestroyed) return;
+                        
                         this.removeBubble(bubble);
                         this.createFloatingEffect(bubble);
                     }, floatingCount * 30);
@@ -468,67 +500,43 @@ export class GameLogic {
     /**
      * Immediately destroy a bubble without animation
      * This is the ONLY method that should be used to destroy bubbles
+     * Uses BubbleLifecycleManager for atomic operations
      * @param {Bubble} bubble - Bubble to destroy
-     * @param {boolean} skipAnimation - Skip the removal animation
+     * @param {boolean} skipAnimation - Skip the removal animation (kept for compatibility)
      */
     destroyBubbleImmediately(bubble, skipAnimation = false) {
         if (!bubble) return;
         
-        // Special handling for power-up bubbles that were hidden but not removed
-        if (bubble.isDestroyed && bubble.useInstancedRendering && this.bubbleInstances) {
-            const mapping = this.bubbleInstances.getBubbleMapping(bubble);
-            if (mapping) {
-                this.bubbleInstances.removeBubble(bubble);
-            }
-            return;
+        // Use BubbleLifecycleManager for atomic destruction
+        const systems = {
+            gameState: this.gameState,
+            bubbleInstances: this.bubbleInstances,
+            collisionSystem: this.collisionSystem
+        };
+        
+        const transaction = BubbleLifecycleManager.destroyBubble(bubble, systems);
+        
+        if (!transaction.completed) {
+            console.error('Failed to destroy bubble:', transaction.errors);
         }
         
-        if (bubble.isDestroyed) return;
-        
-        
-        // 1. Mark as destroyed FIRST to prevent any further operations
-        bubble.isDestroyed = true;
-        
-        // 2. Remove from visual representation BEFORE removing from game state
-        // This ensures the visual is updated immediately
-        if (bubble.useInstancedRendering && this.bubbleInstances) {
-            // Remove from instanced renderer
-            this.bubbleInstances.removeBubble(bubble);
-        } else if (bubble.mesh && bubble.mesh.parent) {
-            // Remove mesh from scene
+        // Handle non-instanced mesh cleanup if needed
+        if (!bubble.useInstancedRendering && bubble.mesh && bubble.mesh.parent) {
             this.scene.remove(bubble.mesh);
         }
         
-        // 3. Remove from grid state - be extra thorough
-        if (bubble.gridX !== undefined && bubble.gridY !== undefined) {
-            this.gameState.removeBubbleAt(bubble.gridX, bubble.gridY);
-            // Double-check it's removed
-            if (this.gameState.bubbleGrid[bubble.gridY] && 
-                this.gameState.bubbleGrid[bubble.gridY][bubble.gridX] === bubble) {
-                console.warn(`Bubble not properly removed at ${bubble.gridX},${bubble.gridY} - forcing removal`);
-                this.gameState.bubbleGrid[bubble.gridY][bubble.gridX] = null;
-            }
-        }
-        
-        // Also scan the entire grid to ensure this bubble isn't anywhere else (defensive)
-        for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
-            for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
-                if (this.gameState.bubbleGrid[y][x] === bubble) {
-                    console.warn(`Found ghost bubble at unexpected position ${x},${y} - removing`);
-                    this.gameState.bubbleGrid[y][x] = null;
-                }
-            }
-        }
-        
-        // 4. Remove from collision system
-        if (this.collisionSystem && this.collisionSystem.spatialGrid) {
-            this.collisionSystem.spatialGrid.remove(bubble);
-            this.collisionSystem.lastCacheUpdate = 0; // Force cache update
-        }
-        
-        // 5. Call bubble's destroy method to clean up resources
-        // Do this LAST to ensure all references are cleared first
+        // Call bubble's destroy method to clean up resources
+        // This is safe to call even if already destroyed
         bubble.destroy();
+        
+        // Log transaction details in development mode
+        if (CONFIG.DEBUG_MODE) {
+            console.log(`Bubble destruction transaction:`, {
+                bubbleId: transaction.bubbleId,
+                duration: transaction.duration,
+                errors: transaction.errors
+            });
+        }
     }
     
     /**
@@ -539,6 +547,12 @@ export class GameLogic {
     removeBubble(bubble, animationSpeed = 3) {
         if (!bubble || bubble.isDestroyed) return;
         
+        // For instanced bubbles, use atomic destruction immediately
+        if (bubble.useInstancedRendering) {
+            this.destroyBubbleImmediately(bubble, true);
+            return;
+        }
+        
         // Mark as destroyed immediately to prevent collision detection
         bubble.isDestroyed = true;
         
@@ -546,12 +560,6 @@ export class GameLogic {
         if (this.collisionSystem && this.collisionSystem.spatialGrid) {
             this.collisionSystem.spatialGrid.remove(bubble);
             this.collisionSystem.lastCacheUpdate = 0;
-        }
-        
-        // For instanced bubbles, remove immediately (can't animate individual instances)
-        if (bubble.useInstancedRendering) {
-            this.destroyBubbleImmediately(bubble, true);
-            return;
         }
         
         // For non-instanced bubbles, animate then destroy
@@ -692,10 +700,16 @@ export class GameLogic {
                 }, i * 20);
             }
             
-            // Add new rows after celebration
+            // Add new rows after celebration with longer delays to prevent overlap
             setTimeout(() => {
                 for (let i = 0; i < 3; i++) {
-                    setTimeout(() => this.addNewRow(), i * 200);
+                    setTimeout(() => {
+                        this.addNewRow();
+                        // Force immediate update of instanced renderer after each row
+                        if (this.bubbleInstances) {
+                            this.bubbleInstances.update(0, this.gameManager.camera);
+                        }
+                    }, i * 300); // Increased delay between rows
                 }
             }, 1500);
         }
@@ -712,9 +726,28 @@ export class GameLogic {
         const allBubbles = this.gameState.getAllBubbles();
         allBubbles.forEach(bubble => {
             bubble.setGridPosition(bubble.gridX, bubble.gridY);
+            
+            // Update instanced renderer for shifted bubbles
+            if (bubble.useInstancedRendering && this.bubbleInstances) {
+                this.bubbleInstances.updateBubble(bubble);
+            }
+            
             // Add drop-in effect
             bubble.applyImpact(new THREE.Vector3(0, -CONFIG.IMPACT_PHYSICS.NEW_ROW_DROP_FORCE, 0));
         });
+        
+        // Ensure top row is completely clear before adding new bubbles
+        // This prevents ghost bubbles from lingering
+        for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
+            const existingBubble = this.gameState.bubbleGrid[0][x];
+            if (existingBubble) {
+                console.warn(`Found existing bubble at top row position ${x} - cleaning up`);
+                if (existingBubble.useInstancedRendering && this.bubbleInstances) {
+                    this.bubbleInstances.removeBubble(existingBubble);
+                }
+                this.gameState.bubbleGrid[0][x] = null;
+            }
+        }
         
         // Add new row at top
         const bubblesInRow = CONFIG.GRID_WIDTH;

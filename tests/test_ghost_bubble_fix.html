@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghost Bubble Fix Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-section {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .test-pass {
+            background: #1b5e20;
+            color: #4caf50;
+        }
+        .test-fail {
+            background: #b71c1c;
+            color: #f44336;
+        }
+        .test-info {
+            background: #0d47a1;
+            color: #2196f3;
+        }
+        button {
+            background: #4caf50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #game-canvas {
+            width: 100%;
+            max-width: 800px;
+            height: 600px;
+            border: 2px solid #444;
+            border-radius: 8px;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .stat-card {
+            background: #0f3460;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4caf50;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Ghost Bubble Elimination Test Suite</h1>
+        
+        <div class="test-section">
+            <h2>Test Controls</h2>
+            <button onclick="runAllTests()">Run All Tests</button>
+            <button onclick="testAtomicDestruction()">Test Atomic Destruction</button>
+            <button onclick="testStateMachine()">Test State Machine</button>
+            <button onclick="testValidation()">Test Validation</button>
+            <button onclick="testRepository()">Test Repository</button>
+            <button onclick="clearResults()">Clear Results</button>
+        </div>
+        
+        <div class="test-section">
+            <h2>Live Game Test</h2>
+            <canvas id="game-canvas"></canvas>
+            <div>
+                <button onclick="spawnTestBubbles()">Spawn Test Bubbles</button>
+                <button onclick="destroyRandomBubbles()">Destroy Random Bubbles</button>
+                <button onclick="validateGameState()">Validate Game State</button>
+                <button onclick="autoFixIssues()">Auto-Fix Issues</button>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>Statistics</h2>
+            <div class="stats" id="stats-container">
+                <div class="stat-card">
+                    <div>Total Bubbles</div>
+                    <div class="stat-value" id="stat-total">0</div>
+                </div>
+                <div class="stat-card">
+                    <div>Ghost Bubbles</div>
+                    <div class="stat-value" id="stat-ghosts">0</div>
+                </div>
+                <div class="stat-card">
+                    <div>Orphaned Visuals</div>
+                    <div class="stat-value" id="stat-orphans">0</div>
+                </div>
+                <div class="stat-card">
+                    <div>Missing Visuals</div>
+                    <div class="stat-value" id="stat-missing">0</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>Test Results</h2>
+            <div id="test-results"></div>
+        </div>
+    </div>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.150.0/build/three.module.js"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { GameState } from '../src/core/GameState.js';
+        import { BubbleInstances } from '../src/graphics/BubbleInstances.js';
+        import { CollisionSystem } from '../src/systems/CollisionSystem.js';
+        import { GameLogic } from '../src/systems/GameLogic.js';
+        import { Bubble } from '../src/entities/Bubble.js';
+        import { BubbleLifecycleManager } from '../src/managers/BubbleLifecycleManager.js';
+        import { BubbleStateMachine } from '../src/managers/BubbleStateMachine.js';
+        import { BubbleValidator } from '../src/validators/BubbleValidator.js';
+        import { BubbleRepository } from '../src/core/BubbleRepository.js';
+        import { CONFIG } from '../src/core/Config.js';
+        
+        // Make functions global for button onclick
+        window.runAllTests = runAllTests;
+        window.testAtomicDestruction = testAtomicDestruction;
+        window.testStateMachine = testStateMachine;
+        window.testValidation = testValidation;
+        window.testRepository = testRepository;
+        window.clearResults = clearResults;
+        window.spawnTestBubbles = spawnTestBubbles;
+        window.destroyRandomBubbles = destroyRandomBubbles;
+        window.validateGameState = validateGameState;
+        window.autoFixIssues = autoFixIssues;
+        
+        // Initialize test environment
+        let scene, camera, renderer;
+        let gameState, bubbleInstances, collisionSystem, gameLogic;
+        let repository;
+        
+        function initTestEnvironment() {
+            // Setup Three.js
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, 800/600, 0.1, 1000);
+            camera.position.z = 10;
+            
+            const canvas = document.getElementById('game-canvas');
+            renderer = new THREE.WebGLRenderer({ canvas });
+            renderer.setSize(800, 600);
+            
+            // Initialize game systems
+            gameState = new GameState();
+            bubbleInstances = new BubbleInstances(scene);
+            collisionSystem = new CollisionSystem(gameState, null);
+            gameLogic = new GameLogic(gameState, null, scene);
+            gameLogic.bubbleInstances = bubbleInstances;
+            gameLogic.collisionSystem = collisionSystem;
+            
+            // Initialize repository
+            repository = new BubbleRepository();
+            
+            // Add lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            directionalLight.position.set(5, 5, 5);
+            scene.add(directionalLight);
+            
+            animate();
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        
+        function addTestResult(message, type = 'info') {
+            const resultsDiv = document.getElementById('test-results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result test-${type}`;
+            resultDiv.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            resultsDiv.insertBefore(resultDiv, resultsDiv.firstChild);
+        }
+        
+        function clearResults() {
+            document.getElementById('test-results').innerHTML = '';
+        }
+        
+        async function runAllTests() {
+            addTestResult('Starting all tests...', 'info');
+            await testAtomicDestruction();
+            await testStateMachine();
+            await testValidation();
+            await testRepository();
+            addTestResult('All tests completed!', 'info');
+        }
+        
+        async function testAtomicDestruction() {
+            addTestResult('Testing atomic bubble destruction...', 'info');
+            
+            try {
+                // Create test bubble
+                const bubble = new Bubble(0, 0, 'red');
+                bubble.useInstancedRendering = true;
+                bubble.setGridPosition(5, 5);
+                
+                // Add to systems
+                gameState.setBubbleAt(5, 5, bubble);
+                bubbleInstances.addBubble(bubble, 'grid');
+                
+                // Test atomic destruction
+                const systems = { gameState, bubbleInstances, collisionSystem };
+                const transaction = BubbleLifecycleManager.destroyBubble(bubble, systems);
+                
+                // Verify destruction
+                if (transaction.completed) {
+                    // Check bubble is gone from all systems
+                    const stillInGrid = gameState.getBubbleAt(5, 5) === bubble;
+                    const stillInVisual = bubbleInstances.hasInstance(bubble.id);
+                    
+                    if (!stillInGrid && !stillInVisual) {
+                        addTestResult('✓ Atomic destruction test PASSED', 'pass');
+                    } else {
+                        addTestResult(`✗ Atomic destruction test FAILED - Still in: grid=${stillInGrid}, visual=${stillInVisual}`, 'fail');
+                    }
+                } else {
+                    addTestResult(`✗ Atomic destruction failed: ${transaction.errors.join(', ')}`, 'fail');
+                }
+            } catch (error) {
+                addTestResult(`✗ Atomic destruction test error: ${error.message}`, 'fail');
+            }
+        }
+        
+        async function testStateMachine() {
+            addTestResult('Testing bubble state machine...', 'info');
+            
+            try {
+                const bubble = new Bubble(0, 0, 'blue');
+                const stateMachine = BubbleStateMachine.attachTo(bubble);
+                
+                // Test valid transitions
+                let success = true;
+                
+                // SPAWNING -> SHOOTING
+                if (stateMachine.transition(BubbleStateMachine.States.SHOOTING)) {
+                    addTestResult('✓ SPAWNING -> SHOOTING transition succeeded', 'pass');
+                } else {
+                    addTestResult('✗ SPAWNING -> SHOOTING transition failed', 'fail');
+                    success = false;
+                }
+                
+                // SHOOTING -> FLYING
+                if (stateMachine.transition(BubbleStateMachine.States.FLYING)) {
+                    addTestResult('✓ SHOOTING -> FLYING transition succeeded', 'pass');
+                } else {
+                    addTestResult('✗ SHOOTING -> FLYING transition failed', 'fail');
+                    success = false;
+                }
+                
+                // Test invalid transition (FLYING -> SPAWNING should fail)
+                // Suppress console error for this expected failure
+                const originalError = console.error;
+                console.error = () => {};
+                const invalidTransition = stateMachine.transition(BubbleStateMachine.States.SPAWNING);
+                console.error = originalError;
+                
+                if (!invalidTransition) {
+                    addTestResult('✓ Invalid transition correctly prevented', 'pass');
+                } else {
+                    addTestResult('✗ Invalid transition was allowed', 'fail');
+                    success = false;
+                }
+                
+                // Validate state consistency
+                const issues = stateMachine.validate();
+                if (issues.length === 0) {
+                    addTestResult('✓ State machine validation passed', 'pass');
+                } else {
+                    addTestResult(`✗ State machine validation failed: ${issues.join(', ')}`, 'fail');
+                    success = false;
+                }
+                
+                if (success) {
+                    addTestResult('✓ State machine test PASSED', 'pass');
+                }
+            } catch (error) {
+                addTestResult(`✗ State machine test error: ${error.message}`, 'fail');
+            }
+        }
+        
+        async function testValidation() {
+            addTestResult('Testing bubble validation...', 'info');
+            
+            try {
+                // Create a ghost bubble scenario
+                const ghostBubble = new Bubble(0, 0, 'green');
+                ghostBubble.isDestroyed = true;
+                ghostBubble.setGridPosition(3, 3);
+                gameState.setBubbleAt(3, 3, ghostBubble);
+                
+                // Run validation
+                const systems = { gameState, bubbleInstances, collisionSystem };
+                const report = BubbleValidator.validateGame(systems);
+                
+                if (report.ghostBubbles.length > 0) {
+                    addTestResult(`✓ Ghost bubble detected: ${report.ghostBubbles.length} found`, 'pass');
+                    
+                    // Test auto-fix (suppress console warnings)
+                    const origWarn = console.warn;
+                    console.warn = () => {};
+                    const fixReport = BubbleValidator.autoFix(report, systems);
+                    console.warn = origWarn;
+                    
+                    if (fixReport.ghostBubblesFixed > 0) {
+                        addTestResult(`✓ Ghost bubbles fixed: ${fixReport.ghostBubblesFixed}`, 'pass');
+                    }
+                } else {
+                    addTestResult('✗ Ghost bubble not detected', 'fail');
+                }
+                
+                // Validate again after fix
+                const report2 = BubbleValidator.validateGame(systems);
+                if (report2.ghostBubbles.length === 0) {
+                    addTestResult('✓ Validation clean after fix', 'pass');
+                } else {
+                    addTestResult('✗ Ghost bubbles still present after fix', 'fail');
+                }
+            } catch (error) {
+                addTestResult(`✗ Validation test error: ${error.message}`, 'fail');
+            }
+        }
+        
+        async function testRepository() {
+            addTestResult('Testing bubble repository...', 'info');
+            
+            try {
+                const repo = new BubbleRepository();
+                
+                // Test adding bubble
+                const bubble1 = new Bubble(0, 0, 'yellow');
+                bubble1.setGridPosition(2, 2);
+                
+                if (repo.addBubble(bubble1, 2, 2)) {
+                    addTestResult('✓ Bubble added to repository', 'pass');
+                } else {
+                    addTestResult('✗ Failed to add bubble to repository', 'fail');
+                }
+                
+                // Test retrieval
+                const retrieved = repo.getBubbleAt(2, 2);
+                if (retrieved === bubble1) {
+                    addTestResult('✓ Bubble retrieved correctly', 'pass');
+                } else {
+                    addTestResult('✗ Bubble retrieval failed', 'fail');
+                }
+                
+                // Test transaction rollback
+                const bubble2 = new Bubble(0, 0, 'purple');
+                bubble2.setGridPosition(2, 2); // Same position - should fail
+                
+                // Suppress console error for this expected failure
+                const origError = console.error;
+                console.error = () => {};
+                const duplicateAllowed = repo.addBubble(bubble2, 2, 2);
+                console.error = origError;
+                
+                if (!duplicateAllowed) {
+                    addTestResult('✓ Duplicate position correctly prevented', 'pass');
+                } else {
+                    addTestResult('✗ Duplicate position was allowed', 'fail');
+                }
+                
+                // Test removal
+                if (repo.removeBubble(bubble1.id)) {
+                    addTestResult('✓ Bubble removed from repository', 'pass');
+                    const afterRemoval = repo.getBubbleAt(2, 2);
+                    if (!afterRemoval) {
+                        addTestResult('✓ Bubble correctly absent after removal', 'pass');
+                    }
+                } else {
+                    addTestResult('✗ Failed to remove bubble from repository', 'fail');
+                }
+                
+                // Test statistics
+                const stats = repo.getStats();
+                addTestResult(`Repository stats: Added=${stats.totalAdded}, Removed=${stats.totalRemoved}`, 'info');
+            } catch (error) {
+                addTestResult(`✗ Repository test error: ${error.message}`, 'fail');
+            }
+        }
+        
+        function spawnTestBubbles() {
+            addTestResult('Spawning test bubbles...', 'info');
+            
+            const colors = CONFIG.BUBBLE_COLORS;
+            let count = 0;
+            
+            for (let y = 0; y < 5; y++) {
+                for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
+                    if (Math.random() > 0.3) {
+                        const color = colors[Math.floor(Math.random() * colors.length)];
+                        const bubble = new Bubble(0, 0, color);
+                        bubble.useInstancedRendering = true;
+                        bubble.setGridPosition(x, y);
+                        
+                        gameState.setBubbleAt(x, y, bubble);
+                        bubbleInstances.addBubble(bubble, 'grid');
+                        repository.addBubble(bubble, x, y);
+                        
+                        // Attach state machine
+                        BubbleStateMachine.attachTo(bubble, BubbleStateMachine.States.ATTACHED);
+                        
+                        count++;
+                    }
+                }
+            }
+            
+            addTestResult(`Spawned ${count} test bubbles`, 'info');
+            updateStats();
+        }
+        
+        function destroyRandomBubbles() {
+            addTestResult('Destroying random bubbles...', 'info');
+            
+            const allBubbles = repository.getAllBubbles();
+            const toDestroy = Math.floor(allBubbles.length * 0.3);
+            
+            for (let i = 0; i < toDestroy; i++) {
+                const randomIndex = Math.floor(Math.random() * allBubbles.length);
+                const bubble = allBubbles[randomIndex];
+                
+                if (bubble && !bubble.isDestroyed) {
+                    gameLogic.destroyBubbleImmediately(bubble);
+                    repository.removeBubble(bubble.id);
+                }
+            }
+            
+            addTestResult(`Destroyed ${toDestroy} bubbles`, 'info');
+            updateStats();
+        }
+        
+        function validateGameState() {
+            addTestResult('Validating game state...', 'info');
+            
+            const systems = { gameState, bubbleInstances, collisionSystem };
+            const report = BubbleValidator.validateGame(systems);
+            
+            if (report.hasIssues) {
+                addTestResult(`Validation found ${report.issueCount} issues:`, 'fail');
+                if (report.ghostBubbles.length > 0) {
+                    addTestResult(`  - Ghost bubbles: ${report.ghostBubbles.length}`, 'fail');
+                }
+                if (report.orphanedVisuals.length > 0) {
+                    addTestResult(`  - Orphaned visuals: ${report.orphanedVisuals.length}`, 'fail');
+                }
+                if (report.missingVisuals.length > 0) {
+                    addTestResult(`  - Missing visuals: ${report.missingVisuals.length}`, 'fail');
+                }
+            } else {
+                addTestResult('✓ Game state is valid - no issues found!', 'pass');
+            }
+            
+            updateStats(report);
+            return report;
+        }
+        
+        function autoFixIssues() {
+            const report = validateGameState();
+            
+            if (report.hasIssues) {
+                addTestResult('Auto-fixing detected issues...', 'info');
+                
+                const systems = { gameState, bubbleInstances, collisionSystem };
+                const fixReport = BubbleValidator.autoFix(report, systems);
+                
+                addTestResult(`Fixed: ${fixReport.ghostBubblesFixed} ghost bubbles, ${fixReport.orphanedVisualsFixed} orphaned visuals`, 'info');
+                
+                // Validate again
+                setTimeout(() => {
+                    validateGameState();
+                }, 100);
+            }
+        }
+        
+        function updateStats(report = null) {
+            if (!report) {
+                const systems = { gameState, bubbleInstances, collisionSystem };
+                report = BubbleValidator.validateGame(systems);
+            }
+            
+            document.getElementById('stat-total').textContent = report.totalBubbles;
+            document.getElementById('stat-ghosts').textContent = report.ghostBubbles.length;
+            document.getElementById('stat-orphans').textContent = report.orphanedVisuals.length;
+            document.getElementById('stat-missing').textContent = report.missingVisuals.length;
+        }
+        
+        // Initialize on load
+        initTestEnvironment();
+        addTestResult('Test environment initialized', 'info');
+    </script>
+</body>
+</html>

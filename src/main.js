@@ -1252,10 +1252,39 @@ class BubbleShooterGame {
             
             // Update all grid bubbles and count non-power-up bubbles in one pass
             let bubblesRemaining = 0;
+            const seenPositions = new Map(); // Track bubbles by position to detect duplicates
+            
             for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
                 for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
                     const bubble = this.gameState.getBubbleAt(x, y);
-                    if (bubble) {
+                    if (bubble && bubble.isDestroyed) {
+                        // Found a destroyed bubble still in grid - clean it up immediately
+                        console.warn(`Ghost bubble detected at ${x},${y} - removing from grid`);
+                        this.gameState.bubbleGrid[y][x] = null;
+                        continue;
+                    }
+                    if (bubble && !bubble.isDestroyed) {
+                        // Check for duplicate bubbles at the same position
+                        const posKey = `${bubble.position.x.toFixed(2)},${bubble.position.y.toFixed(2)}`;
+                        if (seenPositions.has(posKey)) {
+                            const otherBubble = seenPositions.get(posKey);
+                            console.warn(`Duplicate bubble found at position ${posKey}. Grid: (${x},${y}) vs (${otherBubble.gridX},${otherBubble.gridY})`);
+                            
+                            // Remove the duplicate (keep the one in the correct grid position)
+                            if (bubble.gridX !== x || bubble.gridY !== y) {
+                                // This bubble is in the wrong position, remove it
+                                this.gameLogic.destroyBubbleImmediately(bubble, true);
+                                continue;
+                            } else if (otherBubble.gridX !== otherBubble.expectedX || otherBubble.gridY !== otherBubble.expectedY) {
+                                // The other bubble is in the wrong position, remove it
+                                this.gameLogic.destroyBubbleImmediately(otherBubble, true);
+                                seenPositions.set(posKey, bubble);
+                            }
+                        } else {
+                            seenPositions.set(posKey, bubble);
+                            bubble.expectedX = x;
+                            bubble.expectedY = y;
+                        }
                         // Migrate non-instanced bubbles to instanced rendering
                         if (!bubble.useInstancedRendering && !bubble.isDestroyed) {
                             console.warn(`Migrating non-instanced bubble at ${x},${y} to instanced rendering`);

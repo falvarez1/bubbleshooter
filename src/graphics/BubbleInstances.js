@@ -551,6 +551,12 @@ export class BubbleInstances {
     }
     
     addBubble(bubble, type = 'grid') {
+        // Don't add destroyed bubbles
+        if (bubble.isDestroyed) {
+            console.warn(`Attempted to add destroyed bubble to instances`);
+            return -1;
+        }
+        
         // Generate unique ID if bubble doesn't have one
         if (!bubble.id) {
             bubble.id = `bubble_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -656,6 +662,9 @@ export class BubbleInstances {
     }
     
     updateBubble(bubble) {
+        // Skip updating destroyed bubbles
+        if (bubble.isDestroyed) return;
+        
         const mapping = this.bubbleMap.get(bubble.id);
         if (!mapping) return;
         
@@ -804,6 +813,21 @@ export class BubbleInstances {
         return this.bubbleMap.get(bubbleId);
     }
     
+    hasInstance(bubbleId) {
+        // Check if a bubble instance exists and is visible
+        const mapping = this.bubbleMap.get(bubbleId);
+        if (!mapping) return false;
+        
+        // Check if the instance is actually visible (not scaled to 0)
+        const scaleAttr = this.instancedMesh.geometry.getAttribute('instanceScale');
+        if (scaleAttr) {
+            const scale = scaleAttr.getX(mapping.index);
+            return scale > 0;
+        }
+        
+        // If no scale attribute, just check if mapping exists
+        return true;
+    }
     
     setElectricEffect(bubble) {
         const mapping = this.bubbleMap.get(bubble.id);
