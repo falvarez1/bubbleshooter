@@ -152,8 +152,8 @@ export class Bubble {
             }
             
             // Check ceiling - use same threshold as CollisionSystem
-            if (this.position.y > CONFIG.CEILING_Y - 0.5 - this.radius) {
-                this.position.y = CONFIG.CEILING_Y - 0.5 - this.radius;
+            if (this.position.y > CONFIG.CEILING_Y - this.radius) {
+                this.position.y = CONFIG.CEILING_Y - this.radius;
                 this.velocity.set(0, 0, 0);
                 this.isMoving = false;
                 this.movementStartTime = 0; // Reset movement timer
@@ -164,7 +164,7 @@ export class Bubble {
             // Safety check: if bubble goes way out of bounds, force attachment
             if (this.position.y > CONFIG.CEILING_Y + 2) {
                 console.warn('Bubble went out of bounds, forcing attachment');
-                this.position.y = CONFIG.CEILING_Y - 0.5 - this.radius;
+                this.position.y = CONFIG.CEILING_Y - this.radius;
                 this.velocity.set(0, 0, 0);
                 this.isMoving = false;
                 this.movementStartTime = 0; // Reset movement timer

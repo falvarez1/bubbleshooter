@@ -499,9 +499,25 @@ export class GameLogic {
             this.scene.remove(bubble.mesh);
         }
         
-        // 3. Remove from grid state
+        // 3. Remove from grid state - be extra thorough
         if (bubble.gridX !== undefined && bubble.gridY !== undefined) {
             this.gameState.removeBubbleAt(bubble.gridX, bubble.gridY);
+            // Double-check it's removed
+            if (this.gameState.bubbleGrid[bubble.gridY] && 
+                this.gameState.bubbleGrid[bubble.gridY][bubble.gridX] === bubble) {
+                console.warn(`Bubble not properly removed at ${bubble.gridX},${bubble.gridY} - forcing removal`);
+                this.gameState.bubbleGrid[bubble.gridY][bubble.gridX] = null;
+            }
+        }
+        
+        // Also scan the entire grid to ensure this bubble isn't anywhere else (defensive)
+        for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
+            for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
+                if (this.gameState.bubbleGrid[y][x] === bubble) {
+                    console.warn(`Found ghost bubble at unexpected position ${x},${y} - removing`);
+                    this.gameState.bubbleGrid[y][x] = null;
+                }
+            }
         }
         
         // 4. Remove from collision system

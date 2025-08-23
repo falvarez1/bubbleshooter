@@ -53,11 +53,19 @@ export class CollisionSystem {
             for (let x = 0; x < bubblesInRow; x++) {
                 const bubble = this.gameState.bubbleGrid[y][x];
                 if (bubble && !bubble.isDestroyed && !bubble.isFloating) {
-                    // Include bubble regardless of mesh parent (for instanced rendering)
-                    this.gridBubbleCache.push(bubble);
-                    
-                    // Add to spatial grid for efficient collision detection
-                    this.spatialGrid.add(bubble, bubble.position.x, bubble.position.y);
+                    // Double-check that the bubble is truly valid and not a ghost
+                    // Ghost bubbles may have isDestroyed set but still be in grid
+                    if (bubble.gridX === x && bubble.gridY === y) {
+                        // Include bubble regardless of mesh parent (for instanced rendering)
+                        this.gridBubbleCache.push(bubble);
+                        
+                        // Add to spatial grid for efficient collision detection
+                        this.spatialGrid.add(bubble, bubble.position.x, bubble.position.y);
+                    } else {
+                        // Found a ghost bubble - clean it up
+                        console.warn(`Ghost bubble found at grid position ${x},${y} - cleaning up`);
+                        this.gameState.bubbleGrid[y][x] = null;
+                    }
                 }
             }
         }
@@ -106,65 +114,61 @@ export class CollisionSystem {
         
         const current = this.gameState.currentBubble;
         
-        // Check if bubble reached the ceiling first (fast check)
-        if (current.position.y > CONFIG.CEILING_Y - 0.5 - CONFIG.BUBBLE_RADIUS) {
-            this.attachBubble(current);
-            return true;
-        }
-        
         // Update grid bubble cache if needed
         this.updateGridBubbleCache();
         
-        // Early exit if no grid bubbles
-        if (this.gridBubbleCache.length === 0) {
-            return false;
-        }
-        
-        // Use spatial grid for broad-phase collision detection
-        const threshold = CONFIG.BUBBLE_RADIUS * 1.8;
-        const nearbyBubbles = this.spatialGrid.getNearby(
-            current.position.x,
-            current.position.y,
-            threshold * 1.5  // Slightly larger radius for safety
-        );
-        
-        // Early exit if no nearby bubbles
-        if (nearbyBubbles.length === 0) {
-            return false;
-        }
-        
-        // Use SIMD batch collision detection on nearby bubbles only
-        const collisions = SIMDUtils.batchCollisionDetection(
-            [current],
-            nearbyBubbles,
-            threshold
-        );
-        
-        // Process the first collision (closest)
-        if (collisions.length > 0) {
-            // Find the closest collision
-            let closestCollision = collisions[0];
-            for (let i = 1; i < collisions.length; i++) {
-                if (collisions[i].distance < closestCollision.distance) {
-                    closestCollision = collisions[i];
+        // Check for bubble collisions first (if there are any bubbles)
+        if (this.gridBubbleCache.length > 0) {
+            // Use spatial grid for broad-phase collision detection
+            const threshold = CONFIG.BUBBLE_RADIUS * 1.95;
+            const nearbyBubbles = this.spatialGrid.getNearby(
+                current.position.x,
+                current.position.y,
+                threshold * 1.2  // Slightly larger radius for safety
+            );
+            
+            // Check for collisions with nearby bubbles
+            if (nearbyBubbles.length > 0) {
+                // Use SIMD batch collision detection on nearby bubbles only
+                const collisions = SIMDUtils.batchCollisionDetection(
+                    [current],
+                    nearbyBubbles,
+                    threshold
+                );
+                
+                // Process the first collision (closest)
+                if (collisions.length > 0) {
+                    // Find the closest collision
+                    let closestCollision = collisions[0];
+                    for (let i = 1; i < collisions.length; i++) {
+                        if (collisions[i].distance < closestCollision.distance) {
+                            closestCollision = collisions[i];
+                        }
+                    }
+                    
+                    const bubble = closestCollision.bubble2;
+                    
+                    // Apply impact force to the hit bubble before attachment
+                    const impactDirection = new THREE.Vector3()
+                        .subVectors(bubble.position, current.position)
+                        .normalize();
+                    const impactForce = current.velocity.length() * CONFIG.IMPACT_PHYSICS.DIRECT_HIT_FORCE;
+                    
+                    // Apply direct hit impact
+                    bubble.impactVelocity.add(impactDirection.clone().multiplyScalar(impactForce));
+                    bubble.connectionAnimating = CONFIG.IMPACT_PHYSICS.CONNECTION_ANIMATION;
+                    
+                    // Immediate propagation to all neighbors
+                    this.propagateImpact(bubble, impactDirection, impactForce * CONFIG.IMPACT_PHYSICS.PROPAGATION_MULTIPLIER, 0);
+                    
+                    this.attachBubble(current);
+                    return true;
                 }
             }
-            
-            const bubble = closestCollision.bubble2;
-            
-            // Apply impact force to the hit bubble before attachment
-            const impactDirection = new THREE.Vector3()
-                .subVectors(bubble.position, current.position)
-                .normalize();
-            const impactForce = current.velocity.length() * CONFIG.IMPACT_PHYSICS.DIRECT_HIT_FORCE;
-            
-            // Apply direct hit impact
-            bubble.impactVelocity.add(impactDirection.clone().multiplyScalar(impactForce));
-            bubble.connectionAnimating = CONFIG.IMPACT_PHYSICS.CONNECTION_ANIMATION;
-            
-            // Immediate propagation to all neighbors
-            this.propagateImpact(bubble, impactDirection, impactForce * CONFIG.IMPACT_PHYSICS.PROPAGATION_MULTIPLIER, 0);
-            
+        }
+        
+        // No bubble collision, check if bubble reached the ceiling
+        if (current.position.y > CONFIG.CEILING_Y - CONFIG.BUBBLE_RADIUS) {
             this.attachBubble(current);
             return true;
         }
@@ -245,6 +249,7 @@ export class CollisionSystem {
         // and search outward in a spiral pattern
         
         // First, estimate the grid position from world coordinates
+        // Calculate the row based on distance from top
         const centerY = Math.round((CONFIG.GRID_TOP_Y - position.y) / CONFIG.HEX_HEIGHT);
         const estimatedY = Math.max(0, Math.min(CONFIG.GRID_HEIGHT - 1, centerY));
         const isOddRow = estimatedY % 2 === 1;
@@ -263,7 +268,15 @@ export class CollisionSystem {
             const bubblesInRow = isOddRowCheck ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
             
             for (let x = 0; x < bubblesInRow; x++) {
-                if (!this.gameState.bubbleGrid[y][x]) {
+                const existingBubble = this.gameState.bubbleGrid[y][x];
+                // Position is empty if there's no bubble OR if the bubble is destroyed
+                if (!existingBubble || existingBubble.isDestroyed) {
+                    // Clean up any destroyed bubbles we find
+                    if (existingBubble && existingBubble.isDestroyed) {
+                        console.warn(`Found destroyed bubble at ${x},${y} during position search - cleaning up`);
+                        this.gameState.bubbleGrid[y][x] = null;
+                    }
+                    
                     // Calculate world position for this grid cell
                     const xPos = (x - CONFIG.GRID_WIDTH / 2 + 0.5) * CONFIG.HEX_WIDTH + (isOddRowCheck ? CONFIG.HEX_WIDTH / 2 : 0);
                     const yPos = CONFIG.GRID_TOP_Y - y * CONFIG.HEX_HEIGHT;
@@ -278,7 +291,10 @@ export class CollisionSystem {
             }
         }
         
-        if (positionCount === 0) return null;
+        // If no empty positions found, the grid must be full
+        if (positionCount === 0) {
+            return null;
+        }
         
         // Prepare target position array
         const targetPosition = new Float32Array(positionCount * 3);
@@ -316,7 +332,12 @@ export class CollisionSystem {
             }
             
             // Check if this position has adjacent bubbles
-            let hasAdjacent = candidate.y === 0; // Top row always valid
+            // Top row is always valid for attachment (ceiling)
+            let hasAdjacent = false;
+            if (candidate.y === 0) {
+                // Top row is always valid - it's attached to ceiling
+                hasAdjacent = true;
+            }
             
             if (!hasAdjacent) {
                 const neighbors = this.getNeighbors(candidate.x, candidate.y);
