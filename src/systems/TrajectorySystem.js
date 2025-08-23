@@ -9,6 +9,33 @@ export class TrajectorySystem {
     constructor(scene) {
         this.scene = scene;
         this.trajectoryGroup = null;
+        
+        // Performance optimization: cache and throttle
+        this.lastCalculationTime = 0;
+        this.calculationThrottle = 16; // ~60fps max for calculations
+        this.cachedTrajectory = null;
+        this.cachedMousePosition = new THREE.Vector3();
+        this.cachedStartPosition = new THREE.Vector3();
+        this.lastRenderTime = 0;
+        this.renderThrottle = 8; // ~120fps max for rendering updates
+        
+        // Object pools to avoid GC
+        this.vectorPool = [];
+        for (let i = 0; i < 100; i++) {
+            this.vectorPool.push(new THREE.Vector3());
+        }
+        this.vectorPoolIndex = 0;
+        
+        // Cache for collision detection
+        this.bubblePositionCache = [];
+        this.lastCacheUpdate = 0;
+        this.cacheUpdateInterval = 100; // Update cache every 100ms
+    }
+    
+    getPooledVector() {
+        const vector = this.vectorPool[this.vectorPoolIndex];
+        this.vectorPoolIndex = (this.vectorPoolIndex + 1) % this.vectorPool.length;
+        return vector;
     }
     
     calculateTrajectory(startBubble, mousePosition, gameState) {
@@ -18,11 +45,33 @@ export class TrajectorySystem {
             return;
         }
         
+        // Throttle calculations for performance
+        const now = performance.now();
+        if (now - this.lastCalculationTime < this.calculationThrottle) {
+            // Use cached trajectory if mouse hasn't moved significantly
+            const mouseDelta = this.cachedMousePosition.distanceTo(mousePosition);
+            const startDelta = this.cachedStartPosition.distanceTo(startBubble.position);
+            
+            if (mouseDelta < 0.05 && startDelta < 0.01 && this.cachedTrajectory) {
+                gameState.trajectory = this.cachedTrajectory;
+                return;
+            }
+        }
+        this.lastCalculationTime = now;
+        
+        // Update bubble position cache periodically
+        if (now - this.lastCacheUpdate > this.cacheUpdateInterval) {
+            this.updateBubblePositionCache(gameState);
+            this.lastCacheUpdate = now;
+        }
+        
         gameState.trajectory = [];
         gameState.trajectoryEndPosition = null;
         gameState.bouncePoints = []; // Track bounce locations for visual effects
-        const startPos = startBubble.position.clone();
-        const direction = new THREE.Vector3(
+        
+        // Use pooled vectors to avoid allocation
+        const startPos = this.getPooledVector().copy(startBubble.position);
+        const direction = this.getPooledVector().set(
             mousePosition.x - startPos.x,
             mousePosition.y - startPos.y,
             0
@@ -36,37 +85,37 @@ export class TrajectorySystem {
         
         direction.normalize();
         
-        let pos = startPos.clone();
+        const pos = this.getPooledVector().copy(startPos);
         // Use the same speed calculation as the actual shooting
         const power = gameState.shootingPower || 0;
         const speed = gameState.precisionAimActive ? 
             CONFIG.SHOOTING_SPEED : 
             CONFIG.SHOOTING_SPEED + (CONFIG.MAX_SHOOTING_SPEED - CONFIG.SHOOTING_SPEED) * power;
-        let vel = direction.multiplyScalar(speed);
-        const step = 0.01; // Smaller steps for more accurate trajectory matching actual physics
-        const maxSteps = gameState.precisionAimActive ? 750 : 300;
+        const vel = this.getPooledVector().copy(direction).multiplyScalar(speed);
+        const step = 0.02; // Slightly larger steps for better performance
+        const maxSteps = gameState.precisionAimActive ? 400 : 200; // Reduced steps
         let bounceCount = 0;
         const maxBounces = gameState.precisionAimActive ? 5 : 2;
         
         for (let i = 0; i < maxSteps; i++) {
-            // Calculate next position
-            const nextPos = pos.clone().add(vel.clone().multiplyScalar(step));
+            // Calculate next position using pooled vector
+            const nextPos = this.getPooledVector().copy(pos).addScaledVector(vel, step);
             
-            // Check collision with existing bubbles BEFORE moving
+            // Use cached bubble positions for faster collision detection
             let hitBubble = false;
-            for (let y = 0; y < CONFIG.GRID_HEIGHT && !hitBubble; y++) {
-                const isOddRow = y % 2 === 1;
-                const bubblesInRow = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
+            const collisionThreshold = CONFIG.BUBBLE_RADIUS * 1.8;
+            const thresholdSq = collisionThreshold * collisionThreshold;
+            
+            for (let j = 0; j < this.bubblePositionCache.length; j++) {
+                const cachedBubble = this.bubblePositionCache[j];
+                // Use squared distance to avoid sqrt calculation
+                const dx = nextPos.x - cachedBubble.x;
+                const dy = nextPos.y - cachedBubble.y;
+                const distanceSq = dx * dx + dy * dy;
                 
-                for (let x = 0; x < bubblesInRow; x++) {
-                    const bubble = gameState.bubbleGrid[y][x];
-                    if (bubble && !bubble.isDestroyed && !bubble.isFloating) {
-                        const distance = nextPos.distanceTo(bubble.position);
-                        if (distance < CONFIG.BUBBLE_RADIUS * 1.8) {
-                            hitBubble = true;
-                            break;
-                        }
-                    }
+                if (distanceSq < thresholdSq) {
+                    hitBubble = true;
+                    break;
                 }
             }
             
@@ -82,7 +131,7 @@ export class TrajectorySystem {
             }
             
             // Now move to next position
-            pos = nextPos;
+            pos.copy(nextPos);
             
             // Check wall bounce - use same values as actual bubble physics
             const wallLimit = 5.5;
@@ -90,7 +139,7 @@ export class TrajectorySystem {
                 vel.x *= -CONFIG.WALL_BOUNCE_DAMPING; // Apply same damping as actual bubble
                 pos.x = Math.sign(pos.x) * (wallLimit - CONFIG.BUBBLE_RADIUS);
                 
-                // Record bounce point for visual effects
+                // Record bounce point for visual effects (only clone when storing)
                 gameState.bouncePoints.push({
                     position: pos.clone(),
                     confidence: 1.0 - (bounceCount * CONFIG.TRAJECTORY.LASER.BOUNCE_EFFECTS.CONFIDENCE_FADE),
@@ -111,12 +160,48 @@ export class TrajectorySystem {
                 break;
             }
             
-            // Add point to trajectory
-            gameState.trajectory.push(pos.clone());
+            // Add point to trajectory (reduce frequency for performance)
+            if (i % 2 === 0 || i === maxSteps - 1) { // Store every other point
+                gameState.trajectory.push(pos.clone());
+            }
+        }
+        
+        // Cache the results
+        this.cachedTrajectory = [...gameState.trajectory];
+        this.cachedMousePosition.copy(mousePosition);
+        this.cachedStartPosition.copy(startBubble.position);
+    }
+    
+    updateBubblePositionCache(gameState) {
+        // Clear and rebuild cache
+        this.bubblePositionCache = [];
+        
+        for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
+            const isOddRow = y % 2 === 1;
+            const bubblesInRow = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
+            
+            for (let x = 0; x < bubblesInRow; x++) {
+                const bubble = gameState.bubbleGrid[y][x];
+                if (bubble && !bubble.isDestroyed && !bubble.isFloating) {
+                    // Store position directly as simple object to avoid references
+                    this.bubblePositionCache.push({
+                        x: bubble.position.x,
+                        y: bubble.position.y,
+                        z: bubble.position.z
+                    });
+                }
+            }
         }
     }
     
     renderTrajectory(gameState) {
+        // Throttle render updates for smoother performance
+        const now = performance.now();
+        if (now - this.lastRenderTime < this.renderThrottle) {
+            return; // Skip this render frame
+        }
+        this.lastRenderTime = now;
+        
         // Check if we need to render
         if (gameState.trajectory.length < 6 || !gameState.currentBubble) {
             // Hide existing trajectory
@@ -188,11 +273,12 @@ export class TrajectorySystem {
     }
     
     trajectoryPathChanged(newPath, oldPath) {
-        if (!oldPath || newPath.length !== oldPath.length) return true;
+        if (!oldPath || Math.abs(newPath.length - oldPath.length) > 5) return true;
         
-        // Check if path changed significantly (simple distance check)
-        for (let i = 0; i < Math.min(newPath.length, oldPath.length); i += 5) {
-            if (newPath[i].distanceTo(oldPath[i]) > 0.1) {
+        // Check if path changed significantly (increase threshold for smoother updates)
+        const checkInterval = Math.max(5, Math.floor(newPath.length / 10));
+        for (let i = 0; i < Math.min(newPath.length, oldPath.length); i += checkInterval) {
+            if (newPath[i].distanceTo(oldPath[i]) > 0.2) { // Increased threshold
                 return true;
             }
         }
@@ -451,11 +537,20 @@ export class TrajectorySystem {
         const intensityMultiplier = 1 + (power * powerScaling.INTENSITY_MULTIPLIER);
         const flowSpeedMultiplier = 1 + (power * powerScaling.FLOW_SPEED_MULTIPLIER);
         
+        // Simplify trajectory points for smoother curves
+        const points = [];
+        const skipInterval = Math.max(1, Math.floor(gameState.trajectory.length / 50)); // Max 50 points for curve
+        for (let i = 0; i < gameState.trajectory.length; i += skipInterval) {
+            points.push(gameState.trajectory[i]);
+        }
+        if (points.length > 0 && points[points.length - 1] !== gameState.trajectory[gameState.trajectory.length - 1]) {
+            points.push(gameState.trajectory[gameState.trajectory.length - 1]); // Ensure we include the last point
+        }
+        
         // Create tube geometry for the entire trajectory with power-responsive thickness
-        const points = gameState.trajectory;
         const curve = new THREE.CatmullRomCurve3(points, false);
         const beamRadius = CONFIG.TRAJECTORY.LASER.BEAM_RADIUS * thicknessMultiplier;
-        const tubeGeometry = new THREE.TubeGeometry(curve, points.length * 2, beamRadius, 8, false);
+        const tubeGeometry = new THREE.TubeGeometry(curve, Math.min(points.length * 2, 64), beamRadius, 6, false); // Reduce segments
         
         // Create flowing laser shader material with power-responsive uniforms
         const baseIntensity = gameState.precisionAimActive ? CONFIG.TRAJECTORY.LASER.INTENSITY * 1.5 : CONFIG.TRAJECTORY.LASER.INTENSITY;
@@ -609,7 +704,7 @@ export class TrajectorySystem {
         
         // Create outer glow tube with power-responsive thickness
         const glowRadius = CONFIG.TRAJECTORY.LASER.GLOW_RADIUS * thicknessMultiplier;
-        const glowGeometry = new THREE.TubeGeometry(curve, points.length * 2, glowRadius, 8, false);
+        const glowGeometry = new THREE.TubeGeometry(curve, Math.min(points.length * 2, 48), glowRadius, 6, false); // Reduced segments for performance
         const glowMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 time: { value: 0 },

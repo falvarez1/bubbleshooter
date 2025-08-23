@@ -653,11 +653,15 @@ export class BubbleInstances {
         // Instance count is already set to maxBubbles - no need to change it
         // All unused instances have scale=0 so they're invisible
         
-        console.log(`Added ${type} bubble with ID ${bubble.id} at instance ${instanceIndex}`, {
-            position: bubble.position,
-            activeCount: this.activeBubbles.size,
-            availableIndices: this.availableIndices.length
-        });
+        // // show the log only if debug mode is enabled
+        // if (CONFIG.DEBUG_MODE) {
+        //     console.log(`Added ${type} bubble with ID ${bubble.id} at instance ${instanceIndex}`, {
+        //         position: bubble.position,
+        //         activeCount: this.activeBubbles.size,
+        //         availableIndices: this.availableIndices.length
+        //     });
+        // }
+
         return instanceIndex;
     }
     

@@ -11,6 +11,15 @@ export const CONFIG = {
     HEX_WIDTH: 1.0, // Bubble diameter
     HEX_HEIGHT: 0.866, // sqrt(3)/2 * diameter for hexagonal packing
     
+    // Sound
+    SOUND_ENABLED: true,
+    SOUND_VOLUME: 0.5,
+    SOUND_MUTE: false,
+
+    // Music
+    MUSIC_VOLUME: 0.5,
+    MUSIC_ENABLED: false,
+
     // Physics
     SHOOTING_SPEED: 30,        // Increased from 20 to 30
     MAX_SHOOTING_SPEED: 75,    // Increased from 30 to 45

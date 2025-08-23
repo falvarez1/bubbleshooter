@@ -5,7 +5,7 @@ import { GameManager } from './core/GameManager.js';
 import { SceneManager } from './graphics/SceneManager.js';
 import { GameBoard } from './graphics/GameBoard.js';
 import { AudioSystem } from './systems/AudioSystem.js';
-import { TrajectorySystem } from './systems/TrajectorySystem.js';
+import { TrajectorySystem } from './systems/TrajectorySystemBloom.js';
 import { CollisionSystem } from './systems/CollisionSystem.js';
 import { PrecisionAimIndicator } from './systems/PrecisionAimIndicator.js';
 import { GameLogic } from './systems/GameLogic.js';
@@ -17,6 +17,7 @@ import { bubbleEffectsController } from './graphics/BubbleEffectsController.js';
 import { Bubble } from './entities/Bubble.js';
 import { ParticlePool } from './entities/Particle.js';
 import { BubbleInstances } from './graphics/BubbleInstances.js';
+import { settingsStorage } from './core/SettingsStorage.js';
 import { 
     RainbowPowerUp, 
     BombPowerUp, 
@@ -24,6 +25,7 @@ import {
     ChainLightningPowerUp,
     ColorSplashPowerUp
 } from './powerups/index.js';
+import { BloomDebugger } from './utils/BloomDebugger.js';
 
 // Main game class
 class BubbleShooterGame {
@@ -44,9 +46,20 @@ class BubbleShooterGame {
         
         // Game systems
         this.gameBoard = new GameBoard(this.scene, this.gameState);
-        this.trajectorySystem = new TrajectorySystem(this.scene);
+        // Pass post-processing manager to trajectory system for bloom
+        const postProcessing = this.sceneManager.getPostProcessing();
+        this.trajectorySystem = new TrajectorySystem(this.scene, postProcessing);
         this.collisionSystem = new CollisionSystem(this.gameState, this.gameManager);
         this.gameLogic = new GameLogic(this.gameState, this.gameManager, this.scene);
+        
+        // Add bloom debugger (only in development)
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            this.bloomDebugger = new BloomDebugger(postProcessing);
+            // Add a test bloom object to verify bloom is working
+            setTimeout(() => {
+                this.bloomDebugger.addTestBloomObject(this.scene);
+            }, 1000);
+        }
         // Use event bus for communication instead of circular reference
         // GameManager can emit events that GameLogic responds to
         this.effectsSystem = new BubbleEffectsSystem(this.scene);
@@ -89,6 +102,9 @@ class BubbleShooterGame {
         // Share references with game logic for bubble removal
         this.gameLogic.bubbleInstances = this.bubbleInstances;
         this.gameLogic.collisionSystem = this.collisionSystem;
+        
+        // Initialize UI controls based on CONFIG values
+        this.initializeAudioControls();
         
         // Apply particle preset
         applyParticlePreset(PARTICLE_CONFIG.preset);
@@ -250,7 +266,11 @@ class BubbleShooterGame {
         const settingsClose = document.getElementById('settingsClose');
         const gameOverlay = document.getElementById('gameOverlay');
         const musicToggle = document.getElementById('musicToggle');
-        const volumeSlider = document.getElementById('volumeSlider');
+        const musicVolumeSlider = document.getElementById('musicVolumeSlider');
+        const musicVolumeValue = document.getElementById('musicVolumeValue');
+        const effectsToggle = document.getElementById('effectsToggle');
+        const effectsVolumeSlider = document.getElementById('effectsVolumeSlider');
+        const effectsVolumeValue = document.getElementById('effectsVolumeValue');
         const powerupSlots = document.querySelectorAll('.powerup-collection-slot');
         
         settingsIcon?.addEventListener('click', (e) => {
@@ -269,16 +289,46 @@ class BubbleShooterGame {
             }
         });
         
-        musicToggle?.addEventListener('click', (e) => {
+        // Music controls
+        musicToggle?.addEventListener('click', async (e) => {
             e.stopPropagation();
             const isEnabled = this.audioSystem.toggleMusic();
+            this.gameManager.soundManager.setMusicEnabled(isEnabled);
             this.uiManager.updateMusicToggle(isEnabled);
+            // Save setting
+            await settingsStorage.saveSetting('musicEnabled', isEnabled);
         });
         
-        volumeSlider?.addEventListener('input', (e) => {
+        musicVolumeSlider?.addEventListener('input', async (e) => {
             const volume = parseInt(e.target.value) / 100;
             this.audioSystem.setMusicVolume(volume);
-            this.uiManager.updateVolume(volume);
+            this.gameManager.soundManager.setMusicVolume(volume);
+            if (musicVolumeValue) {
+                musicVolumeValue.textContent = `${e.target.value}%`;
+            }
+            // Save setting
+            await settingsStorage.saveSetting('musicVolume', volume);
+        });
+        
+        // Sound effects controls
+        effectsToggle?.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const soundManager = this.gameManager.soundManager;
+            const isEnabled = !soundManager.getEffectsEnabled();
+            soundManager.setEffectsEnabled(isEnabled);
+            effectsToggle.classList.toggle('active', isEnabled);
+            // Save setting
+            await settingsStorage.saveSetting('effectsEnabled', isEnabled);
+        });
+        
+        effectsVolumeSlider?.addEventListener('input', async (e) => {
+            const volume = parseInt(e.target.value) / 100;
+            this.gameManager.soundManager.setEffectsVolume(volume);
+            if (effectsVolumeValue) {
+                effectsVolumeValue.textContent = `${e.target.value}%`;
+            }
+            // Save setting
+            await settingsStorage.saveSetting('effectsVolume', volume);
         });
         
         // Power-up collection slots click handlers
@@ -1217,6 +1267,58 @@ class BubbleShooterGame {
         this.gameState.resume();
     }
     
+    async initializeAudioControls() {
+        const musicToggle = document.getElementById('musicToggle');
+        const musicVolumeSlider = document.getElementById('musicVolumeSlider');
+        const musicVolumeValue = document.getElementById('musicVolumeValue');
+        const effectsToggle = document.getElementById('effectsToggle');
+        const effectsVolumeSlider = document.getElementById('effectsVolumeSlider');
+        const effectsVolumeValue = document.getElementById('effectsVolumeValue');
+        
+        // Load saved settings or use CONFIG defaults
+        const savedMusicEnabled = await settingsStorage.loadSetting('musicEnabled', CONFIG.MUSIC_ENABLED);
+        const savedMusicVolume = await settingsStorage.loadSetting('musicVolume', CONFIG.MUSIC_VOLUME);
+        const savedEffectsEnabled = await settingsStorage.loadSetting('effectsEnabled', CONFIG.SOUND_ENABLED);
+        const savedEffectsVolume = await settingsStorage.loadSetting('effectsVolume', CONFIG.SOUND_VOLUME);
+        
+        // Apply settings to SoundManager
+        const soundManager = this.gameManager.soundManager;
+        soundManager.setMusicEnabled(savedMusicEnabled);
+        soundManager.setMusicVolume(savedMusicVolume);
+        soundManager.setEffectsEnabled(savedEffectsEnabled);
+        soundManager.setEffectsVolume(savedEffectsVolume);
+        
+        // Set music toggle state
+        if (musicToggle) {
+            musicToggle.classList.toggle('active', savedMusicEnabled);
+        }
+        
+        // Set music volume slider and display
+        if (musicVolumeSlider) {
+            musicVolumeSlider.value = Math.round(savedMusicVolume * 100);
+            if (musicVolumeValue) {
+                musicVolumeValue.textContent = `${Math.round(savedMusicVolume * 100)}%`;
+            }
+        }
+        
+        // Set effects toggle state
+        if (effectsToggle) {
+            effectsToggle.classList.toggle('active', savedEffectsEnabled);
+        }
+        
+        // Set effects volume slider and display
+        if (effectsVolumeSlider) {
+            effectsVolumeSlider.value = Math.round(savedEffectsVolume * 100);
+            if (effectsVolumeValue) {
+                effectsVolumeValue.textContent = `${Math.round(savedEffectsVolume * 100)}%`;
+            }
+        }
+        
+        // Also set AudioSystem music settings
+        this.audioSystem.musicEnabled = savedMusicEnabled;
+        this.audioSystem.setMusicVolume(savedMusicVolume);
+    }
+    
     activateCollectedPowerUp(slotIndex) {
         if (!this.gameState.currentBubble || this.gameState.currentBubble.isMoving || 
             this.gameState.isGameOver || this.gameState.isPaused) return;
@@ -1453,7 +1555,8 @@ class BubbleShooterGame {
         
         // Render blast wave effect if active, otherwise render normally
         if (!this.gameManager.render()) {
-            this.sceneManager.render();
+            // Pass deltaTime to scene manager for post-processing
+            this.sceneManager.render(deltaTime);
         }
     }
 }

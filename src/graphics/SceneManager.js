@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PostProcessingManager } from './PostProcessingManager.js';
 
 /**
  * Scene Manager
@@ -14,6 +15,8 @@ export class SceneManager {
         this.temporaryTimeouts = [];
         this.environmentMap = null;
         this.cubeTextures = [];
+        this.postProcessing = null;
+        this.postProcessingEnabled = true;
         
         this.initialize();
     }
@@ -34,6 +37,20 @@ export class SceneManager {
         
         // Setup environment map for refractive effects
         this.setupEnvironmentMap();
+        
+        // Setup post-processing
+        this.setupPostProcessing();
+    }
+    
+    setupPostProcessing() {
+        try {
+            this.postProcessing = new PostProcessingManager(this.renderer, this.scene, this.camera);
+            this.postProcessing.configureForTrajectory();
+            console.log('Post-processing initialized successfully');
+        } catch (error) {
+            console.warn('Post-processing initialization failed, falling back to standard rendering:', error);
+            this.postProcessingEnabled = false;
+        }
     }
     
     setupCamera() {
@@ -100,6 +117,11 @@ export class SceneManager {
         this.camera.aspect = window.innerWidth / window.innerHeight;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+        
+        // Update post-processing composer size
+        if (this.postProcessing && this.postProcessingEnabled) {
+            this.postProcessing.handleResize();
+        }
     }
     
     /**
@@ -113,9 +135,22 @@ export class SceneManager {
     
     /**
      * Render the scene
+     * @param {number} deltaTime - Time since last frame
      */
-    render() {
-        this.renderer.render(this.scene, this.camera);
+    render(deltaTime = 0) {
+        if (this.postProcessing && this.postProcessingEnabled) {
+            this.postProcessing.render(deltaTime);
+        } else {
+            this.renderer.render(this.scene, this.camera);
+        }
+    }
+    
+    /**
+     * Get post-processing manager
+     * @returns {PostProcessingManager} The post-processing manager
+     */
+    getPostProcessing() {
+        return this.postProcessing;
     }
     
     /**
@@ -267,6 +302,12 @@ export class SceneManager {
         // Clear all temporary timeouts
         this.temporaryTimeouts.forEach(timeout => clearInterval(timeout));
         this.temporaryTimeouts = [];
+        
+        // Dispose post-processing
+        if (this.postProcessing) {
+            this.postProcessing.dispose();
+            this.postProcessing = null;
+        }
         
         // Dispose cube textures
         this.cubeTextures.forEach(texture => {
