@@ -718,7 +718,9 @@ export class TrajectorySystem {
         if (!gameState.currentBubble) return 0xffffff;
         
         if (gameState.currentBubble.isPowerUp && gameState.currentBubble.powerUpType === 'rainbow') {
-            const hue = (this.time * 0.2) % 1;
+            // Use global time for synchronization with bubble color
+            const globalTime = Date.now() * 0.001;
+            const hue = (globalTime * 0.3) % 1; // Same speed as bubble
             return new THREE.Color().setHSL(hue, 1, 0.6).getHex();
         }
         

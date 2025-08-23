@@ -695,7 +695,7 @@ export class BubbleInstances {
         if (bubble.isPowerUp && bubble.powerUpType === 'rainbow' && !bubble.isMoving) {
             // Calculate rainbow color based on time
             const time = Date.now() * 0.001;
-            const hue = (time * 0.1) % 1; // Same speed as in RainbowPowerUp.js
+            const hue = (time * 0.3) % 1; // Faster cycling speed, synchronized with trajectory
             const color = new THREE.Color().setHSL(hue, 1, 0.5);
             
             const colorAttr = this.instancedMesh.geometry.getAttribute('instanceColor');

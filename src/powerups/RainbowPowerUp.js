@@ -37,7 +37,9 @@ export class RainbowPowerUp extends PowerUp {
         const originalUpdate = bubble.powerUpAnimation.update;
         bubble.powerUpAnimation.update = function(deltaTime) {
             originalUpdate.call(this, deltaTime);
-            const hue = (this.time * 0.1) % 1;
+            // Use global time for synchronization with trajectory
+            const globalTime = Date.now() * 0.001;
+            const hue = (globalTime * 0.3) % 1; // Faster cycling, synchronized
             bubble.mesh.material.color.setHSL(hue, 1, 0.5);
         };
     }
