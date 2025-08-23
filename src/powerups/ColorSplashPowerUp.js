@@ -19,7 +19,7 @@ export class ColorSplashPowerUp extends PowerUp {
         this.clusterSize = 2; // Radius of 2 for cluster detection
     }
     
-    activate(targetBubble, gameState, gameManager) {
+    activate(powerUpBubble, gameState, gameManager) {
         // Find all bubbles on the board
         const allBubbles = [];
         for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
@@ -112,9 +112,15 @@ export class ColorSplashPowerUp extends PowerUp {
         
         // Remove the power-up bubble itself
         setTimeout(() => {
-            if (targetBubble && typeof targetBubble.gridX !== 'undefined' && typeof targetBubble.gridY !== 'undefined') {
-                gameState.removeBubbleAt(targetBubble.gridX, targetBubble.gridY);
-                targetBubble.destroy();
+            if (powerUpBubble && !powerUpBubble.isDestroyed) {
+                // Use GameLogic's unified destruction method
+                if (gameManager.gameLogic) {
+                    gameManager.gameLogic.destroyBubbleImmediately(powerUpBubble);
+                } else {
+                    // Fallback
+                    gameState.removeBubbleAt(powerUpBubble.gridX, powerUpBubble.gridY);
+                    powerUpBubble.destroy();
+                }
             }
         }, 100);
         

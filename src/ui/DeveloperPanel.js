@@ -74,6 +74,9 @@ export class DeveloperPanel {
         this.setupGameModeToggles();
         this.setupDesignMode();
         
+        // Make this accessible globally for inspector buttons
+        window.devPanel = this;
+        
         this.initialized = true;
         console.log('Developer panel initialized');
     }
@@ -602,8 +605,10 @@ export class DeveloperPanel {
         const bubble = this.getBubbleAtMousePosition(event);
         if (bubble) {
             this.selectBubble(bubble);
+            this.showBubbleInspector(bubble);
         } else {
             this.clearSelection();
+            this.hideBubbleInspector();
         }
     }
     
@@ -612,9 +617,11 @@ export class DeveloperPanel {
         
         const bubble = this.getBubbleAtMousePosition(event);
         if (bubble) {
+            // Make sure ALL bubbles are draggable in design mode
             this.draggedBubble = bubble;
             this.isDragging = true;
             this.selectBubble(bubble);
+            this.showBubbleInspector(bubble);
             
             // Store the original position for reverting if needed
             this.dragStartPosition = {
@@ -626,11 +633,31 @@ export class DeveloperPanel {
             // Calculate drag offset to prevent jumping
             const mousePos = this.getMouseWorldPosition(event);
             this.dragOffset = new THREE.Vector3().subVectors(bubble.position, mousePos);
+            
+            // If this is an instanced bubble, we need to handle it specially
+            if (bubble.useInstancedRendering) {
+                // Temporarily give it a mesh for dragging if it doesn't have one
+                if (!bubble.mesh) {
+                    const tempGeometry = new THREE.SphereGeometry(CONFIG.BUBBLE_RADIUS, 16, 16);
+                    const tempMaterial = this.game.materialPool.getMaterial(bubble.color);
+                    bubble.mesh = new THREE.Mesh(tempGeometry, tempMaterial);
+                    bubble.mesh.position.copy(bubble.position);
+                    this.game.scene.add(bubble.mesh);
+                    bubble.temporaryMesh = true;
+                }
+            }
         }
     }
     
     onBubbleMouseMove(event) {
         if (!this.designMode || !this.isDragging || !this.draggedBubble) return;
+        
+        // Check if dragOffset exists
+        if (!this.dragOffset) {
+            console.warn('Drag offset lost, canceling drag');
+            this.finalizeDrag();
+            return;
+        }
         
         const mousePos = this.getMouseWorldPosition(event);
         
@@ -664,7 +691,19 @@ export class DeveloperPanel {
         
         // Move the dragged bubble with the mouse (with offset)
         this.draggedBubble.position.copy(dragPosition);
-        this.draggedBubble.mesh.position.copy(dragPosition);
+        
+        // Update visual representation
+        if (this.draggedBubble.mesh) {
+            this.draggedBubble.mesh.position.copy(dragPosition);
+        } else if (this.draggedBubble.useInstancedRendering && this.game.bubbleInstances) {
+            // Update instance matrix for instanced bubbles
+            this.game.bubbleInstances.updateBubble(this.draggedBubble);
+        }
+        
+        // Update selection outline position if it exists
+        if (this.draggedBubble.selectionOutline) {
+            this.draggedBubble.selectionOutline.position.copy(dragPosition);
+        }
     }
     
     previewBubbleDisplacement(targetX, targetY) {
@@ -839,6 +878,13 @@ export class DeveloperPanel {
         if (!this.designMode) return;
         
         if (this.isDragging && this.draggedBubble) {
+            // Check if dragStartPosition exists (bubble might have been destroyed)
+            if (!this.dragStartPosition) {
+                console.warn('Drag start position lost, canceling drag');
+                this.finalizeDrag();
+                return;
+            }
+            
             // Get the nearest grid position based on current bubble position
             const gridPos = this.getNearestGridPosition(this.draggedBubble.position);
             
@@ -870,6 +916,20 @@ export class DeveloperPanel {
         }
         
         // Clean up drag state
+        // If we created a temporary mesh for dragging an instanced bubble, remove it
+        if (this.draggedBubble && this.draggedBubble.temporaryMesh) {
+            if (this.draggedBubble.mesh && this.draggedBubble.mesh.parent) {
+                this.draggedBubble.mesh.parent.remove(this.draggedBubble.mesh);
+            }
+            if (this.draggedBubble.mesh) {
+                if (this.draggedBubble.mesh.geometry) this.draggedBubble.mesh.geometry.dispose();
+                // Don't dispose material as it's from the pool
+                this.draggedBubble.mesh = null;
+            }
+            this.draggedBubble.temporaryMesh = false;
+        }
+        
+        // Clean up drag state
         this.finalizeDrag();
         
         // Validate grid integrity after drag operation
@@ -891,6 +951,7 @@ export class DeveloperPanel {
                 // Restore the dragged bubble to its original position
                 this.game.gameState.setBubbleAt(this.dragStartPosition.x, this.dragStartPosition.y, bubble);
                 bubble.setGridPosition(this.dragStartPosition.x, this.dragStartPosition.y);
+                this.updateBubbleVisual(bubble);
                 return;
             }
         }
@@ -905,6 +966,8 @@ export class DeveloperPanel {
                 // Just ensure they're properly set
                 this.game.gameState.setBubbleAt(item.tempX, item.tempY, item.bubble);
                 item.bubble.setGridPosition(item.tempX, item.tempY);
+                // Update visual for instanced bubbles
+                this.updateBubbleVisual(item.bubble);
             }
             
             // Clear the displaced bubbles array without restoring them
@@ -915,6 +978,9 @@ export class DeveloperPanel {
         this.game.gameState.setBubbleAt(newX, newY, bubble);
         bubble.setGridPosition(newX, newY);
         
+        // Update visual representation for instanced bubbles
+        this.updateBubbleVisual(bubble);
+        
         console.log(`Committed bubble placement at (${newX},${newY})`);
         
         // Update property panel if this bubble is selected
@@ -923,9 +989,24 @@ export class DeveloperPanel {
         }
     }
     
+    updateBubbleVisual(bubble) {
+        if (!bubble) return;
+        
+        // For instanced bubbles, update the instance matrix
+        if (bubble.useInstancedRendering && this.game.bubbleInstances) {
+            this.game.bubbleInstances.updateBubble(bubble);
+        } else if (bubble.mesh) {
+            // For non-instanced bubbles, update mesh position
+            bubble.mesh.position.copy(bubble.position);
+        }
+    }
+    
     cancelDrag() {
         // Restore the dragged bubble to its original position
         this.draggedBubble.setGridPosition(this.dragStartPosition.x, this.dragStartPosition.y);
+        
+        // Update visual position for instanced bubbles
+        this.updateBubbleVisual(this.draggedBubble);
         
         // Clear any displaced bubbles (this will restore them)
         this.clearBubbleDisplacement();
@@ -955,35 +1036,62 @@ export class DeveloperPanel {
         const canvas = this.game.renderer.domElement;
         const rect = canvas.getBoundingClientRect();
         
-        // Create raycaster for accurate 3D picking
-        const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-        
         // Calculate mouse position in normalized device coordinates
+        const mouse = new THREE.Vector2();
         mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
         
-        // Set raycaster from camera
+        // Create raycaster
+        const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera(mouse, this.game.camera);
         
-        // Get all bubble meshes
+        // Get ray direction
+        const ray = raycaster.ray;
+        
+        // Get all bubbles (including instanced ones)
         const bubbles = this.game.gameState.getAllBubbles();
-        const meshes = bubbles.map(b => b.mesh).filter(m => m);
         
-        // Find intersections
-        const intersects = raycaster.intersectObjects(meshes, true);
+        // For instanced bubbles, we need to check distance to ray manually
+        let closestBubble = null;
+        let closestDistance = Infinity;
         
-        if (intersects.length > 0) {
-            // Find the bubble that owns this mesh
-            const hitMesh = intersects[0].object;
-            for (const bubble of bubbles) {
-                if (bubble.mesh === hitMesh || (bubble.mesh && bubble.mesh.children.includes(hitMesh))) {
-                    return bubble;
+        for (const bubble of bubbles) {
+            if (!bubble || bubble.isDestroyed) continue;
+            
+            // Calculate distance from ray to bubble center
+            const bubblePos = bubble.position.clone();
+            const distanceToRay = ray.distanceToPoint(bubblePos);
+            
+            // Check if ray intersects bubble (within radius)
+            if (distanceToRay <= CONFIG.BUBBLE_RADIUS) {
+                // Calculate actual distance from camera to bubble
+                const distanceToCamera = this.game.camera.position.distanceTo(bubblePos);
+                
+                if (distanceToCamera < closestDistance) {
+                    closestDistance = distanceToCamera;
+                    closestBubble = bubble;
                 }
             }
         }
         
-        return null;
+        // Also check for meshes (for non-instanced bubbles)
+        if (!closestBubble) {
+            const meshes = bubbles.filter(b => b.mesh && !b.useInstancedRendering).map(b => b.mesh);
+            if (meshes.length > 0) {
+                const intersects = raycaster.intersectObjects(meshes, true);
+                if (intersects.length > 0) {
+                    const hitMesh = intersects[0].object;
+                    for (const bubble of bubbles) {
+                        if (bubble.mesh === hitMesh || (bubble.mesh && bubble.mesh.children.includes(hitMesh))) {
+                            closestBubble = bubble;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        
+        return closestBubble;
     }
     
     getMouseWorldPosition(event) {
@@ -1034,27 +1142,63 @@ export class DeveloperPanel {
     
     highlightBubble(bubble) {
         // Add selection outline
-        if (bubble.selectionOutline) return;
+        if (!bubble || bubble.selectionOutline) return;
         
-        const outlineGeometry = new THREE.IcosahedronGeometry(bubble.radius * 1.2, 2);
-        const outlineMaterial = new THREE.MeshBasicMaterial({
-            color: 0x00ffff,
-            transparent: true,
-            opacity: 0.3,
-            side: THREE.BackSide
-        });
-        
-        bubble.selectionOutline = new THREE.Mesh(outlineGeometry, outlineMaterial);
-        bubble.mesh.add(bubble.selectionOutline);
+        // For instanced bubbles, we can't add child meshes
+        // So we'll create a separate highlight mesh in the scene
+        if (bubble.useInstancedRendering || !bubble.mesh) {
+            const outlineGeometry = new THREE.IcosahedronGeometry(CONFIG.BUBBLE_RADIUS * 1.2, 2);
+            const outlineMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00ffff,
+                transparent: true,
+                opacity: 0.3,
+                wireframe: true
+            });
+            
+            bubble.selectionOutline = new THREE.Mesh(outlineGeometry, outlineMaterial);
+            bubble.selectionOutline.position.copy(bubble.position);
+            
+            // Add directly to scene
+            if (this.game.scene) {
+                this.game.scene.add(bubble.selectionOutline);
+            }
+        } else if (bubble.mesh) {
+            // For non-instanced bubbles with meshes
+            const outlineGeometry = new THREE.IcosahedronGeometry(CONFIG.BUBBLE_RADIUS * 1.2, 2);
+            const outlineMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00ffff,
+                transparent: true,
+                opacity: 0.3,
+                side: THREE.BackSide
+            });
+            
+            bubble.selectionOutline = new THREE.Mesh(outlineGeometry, outlineMaterial);
+            bubble.mesh.add(bubble.selectionOutline);
+        }
     }
     
     unhighlightBubble(bubble) {
-        if (bubble.selectionOutline) {
+        if (!bubble || !bubble.selectionOutline) return;
+        
+        // Remove from appropriate parent
+        if (bubble.useInstancedRendering || !bubble.mesh) {
+            // Remove from scene for instanced bubbles
+            if (this.game.scene) {
+                this.game.scene.remove(bubble.selectionOutline);
+            }
+        } else if (bubble.mesh) {
+            // Remove from mesh for non-instanced bubbles
             bubble.mesh.remove(bubble.selectionOutline);
-            bubble.selectionOutline.geometry.dispose();
-            bubble.selectionOutline.material.dispose();
-            bubble.selectionOutline = null;
         }
+        
+        // Dispose of resources
+        if (bubble.selectionOutline.geometry) {
+            bubble.selectionOutline.geometry.dispose();
+        }
+        if (bubble.selectionOutline.material) {
+            bubble.selectionOutline.material.dispose();
+        }
+        bubble.selectionOutline = null;
     }
     
     updatePropertyPanel(bubble) {
@@ -1236,10 +1380,22 @@ export class DeveloperPanel {
         
         // Import Bubble class dynamically
         import('../entities/Bubble.js').then(({ Bubble }) => {
-            // Create bubble with the hex number value (same as normal gameplay)
+            // Create bubble using the same method as the game uses
+            // This ensures consistency with instanced rendering
             bubble = new Bubble(0, 0, colorValue);
             
-            console.log(`Created design mode bubble with color ${colorValue.toString(16)} at (${x},${y})`);
+            // Use instanced rendering if available (for consistency)
+            if (this.game.bubbleInstances) {
+                bubble.useInstancedRendering = true;
+                // Don't add mesh to scene for instanced bubbles
+            } else {
+                // Add to scene for non-instanced bubbles
+                if (this.game.scene && bubble.mesh) {
+                    this.game.scene.add(bubble.mesh);
+                }
+            }
+            
+            console.log(`Created design mode bubble with color ${colorValue.toString(16)} at (${x},${y}), instanced: ${bubble.useInstancedRendering}`);
             
             if (type !== 'normal') {
                 bubble.isPowerUp = true;
@@ -1251,9 +1407,9 @@ export class DeveloperPanel {
             this.game.gameState.setBubbleAt(x, y, bubble);
             bubble.setGridPosition(x, y);
             
-            // Add to scene
-            if (this.game.scene) {
-                this.game.scene.add(bubble.mesh);
+            // If using instanced rendering, add to the instance manager
+            if (bubble.useInstancedRendering && this.game.bubbleInstances) {
+                this.game.bubbleInstances.addBubble(bubble);
             }
             
             // Emit bubbleCreated event for effects controller (same as normal gameplay)
@@ -1646,6 +1802,152 @@ export class DeveloperPanel {
         URL.revokeObjectURL(url);
         
         this.showNotification(`Level "${levelName}" saved successfully!`);
+    }
+    
+    showBubbleInspector(bubble) {
+        if (!bubble) return;
+        
+        // Create or update inspector panel
+        let inspector = document.getElementById('bubble-inspector');
+        if (!inspector) {
+            inspector = document.createElement('div');
+            inspector.id = 'bubble-inspector';
+            inspector.style.cssText = `
+                position: fixed;
+                top: 100px;
+                right: 320px;
+                width: 350px;
+                max-height: 600px;
+                overflow-y: auto;
+                background: rgba(0, 0, 0, 0.95);
+                border: 2px solid #00ffff;
+                border-radius: 10px;
+                padding: 15px;
+                color: white;
+                font-family: monospace;
+                font-size: 12px;
+                z-index: 10001;
+                box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+            `;
+            document.body.appendChild(inspector);
+        }
+        
+        // Gather bubble data
+        const data = {
+            'ID': bubble.id || 'N/A',
+            'Grid Position': `[${bubble.gridX}, ${bubble.gridY}]`,
+            'World Position': `[${bubble.position.x.toFixed(2)}, ${bubble.position.y.toFixed(2)}, ${bubble.position.z.toFixed(2)}]`,
+            'Color': bubble.color,
+            'Color Index': bubble.colorIndex,
+            'Type': bubble.isPowerUp ? `PowerUp: ${bubble.powerUpType}` : 'Normal',
+            'State': bubble.isMoving ? 'Moving' : bubble.isFloating ? 'Floating' : 'Static',
+            'Destroyed': bubble.isDestroyed ? 'Yes' : 'No',
+            'Use Instanced': bubble.useInstancedRendering ? 'Yes' : 'No',
+            'Has Mesh': bubble.mesh ? 'Yes' : 'No',
+            'Has Material': bubble.material ? 'Yes' : 'No',
+            'Instance Index': bubble.instanceIndex !== undefined ? bubble.instanceIndex : 'N/A',
+            'Velocity': bubble.velocity ? `[${bubble.velocity.x.toFixed(2)}, ${bubble.velocity.y.toFixed(2)}]` : 'N/A',
+            'Power': bubble.power || 0,
+            'Effects': bubble.activeEffects ? Object.keys(bubble.activeEffects).join(', ') : 'None',
+            'Glow Mesh': bubble.glowMesh ? 'Yes' : 'No',
+            'PowerUp Glow': bubble.powerUpGlow ? 'Yes' : 'No',
+            'Needs Attachment': bubble.needsAttachment ? 'Yes' : 'No',
+            'Temporary Mesh': bubble.temporaryMesh ? 'Yes' : 'No'
+        };
+        
+        // Build HTML
+        let html = '<h3 style="color: #00ffff; margin: 0 0 10px 0;">🔍 Bubble Inspector</h3>';
+        html += '<table style="width: 100%; border-collapse: collapse;">';
+        for (const [key, value] of Object.entries(data)) {
+            const valueColor = value === 'Yes' ? '#00ff00' : value === 'No' ? '#ff0000' : '#ffffff';
+            html += `
+                <tr style="border-bottom: 1px solid #333;">
+                    <td style="padding: 4px; color: #888;">${key}:</td>
+                    <td style="padding: 4px; color: ${valueColor}; text-align: right;">${value}</td>
+                </tr>
+            `;
+        }
+        html += '</table>';
+        
+        // Add action buttons
+        html += `
+            <div style="margin-top: 15px; display: flex; gap: 5px; flex-wrap: wrap;">
+                <button onclick="window.devPanel.toggleBubbleProperty('${bubble.id}', 'isPowerUp')" 
+                        style="padding: 5px 10px; background: #444; color: white; border: 1px solid #666; border-radius: 4px; cursor: pointer;">
+                    Toggle PowerUp
+                </button>
+                <button onclick="window.devPanel.destroyBubble('${bubble.id}')" 
+                        style="padding: 5px 10px; background: #800; color: white; border: 1px solid #f00; border-radius: 4px; cursor: pointer;">
+                    Destroy
+                </button>
+                <button onclick="window.devPanel.logBubbleToConsole('${bubble.id}')" 
+                        style="padding: 5px 10px; background: #048; color: white; border: 1px solid #08f; border-radius: 4px; cursor: pointer;">
+                    Log to Console
+                </button>
+            </div>
+        `;
+        
+        inspector.innerHTML = html;
+        inspector.style.display = 'block';
+        
+        // Store reference to inspected bubble
+        this.inspectedBubble = bubble;
+    }
+    
+    hideBubbleInspector() {
+        const inspector = document.getElementById('bubble-inspector');
+        if (inspector) {
+            inspector.style.display = 'none';
+        }
+        this.inspectedBubble = null;
+    }
+    
+    logBubbleToConsole(bubbleId) {
+        const bubbles = this.game.gameState.getAllBubbles();
+        const bubble = bubbles.find(b => b.id === bubbleId);
+        if (bubble) {
+            console.log('Bubble Inspector Data:', bubble);
+            console.log('Bubble Mesh:', bubble.mesh);
+            console.log('Bubble Material:', bubble.material);
+            console.log('Bubble Position:', bubble.position);
+            if (bubble.useInstancedRendering && this.game.bubbleInstances) {
+                console.log('Instance Data:', {
+                    index: bubble.instanceIndex,
+                    matrix: this.game.bubbleInstances.getMatrixAt(bubble.instanceIndex)
+                });
+            }
+        }
+    }
+    
+    toggleBubbleProperty(bubbleId, property) {
+        const bubbles = this.game.gameState.getAllBubbles();
+        const bubble = bubbles.find(b => b.id === bubbleId);
+        if (bubble && property in bubble) {
+            bubble[property] = !bubble[property];
+            this.showBubbleInspector(bubble);
+        }
+    }
+    
+    destroyBubble(bubbleId) {
+        const bubbles = this.game.gameState.getAllBubbles();
+        const bubble = bubbles.find(b => b.id === bubbleId);
+        if (bubble) {
+            // Clear selection if this bubble is selected
+            if (this.selectedBubble === bubble) {
+                this.clearSelection();
+            }
+            
+            // Use GameLogic's unified destruction method
+            if (this.game.gameLogic) {
+                this.game.gameLogic.destroyBubbleImmediately(bubble);
+            } else {
+                // Fallback if GameLogic not available
+                console.error('GameLogic not available, using direct destruction');
+                bubble.destroy();
+            }
+            
+            this.hideBubbleInspector();
+        }
     }
     
     clearGrid() {

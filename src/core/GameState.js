@@ -211,6 +211,9 @@ export class GameState {
     }
     
     updateAnimations(deltaTime) {
+        // Skip if no animations
+        if (this.animations.length === 0) return;
+        
         this.animations = this.animations.filter(animation => {
             return animation.update(deltaTime);
         });
@@ -227,10 +230,12 @@ export class GameState {
             this.particlePool.update(deltaTime);
         }
         
-        // Update legacy particles
-        this.particles = this.particles.filter(particle => {
-            return particle.update(deltaTime);
-        });
+        // Update legacy particles only if there are any
+        if (this.particles.length > 0) {
+            this.particles = this.particles.filter(particle => {
+                return particle.update(deltaTime);
+            });
+        }
     }
     
     // Power-up state management

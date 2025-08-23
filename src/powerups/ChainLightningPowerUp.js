@@ -169,21 +169,19 @@ export class ChainLightningPowerUp extends PowerUp {
                     this.createBubbleElectricFlash(bubble.position, gameManager);
                     this.createBubbleFlickerEffect(bubble);
                     
-                    // CRITICAL FIX: Remove bubble from grid IMMEDIATELY to prevent collision
-                    const gridPos = this.findBubbleGridPosition(bubble, gameState);
-                    if (gridPos) {
-                        gameState.setBubbleAt(gridPos.x, gridPos.y, null);
-                    }
-                    
-                    // Also mark the bubble as destroyed to prevent any collision detection
+                    // Mark as destroyed immediately to prevent collision
                     bubble.isDestroyed = true;
                     
-                    // Remove mesh from scene after electrical effects
+                    // Schedule proper destruction after electrical effects
                     setTimeout(() => {
-                        if (bubble.mesh && bubble.mesh.parent) {
-                            bubble.mesh.parent.remove(bubble.mesh);
+                        // Use GameLogic's unified destruction method
+                        if (gameManager.gameLogic) {
+                            gameManager.gameLogic.destroyBubbleImmediately(bubble);
+                        } else {
+                            // Fallback if GameLogic not available
+                            console.error('GameLogic not available for bubble destruction');
+                            bubble.destroy();
                         }
-                        bubble.destroy();
                     }, 450); // Remove after effects complete
                     
                 }, index * 50); // Stagger the destruction

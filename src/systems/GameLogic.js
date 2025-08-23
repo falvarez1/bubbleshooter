@@ -13,6 +13,7 @@ export class GameLogic {
         this.gameManager = gameManager;
         this.scene = scene;
         this.bubbleInstances = null; // Will be set by main game
+        this.collisionSystem = null; // Will be set by main game
         
         // Set up event listeners for power-up effects
         this.setupEventListeners();
@@ -465,44 +466,95 @@ export class GameLogic {
     }
     
     /**
-     * Remove bubble from game
-     * @param {Bubble} bubble - Bubble to remove
+     * Immediately destroy a bubble without animation
+     * This is the ONLY method that should be used to destroy bubbles
+     * @param {Bubble} bubble - Bubble to destroy
+     * @param {boolean} skipAnimation - Skip the removal animation
      */
-    removeBubble(bubble) {
-        this.gameState.removeBubbleAt(bubble.gridX, bubble.gridY);
+    destroyBubbleImmediately(bubble, skipAnimation = false) {
+        if (!bubble || bubble.isDestroyed) return;
         
-        // Mark as destroyed to prevent collision detection
+        console.log(`[GameLogic] Destroying bubble at grid[${bubble.gridY}][${bubble.gridX}]:`, {
+            id: bubble.id,
+            useInstancedRendering: bubble.useInstancedRendering
+        });
+        
+        // 1. Mark as destroyed FIRST to prevent any further operations
         bubble.isDestroyed = true;
         
-        // Reset animation states to prevent updates during removal
-        bubble.connectionAnimating = false;
-        bubble.connectionScale = 1.0;
-        bubble.impactVelocity.set(0, 0, 0);
-        
-        // Remove from instanced renderer or scene
+        // 2. Remove from visual representation BEFORE removing from game state
+        // This ensures the visual is updated immediately
         if (bubble.useInstancedRendering && this.bubbleInstances) {
-            this.bubbleInstances.removeBubble(bubble);
+            // Remove from instanced renderer - this will set scale to 0 and hide the instance
+            const removed = this.bubbleInstances.removeBubble(bubble);
+            if (!removed) {
+                console.warn(`Failed to remove bubble ${bubble.id} from instanced renderer`);
+            }
         } else if (bubble.mesh && bubble.mesh.parent) {
+            // Remove mesh from scene
             this.scene.remove(bubble.mesh);
         }
         
-        // Animate removal
+        // 3. Remove from grid state
+        if (bubble.gridX !== undefined && bubble.gridY !== undefined) {
+            this.gameState.removeBubbleAt(bubble.gridX, bubble.gridY);
+        }
+        
+        // 4. Remove from collision system
+        if (this.collisionSystem && this.collisionSystem.spatialGrid) {
+            this.collisionSystem.spatialGrid.remove(bubble);
+            this.collisionSystem.lastCacheUpdate = 0; // Force cache update
+        }
+        
+        // 5. Call bubble's destroy method to clean up resources
+        // Do this LAST to ensure all references are cleared first
+        bubble.destroy();
+    }
+    
+    /**
+     * Remove bubble from game with animation
+     * @param {Bubble} bubble - Bubble to remove
+     * @param {number} animationSpeed - Speed multiplier for animation (default 3)
+     */
+    removeBubble(bubble, animationSpeed = 3) {
+        if (!bubble || bubble.isDestroyed) return;
+        
+        console.log(`[GameLogic] Removing bubble with animation at grid[${bubble.gridY}][${bubble.gridX}]`);
+        
+        // Mark as destroyed immediately to prevent collision detection
+        bubble.isDestroyed = true;
+        
+        // Remove from collision system immediately
+        if (this.collisionSystem && this.collisionSystem.spatialGrid) {
+            this.collisionSystem.spatialGrid.remove(bubble);
+            this.collisionSystem.lastCacheUpdate = 0;
+        }
+        
+        // For instanced bubbles, remove immediately (can't animate individual instances)
+        if (bubble.useInstancedRendering) {
+            this.destroyBubbleImmediately(bubble, true);
+            return;
+        }
+        
+        // For non-instanced bubbles, animate then destroy
         const removeAnimation = {
             bubble: bubble,
             progress: 0,
+            gameLogic: this,
             update: function(deltaTime) {
-                this.progress += deltaTime * 3;
+                this.progress += deltaTime * animationSpeed;
                 
-                // Only animate individual meshes (instanced bubbles are already removed)
-                if (!bubble.useInstancedRendering && bubble.mesh) {
+                if (bubble.mesh) {
                     bubble.mesh.scale.setScalar(1 - this.progress);
                     bubble.mesh.rotation.x += 0.3;
                     bubble.mesh.rotation.y += 0.2;
-                    bubble.material.opacity = 1 - this.progress;
+                    if (bubble.material) {
+                        bubble.material.opacity = 1 - this.progress;
+                    }
                 }
                 
                 if (this.progress >= 1) {
-                    bubble.destroy();
+                    this.gameLogic.destroyBubbleImmediately(bubble, true);
                     return false;
                 }
                 return true;
@@ -553,15 +605,21 @@ export class GameLogic {
         const floatAnimation = {
             bubble: bubble,
             progress: 0,
+            gameLogic: this,
             update: function(deltaTime) {
                 this.progress += deltaTime;
                 bubble.position.y -= deltaTime * 5;
-                bubble.mesh.position.copy(bubble.position);
-                bubble.mesh.rotation.z += 0.1;
-                bubble.material.opacity = Math.max(0, 1 - this.progress);
+                if (bubble.mesh) {
+                    bubble.mesh.position.copy(bubble.position);
+                    bubble.mesh.rotation.z += 0.1;
+                }
+                if (bubble.material) {
+                    bubble.material.opacity = Math.max(0, 1 - this.progress);
+                }
                 
                 if (this.progress >= 1) {
-                    bubble.destroy();
+                    // Use the unified destruction method
+                    this.gameLogic.destroyBubbleImmediately(bubble, true);
                     return false;
                 }
                 return true;

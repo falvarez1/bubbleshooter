@@ -162,8 +162,10 @@ export class BubbleInstances {
                     }
                     
                     // Transform vertex position
-                    vec3 transformed = (position + wobbleOffset) * instanceScale * pulseScale;
-                    vec4 worldPosition = instanceMatrix * vec4(transformed, 1.0);
+                    // CRITICAL: Apply instanceScale AFTER matrix transformation to ensure proper hiding
+                    vec3 baseTransformed = (position + wobbleOffset) * pulseScale;
+                    vec4 worldPosition = instanceMatrix * vec4(baseTransformed, 1.0);
+                    worldPosition.xyz *= instanceScale; // Apply scale to final world position
                     vWorldPosition = worldPosition.xyz;
                     
                     // Transform normal properly
@@ -470,8 +472,10 @@ export class BubbleInstances {
                     vColor = instanceColor;
                     vGlow = instanceGlow;
                     
-                    vec3 transformed = position * instanceScale * 1.08;
-                    vec4 worldPosition = instanceMatrix * vec4(transformed, 1.0);
+                    // Apply scale AFTER matrix transformation for proper hiding
+                    vec3 baseTransformed = position * 1.08;
+                    vec4 worldPosition = instanceMatrix * vec4(baseTransformed, 1.0);
+                    worldPosition.xyz *= instanceScale;
                     vec4 mvPosition = modelViewMatrix * worldPosition;
                     
                     // Pass normal and view position for better glow
@@ -558,7 +562,8 @@ export class BubbleInstances {
             return null;
         }
         
-        const instanceIndex = this.availableIndices.pop();
+        // Use shift() to take from the beginning of the sorted array for consistency
+        const instanceIndex = this.availableIndices.shift();
         
         // Store bubble mapping
         this.bubbleMap.set(bubble.id, {
@@ -601,11 +606,13 @@ export class BubbleInstances {
             }
         }
         
-        // Set scale on both meshes
+        // Set scale on both meshes - CRITICAL for visibility
         const scaleAttr = this.instancedMesh.geometry.getAttribute('instanceScale');
         if (scaleAttr) {
             scaleAttr.setX(instanceIndex, 1.0);
             scaleAttr.needsUpdate = true;
+        } else {
+            console.error('Failed to set instanceScale - attribute not found!');
         }
         
         if (this.glowMesh) {
@@ -714,8 +721,10 @@ export class BubbleInstances {
         }
         
         const instanceIndex = mapping.index;
+        console.log(`[BubbleInstances] Removing bubble ${bubbleId} at instance ${instanceIndex}`);
         
-        // Hide both main and glow instances by setting scale to 0
+        // CRITICAL: Set scale to 0 in the instance attributes FIRST
+        // This ensures the bubble is immediately invisible in the shader
         const scaleAttr = this.instancedMesh.geometry.getAttribute('instanceScale');
         if (scaleAttr) {
             scaleAttr.setX(instanceIndex, 0.0);
@@ -730,15 +739,51 @@ export class BubbleInstances {
             }
         }
         
-        // Free the index for reuse
+        // Create a completely zeroed-out matrix to ensure the instance is hidden
+        // IMPORTANT: We must update BOTH the matrix AND the scale attribute
+        const hiddenMatrix = new THREE.Matrix4();
+        hiddenMatrix.makeScale(0, 0, 0);
+        hiddenMatrix.setPosition(0, -1000, -1000);
+        
+        this.instancedMesh.setMatrixAt(instanceIndex, hiddenMatrix);
+        this.instancedMesh.instanceMatrix.needsUpdate = true;
+        
+        // CRITICAL: Force the instanced mesh to update its world matrix
+        // This ensures the changes are applied immediately
+        this.instancedMesh.updateMatrix();
+        this.instancedMesh.updateMatrixWorld(true);
+        
+        if (this.glowMesh) {
+            this.glowMesh.setMatrixAt(instanceIndex, hiddenMatrix);
+            this.glowMesh.instanceMatrix.needsUpdate = true;
+            this.glowMesh.updateMatrix();
+            this.glowMesh.updateMatrixWorld(true);
+        }
+        
+        // Note: instanceColor is a 3-component attribute (RGB only), not RGBA
+        // The shader uses the instanceScale attribute for visibility, not alpha
+        // Setting scale to 0 is the correct way to hide instances
+        
+        // Return the index to the pool for reuse
         this.availableIndices.push(instanceIndex);
+        // Sort available indices to maintain consistency
+        this.availableIndices.sort((a, b) => a - b);
+        
+        // Remove from tracking maps
         this.bubbleMap.delete(bubbleId);
         this.activeBubbles.delete(mapping.bubble);
         
-        console.log(`Removed bubble with ID ${bubbleId} from instance ${instanceIndex}`, {
+        // IMPORTANT: Force the geometry to update
+        // This ensures Three.js knows the attributes have changed
+        this.instancedMesh.geometry.computeBoundingSphere();
+        this.instancedMesh.geometry.computeBoundingBox();
+        
+        console.log(`[BubbleInstances] Removed bubble ${bubbleId}:`, {
+            instanceIndex,
+            type: mapping.type,
+            position: `(${bubble.position.x.toFixed(1)}, ${bubble.position.y.toFixed(1)})`,
             activeCount: this.activeBubbles.size,
-            availableIndices: this.availableIndices.length,
-            type: mapping.type
+            availableIndices: this.availableIndices.length
         });
         return true;
     }
@@ -758,6 +803,7 @@ export class BubbleInstances {
         const bubbleId = bubble.id || bubble;
         return this.bubbleMap.get(bubbleId);
     }
+    
     
     setElectricEffect(bubble) {
         const mapping = this.bubbleMap.get(bubble.id);
@@ -800,6 +846,38 @@ export class BubbleInstances {
         if (mapping) {
             const oldType = mapping.type;
             mapping.type = newType;
+            
+            // When transitioning from shooting to grid, ensure the bubble remains visible
+            if (oldType === 'shooting' && newType === 'grid') {
+                const instanceIndex = mapping.index;
+                
+                // Ensure scale is set to 1.0 (visible)
+                const scaleAttr = this.instancedMesh.geometry.getAttribute('instanceScale');
+                if (scaleAttr) {
+                    scaleAttr.setX(instanceIndex, 1.0);
+                    scaleAttr.needsUpdate = true;
+                }
+                
+                if (this.glowMesh) {
+                    const glowScaleAttr = this.glowMesh.geometry.getAttribute('instanceScale');
+                    if (glowScaleAttr) {
+                        glowScaleAttr.setX(instanceIndex, 1.0);
+                        glowScaleAttr.needsUpdate = true;
+                    }
+                }
+                
+                // Update position matrix to ensure proper placement
+                const matrix = new THREE.Matrix4();
+                matrix.setPosition(bubble.position);
+                this.instancedMesh.setMatrixAt(instanceIndex, matrix);
+                this.instancedMesh.instanceMatrix.needsUpdate = true;
+                
+                if (this.glowMesh) {
+                    this.glowMesh.setMatrixAt(instanceIndex, matrix);
+                    this.glowMesh.instanceMatrix.needsUpdate = true;
+                }
+            }
+            
             console.log(`Updated bubble ${bubble.id} type from ${oldType} to ${newType}`);
             return true;
         }
@@ -837,6 +915,20 @@ export class BubbleInstances {
     }
     
     update(deltaTime, camera = null) {
+        this.currentCamera = camera;
+        
+        // Update frustum for culling
+        if (this.enableFrustumCulling && camera) {
+            this.frustumMatrix.multiplyMatrices(
+                camera.projectionMatrix,
+                camera.matrixWorldInverse
+            );
+            this.frustum.setFromProjectionMatrix(this.frustumMatrix);
+            
+            // Cull bubbles outside view frustum
+            this.performFrustumCulling();
+        }
+        
         // Update shader uniforms
         if (this.instancedMesh.material.uniforms && this.instancedMesh.material.uniforms.time) {
             this.instancedMesh.material.uniforms.time.value += deltaTime;
@@ -845,6 +937,51 @@ export class BubbleInstances {
         if (this.glowMesh.material.uniforms && this.glowMesh.material.uniforms.time) {
             this.glowMesh.material.uniforms.time.value += deltaTime;
         }
+    }
+    
+    /**
+     * Perform frustum culling on all bubbles
+     */
+    performFrustumCulling() {
+        if (!this.currentCamera || !this.frustum) return;
+        
+        const tempSphere = new THREE.Sphere();
+        let culledCount = 0;
+        
+        for (const [bubbleId, data] of this.bubbleMap) {
+            const { index, bubble } = data;
+            
+            // Check if bubble is in frustum
+            tempSphere.center.copy(bubble.position);
+            tempSphere.radius = CONFIG.BUBBLE_RADIUS * 2;
+            
+            const isVisible = this.frustum.intersectsSphere(tempSphere);
+            
+            // Update visibility in color attribute (alpha channel)
+            if (!isVisible) {
+                // Set alpha to 0 for culled bubbles
+                this.instancedMesh.geometry.attributes.instanceColor.setW(index, 0);
+                if (this.glowMesh) {
+                    this.glowMesh.geometry.attributes.instanceColor.setW(index, 0);
+                }
+                culledCount++;
+            } else {
+                // Restore alpha for visible bubbles
+                this.instancedMesh.geometry.attributes.instanceColor.setW(index, 1);
+                if (this.glowMesh) {
+                    this.glowMesh.geometry.attributes.instanceColor.setW(index, 0.15);
+                }
+            }
+        }
+        
+        // Mark color attribute for update
+        this.instancedMesh.geometry.attributes.instanceColor.needsUpdate = true;
+        if (this.glowMesh) {
+            this.glowMesh.geometry.attributes.instanceColor.needsUpdate = true;
+        }
+        
+        // Culling stats available if needed
+        // console.log(`Frustum culling: ${culledCount} of ${this.bubbleMap.size} bubbles culled`);
     }
     
     /**

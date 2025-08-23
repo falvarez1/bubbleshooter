@@ -46,6 +46,8 @@ class BubbleShooterGame {
         this.trajectorySystem = new TrajectorySystem(this.scene);
         this.collisionSystem = new CollisionSystem(this.gameState, this.gameManager);
         this.gameLogic = new GameLogic(this.gameState, this.gameManager, this.scene);
+        // Add gameLogic reference to gameManager for power-ups
+        this.gameManager.gameLogic = this.gameLogic;
         this.effectsSystem = new BubbleEffectsSystem(this.scene);
         this.precisionAimIndicator = new PrecisionAimIndicator(this.scene);
         
@@ -81,10 +83,11 @@ class BubbleShooterGame {
         
         // Initialize instanced bubble renderer
         this.bubbleInstances = new BubbleInstances(this.scene, 300);
-        console.log('Initialized instanced bubble renderer for up to 300 bubbles');
+        // Instanced bubble renderer initialized
         
-        // Share instanced renderer with game logic for bubble removal
+        // Share references with game logic for bubble removal
         this.gameLogic.bubbleInstances = this.bubbleInstances;
+        this.gameLogic.collisionSystem = this.collisionSystem;
         
         // Apply particle preset
         applyParticlePreset(PARTICLE_CONFIG.preset);
@@ -198,7 +201,7 @@ class BubbleShooterGame {
                 const bubble = this.gameState.currentBubble;
                 bubble.velocity.set(0, 100, 0); // High upward velocity
                 bubble.startMoving();
-                console.log('Shooting bubble at ceiling with high velocity');
+                // Shooting bubble at ceiling with high velocity
             }
         };
         
@@ -388,25 +391,25 @@ class BubbleShooterGame {
     createShootingBubble() {
         // Prevent creating multiple shooting bubbles
         if (this.isCreatingShootingBubble) {
-            console.log('Already creating shooting bubble, skipping...');
+            // Already creating shooting bubble, skipping
             return;
         }
         this.isCreatingShootingBubble = true;
         
         // Debug: Creating new shooting bubble
-        console.log('Creating new shooting bubble...');
+        // Creating new shooting bubble
         
         // CRITICAL FIX: Properly clean up previous shooting bubble
         if (this.gameState.currentBubble) {
-            console.log('Cleaning up previous shooting bubble:', this.gameState.currentBubble.id);
+            // Cleaning up previous shooting bubble
             
             // Log cleanup
-            console.log('Cleaning up previous bubble...');
+            // Cleaning up previous bubble
             
             // Remove from instanced renderer or scene
             if (this.gameState.currentBubble.useInstancedRendering && this.bubbleInstances) {
                 this.bubbleInstances.removeBubble(this.gameState.currentBubble);
-                console.log('Removed bubble from instanced renderer');
+                // Removed bubble from instanced renderer
             } else if (this.gameState.currentBubble.mesh && this.gameState.currentBubble.mesh.parent) {
                 this.scene.remove(this.gameState.currentBubble.mesh);
                 console.log('Removed individual mesh from scene');
@@ -636,7 +639,7 @@ class BubbleShooterGame {
         this.uiManager.updateNextBubble(this.gameState.nextBubbleColor);
         
         // Debug: Shooting bubble created
-        console.log('Shooting bubble created:', bubble.id);
+        // Shooting bubble created
         
         // Reset flag
         this.isCreatingShootingBubble = false;
@@ -1251,8 +1254,11 @@ class BubbleShooterGame {
                     if (bubble) {
                         bubble.update(deltaTime);
                         
-                        // Update instanced renderer for grid bubbles
-                        if (bubble.useInstancedRendering) {
+                        // Only update instanced renderer if bubble is animating or has impact physics
+                        if (bubble.useInstancedRendering && 
+                            (bubble.connectionAnimating || 
+                             bubble.impactVelocity.lengthSq() > 0.001 ||
+                             bubble.powerUpAnimation)) {
                             this.bubbleInstances.updateBubble(bubble);
                         }
                         

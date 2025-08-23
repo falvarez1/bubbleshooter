@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../core/Config.js';
 import { SIMDUtils } from '../math/SIMDUtils.js';
+import { SpatialGrid } from '../math/SpatialGrid.js';
 
 /**
  * Collision System
@@ -12,6 +13,14 @@ export class CollisionSystem {
         this.gameManager = gameManager;
         this.lastCollisionCheck = 0;
         this.collisionCheckInterval = 1000 / 120; // Limit to 120fps for collision checks
+        
+        // Spatial grid for broad-phase collision detection
+        // Use cell size slightly larger than bubble diameter for optimal performance
+        this.spatialGrid = new SpatialGrid(
+            CONFIG.BUBBLE_RADIUS * 2.5,  // Cell size
+            CONFIG.HEX_WIDTH * CONFIG.GRID_WIDTH * 2,  // World width
+            CONFIG.HEX_HEIGHT * CONFIG.GRID_HEIGHT * 2  // World height
+        );
         
         // SIMD optimization buffers
         this.gridBubbleCache = [];
@@ -32,6 +41,9 @@ export class CollisionSystem {
         }
         this.lastCacheUpdate = now;
         
+        // Clear spatial grid
+        this.spatialGrid.clear();
+        
         // Collect all active grid bubbles
         this.gridBubbleCache = [];
         for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
@@ -43,6 +55,9 @@ export class CollisionSystem {
                 if (bubble && !bubble.isDestroyed && !bubble.isFloating) {
                     // Include bubble regardless of mesh parent (for instanced rendering)
                     this.gridBubbleCache.push(bubble);
+                    
+                    // Add to spatial grid for efficient collision detection
+                    this.spatialGrid.add(bubble, bubble.position.x, bubble.position.y);
                 }
             }
         }
@@ -105,11 +120,23 @@ export class CollisionSystem {
             return false;
         }
         
-        // Use SIMD batch collision detection
+        // Use spatial grid for broad-phase collision detection
         const threshold = CONFIG.BUBBLE_RADIUS * 1.8;
+        const nearbyBubbles = this.spatialGrid.getNearby(
+            current.position.x,
+            current.position.y,
+            threshold * 1.5  // Slightly larger radius for safety
+        );
+        
+        // Early exit if no nearby bubbles
+        if (nearbyBubbles.length === 0) {
+            return false;
+        }
+        
+        // Use SIMD batch collision detection on nearby bubbles only
         const collisions = SIMDUtils.batchCollisionDetection(
             [current],
-            this.gridBubbleCache,
+            nearbyBubbles,
             threshold
         );
         

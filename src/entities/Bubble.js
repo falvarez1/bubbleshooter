@@ -248,11 +248,16 @@ export class Bubble {
     }
     
     destroy() {
+        // Prevent double destruction
+        if (this.isDestroyed) {
+            return;
+        }
+        
         // Mark as destroyed to prevent collision detection
         this.isDestroyed = true;
         
         // First, properly dispose of all children of the mesh
-        if (this.mesh.children.length > 0) {
+        if (this.mesh && this.mesh.children && this.mesh.children.length > 0) {
             // Create a copy of the children array since we'll be modifying it
             const children = [...this.mesh.children];
             children.forEach(child => {
@@ -268,8 +273,16 @@ export class Bubble {
             });
         }
         
-        if (this.mesh.parent) {
+        // Remove mesh from scene if it's there (shouldn't be for instanced bubbles)
+        if (this.mesh && this.mesh.parent) {
             this.mesh.parent.remove(this.mesh);
+        }
+        
+        // For instanced bubbles, ensure they're fully hidden
+        if (this.useInstancedRendering) {
+            // The instanced renderer should have already removed this
+            // but set mesh to null to ensure no references remain
+            this.mesh = null;
         }
         // Don't dispose pooled materials and shared geometries
         // They will be reused by other bubbles
