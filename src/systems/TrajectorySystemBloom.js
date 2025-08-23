@@ -43,6 +43,10 @@ export class TrajectorySystem {
         
         // Track if we've registered for bloom
         this.bloomRegistered = false;
+        
+        // Register for bloom immediately
+        // This ensures bloom effects are available from the start
+        this.registerForBloom();
     }
     
     createLaserBeam() {
@@ -495,8 +499,9 @@ export class TrajectorySystem {
         this.points = [];
         this.pointCount = 0;
         
-        // Unregister from bloom when hidden
-        this.unregisterFromBloom();
+        // Don't unregister from bloom - keep bloom objects registered
+        // This prevents bloom from disappearing between shots
+        // The objects are hidden (visible = false) so they won't render anyway
     }
     
     resetPower() {
