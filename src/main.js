@@ -36,6 +36,7 @@ class BubbleShooterGame {
         this.uiManager = new UIManager();
         this.performanceManager = new PerformanceManager();
         
+        
         // Get Three.js objects
         this.scene = this.sceneManager.getScene();
         this.camera = this.sceneManager.getCamera();
@@ -309,6 +310,25 @@ class BubbleShooterGame {
             
             this.gameLogic.checkMatches(attachedBubble);
             
+            // Force trajectory recalculation after bubble attachment and destruction
+            // This ensures the laser beam updates to reflect the new game state
+            const recalculateTrajectory = () => {
+                if (this.gameState.currentBubble && !this.gameState.currentBubble.isMoving) {
+                    this.trajectorySystem.calculateTrajectory(
+                        this.gameState.currentBubble,
+                        this.gameState.mousePosition,
+                        this.gameState,
+                        true // Force recalculation
+                    );
+                    this.trajectorySystem.renderTrajectory(this.gameState);
+                }
+            };
+            
+            // Recalculate immediately and after animations complete
+            setTimeout(recalculateTrajectory, 100);
+            setTimeout(recalculateTrajectory, 500); // After bubbles finish popping
+            setTimeout(recalculateTrajectory, 1000); // Final update
+            
             // NOW clear the reference after match checking is done
             this.gameState.currentBubble = null;
             
@@ -567,6 +587,17 @@ class BubbleShooterGame {
         // Add bubble to instanced renderer instead of adding mesh to scene
         this.bubbleInstances.addBubble(bubble, 'shooting');
         bubble.useInstancedRendering = true;
+        
+        // Force trajectory recalculation with new bubble
+        if (this.trajectorySystem) {
+            this.trajectorySystem.calculateTrajectory(
+                bubble,
+                this.gameState.mousePosition,
+                this.gameState,
+                true // Force recalculation
+            );
+            this.trajectorySystem.renderTrajectory(this.gameState);
+        }
         
         // Emit bubbleCreated event for effects controller
         this.gameManager.eventBus.emit('bubbleCreated', bubble);
@@ -948,8 +979,8 @@ class BubbleShooterGame {
         // Check if in design mode - hide trajectory
         if (this.designModeActive) {
             this.gameState.trajectory = [];
-            if (this.trajectorySystem.trajectoryGroup) {
-                this.trajectorySystem.trajectoryGroup.visible = false;
+            if (this.trajectorySystem) {
+                this.trajectorySystem.hideTrajectory();
             }
             return;
         }
@@ -962,8 +993,8 @@ class BubbleShooterGame {
                 event.clientY >= panelRect.top && event.clientY <= panelRect.bottom) {
                 // Clear trajectory when hovering over developer panel
                 this.gameState.trajectory = [];
-                if (this.trajectorySystem.trajectoryGroup) {
-                    this.trajectorySystem.trajectoryGroup.visible = false;
+                if (this.trajectorySystem && this.trajectorySystem.hideTrajectory) {
+                    this.trajectorySystem.hideTrajectory();
                 }
                 this.renderer.domElement.style.cursor = 'default';
                 return; // Mouse is over developer panel, ignore it
@@ -998,7 +1029,7 @@ class BubbleShooterGame {
             }
         }
         
-        // Update trajectory and precision aim indicator
+        // Update trajectory immediately for responsiveness
         this.updateTrajectoryAndIndicator();
     }
     
@@ -1356,7 +1387,22 @@ class BubbleShooterGame {
             this.gameState.updateParticles(deltaTime);
             
             // Update animations
+            const animationsBefore = this.gameState.animations.length;
             this.gameState.updateAnimations(deltaTime);
+            const animationsAfter = this.gameState.animations.length;
+            
+            // If animations finished, recalculate trajectory
+            if (animationsBefore > 0 && animationsAfter < animationsBefore) {
+                if (this.gameState.currentBubble && !this.gameState.currentBubble.isMoving) {
+                    this.trajectorySystem.calculateTrajectory(
+                        this.gameState.currentBubble,
+                        this.gameState.mousePosition,
+                        this.gameState,
+                        true // Force recalculation
+                    );
+                    this.trajectorySystem.renderTrajectory(this.gameState);
+                }
+            }
             
             // Update game manager
             this.gameManager.update(deltaTime, this.camera);
