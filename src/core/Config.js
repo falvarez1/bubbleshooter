@@ -12,7 +12,7 @@ export const CONFIG = {
     HEX_HEIGHT: 0.866, // sqrt(3)/2 * diameter for hexagonal packing
     
     // Sound
-    SOUND_ENABLED: true,
+    SOUND_ENABLED: false,
     SOUND_VOLUME: 0.5,
     SOUND_MUTE: false,
 
@@ -23,9 +23,9 @@ export const CONFIG = {
     // Bloom Post-Processing
     BLOOM: {
         ENABLED: true,
-        STRENGTH: 1.5,
-        RADIUS: 0.5,
-        THRESHOLD: 0.0,
+        STRENGTH: 1.2,
+        RADIUS: 0.85,
+        THRESHOLD: 0.25,
         // Selective bloom categories - more specific
         CATEGORIES: {
             trajectoryLine: true,        // The main trajectory line

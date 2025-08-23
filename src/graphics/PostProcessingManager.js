@@ -341,9 +341,14 @@ export class PostProcessingManager {
      * Configure for trajectory (optimized settings)
      */
     configureForTrajectory() {
-        this.bloomPass.strength = 2.5;
-        this.bloomPass.radius = 0.85;
-        this.bloomPass.threshold = 0.0;
+        // Use CONFIG values instead of hardcoded values
+        // These are already set in the constructor from CONFIG
+        // No need to override them here
+        console.log('Trajectory configuration using CONFIG values:', {
+            strength: this.bloomPass.strength,
+            radius: this.bloomPass.radius,
+            threshold: this.bloomPass.threshold
+        });
     }
     
     /**

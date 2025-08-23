@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CONFIG } from '../core/Config.js';
 
 /**
  * BloomDebugger - Utility to debug and visualize bloom settings
@@ -41,16 +42,16 @@ export class BloomDebugger {
             <h3 style="margin: 0 0 10px 0; color: #00ffff;">Bloom Debug</h3>
             <div id="bloom-info"></div>
             <div style="margin-top: 10px;">
-                <label>Strength: <span id="bloom-strength">2.0</span></label><br>
-                <input type="range" id="bloom-strength-slider" min="0" max="5" step="0.1" value="2.0" style="width: 100%;">
+                <label>Strength: <span id="bloom-strength">${CONFIG.BLOOM.STRENGTH.toFixed(1)}</span></label><br>
+                <input type="range" id="bloom-strength-slider" min="0" max="5" step="0.1" value="${CONFIG.BLOOM.STRENGTH}" style="width: 100%;">
             </div>
             <div style="margin-top: 5px;">
-                <label>Radius: <span id="bloom-radius">0.8</span></label><br>
-                <input type="range" id="bloom-radius-slider" min="0" max="2" step="0.05" value="0.8" style="width: 100%;">
+                <label>Radius: <span id="bloom-radius">${CONFIG.BLOOM.RADIUS.toFixed(2)}</span></label><br>
+                <input type="range" id="bloom-radius-slider" min="0" max="2" step="0.05" value="${CONFIG.BLOOM.RADIUS}" style="width: 100%;">
             </div>
             <div style="margin-top: 5px;">
-                <label>Threshold: <span id="bloom-threshold">0.0</span></label><br>
-                <input type="range" id="bloom-threshold-slider" min="0" max="1" step="0.05" value="0.0" style="width: 100%;">
+                <label>Threshold: <span id="bloom-threshold">${CONFIG.BLOOM.THRESHOLD.toFixed(2)}</span></label><br>
+                <input type="range" id="bloom-threshold-slider" min="0" max="1" step="0.05" value="${CONFIG.BLOOM.THRESHOLD}" style="width: 100%;">
             </div>
             <div style="margin-top: 10px; border-top: 1px solid #00ffff; padding-top: 10px;">
                 <h4 style="margin: 0 0 5px 0; color: #00ffff; font-size: 12px;">Bloom Categories</h4>
