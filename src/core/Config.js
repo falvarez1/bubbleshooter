@@ -20,6 +20,26 @@ export const CONFIG = {
     MUSIC_VOLUME: 0.5,
     MUSIC_ENABLED: false,
 
+    // Bloom Post-Processing
+    BLOOM: {
+        ENABLED: true,
+        STRENGTH: 1.5,
+        RADIUS: 0.5,
+        THRESHOLD: 0.0,
+        // Selective bloom categories - more specific
+        CATEGORIES: {
+            trajectoryLine: true,        // The main trajectory line
+            trajectoryGlow: true,        // Extra glow layer on trajectory
+            impactIndicator: true,       // Target indicator at trajectory end
+            impactRing: true,           // Ring at impact point
+            collisionParticles: false,  // Particles from bubble collisions
+            explosionParticles: true,   // Particles from explosions
+            powerUpEffects: true,       // Power-up visual effects
+            wallImpact: false,          // Wall bounce particles
+            shootingParticles: false    // Shooting effect particles
+        }
+    },
+
     // Physics
     SHOOTING_SPEED: 30,        // Increased from 20 to 30
     MAX_SHOOTING_SPEED: 75,    // Increased from 30 to 45

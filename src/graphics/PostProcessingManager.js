@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { CONFIG } from '../core/Config.js';
 
 // Import Three.js post-processing passes from examples
 const EffectComposer = (await import('https://cdn.jsdelivr.net/npm/three@0.158.0/examples/jsm/postprocessing/EffectComposer.js')).EffectComposer;
@@ -23,6 +24,25 @@ export class PostProcessingManager {
         
         // Track bloom objects
         this.bloomObjects = new Set();
+        
+        // Bloom categories - track objects by type (more specific)
+        this.bloomCategories = {
+            trajectoryLine: new Set(),
+            trajectoryGlow: new Set(),
+            impactIndicator: new Set(),
+            impactRing: new Set(),
+            collisionParticles: new Set(),
+            explosionParticles: new Set(),
+            powerUpEffects: new Set(),
+            wallImpact: new Set(),
+            shootingParticles: new Set()
+        };
+        
+        // Category enable states from config
+        this.categoryEnabled = { ...CONFIG.BLOOM.CATEGORIES };
+        
+        // Initialize bloom enabled state from config
+        this.enabled = CONFIG.BLOOM.ENABLED;
         
         // Materials cache for darkening non-bloom objects
         this.materialCache = new Map();
@@ -56,19 +76,17 @@ export class PostProcessingManager {
         renderPass.clear = true;
         this.bloomComposer.addPass(renderPass);
         
-        // UnrealBloomPass for the glow effect
+        // UnrealBloomPass for the glow effect - use CONFIG values
         this.bloomPass = new UnrealBloomPass(
             new THREE.Vector2(size.x, size.y),
-            1.5,     // strength
-            0.4,     // radius
-            0.0      // threshold - set to 0 for full bloom
+            CONFIG.BLOOM.STRENGTH,     // strength from config
+            CONFIG.BLOOM.RADIUS,       // radius from config
+            CONFIG.BLOOM.THRESHOLD     // threshold from config
         );
         this.bloomPass.renderToScreen = false;
         
-        // Configure bloom parameters for best visual effect
-        this.bloomPass.strength = 3.0; // Increased for better visibility
-        this.bloomPass.radius = 1.0;
-        this.bloomPass.threshold = 0.0;
+        // Apply enabled state
+        this.bloomPass.enabled = this.enabled;
         
         this.bloomComposer.addPass(this.bloomPass);
         
@@ -134,16 +152,44 @@ export class PostProcessingManager {
     }
     
     /**
-     * Add an object to bloom selection
+     * Add an object to bloom selection with optional category
+     * @param {THREE.Object3D} object - The object to add bloom to
+     * @param {string} category - Optional category (trajectory, particles, impactIndicator, powerUps, explosions)
      */
-    addBloomObject(object) {
+    addBloomObject(object, category = null) {
         if (!object) return;
         
         if (object.isMesh || object.isLine) {
-            // Add to bloom layer (keep default layer too for normal rendering)
-            object.layers.enable(this.BLOOM_LAYER);
-            this.bloomObjects.add(object);
-            console.log(`Added bloom object: ${object.name || 'unnamed'}, Total bloom objects: ${this.bloomObjects.size}`);
+            // Store category info on object for tracking
+            if (!object.userData.bloomCategory) {
+                object.userData.bloomCategory = category;
+            }
+            
+            // Add to category if specified
+            if (category && this.bloomCategories[category] !== undefined) {
+                // Remove from any other categories first
+                Object.keys(this.bloomCategories).forEach(cat => {
+                    if (cat !== category) {
+                        this.bloomCategories[cat].delete(object);
+                    }
+                });
+                
+                this.bloomCategories[category].add(object);
+                
+                // Only add to bloom layer if category is enabled
+                if (this.categoryEnabled[category]) {
+                    object.layers.enable(this.BLOOM_LAYER);
+                    this.bloomObjects.add(object);
+                } else {
+                    object.layers.disable(this.BLOOM_LAYER);
+                    this.bloomObjects.delete(object);
+                }
+            } else {
+                // No category, treat as always-on bloom
+                object.layers.enable(this.BLOOM_LAYER);
+                this.bloomObjects.add(object);
+            }
+            console.log(`Added bloom object: ${object.name || 'unnamed'}, Category: ${category || 'none'}, Enabled: ${category ? this.categoryEnabled[category] : true}, Total: ${this.bloomObjects.size}`);
             
             // Make material emissive for better bloom
             if (object.material) {
@@ -170,7 +216,7 @@ export class PostProcessingManager {
         if (object.type === 'Group' || object.type === 'Object3D') {
             object.traverse(child => {
                 if (child !== object && (child.isMesh || child.isLine)) {
-                    this.addBloomObject(child);
+                    this.addBloomObject(child, category);
                 }
             });
         }
@@ -178,11 +224,27 @@ export class PostProcessingManager {
     
     /**
      * Remove an object from bloom selection
+     * @param {THREE.Object3D} object - The object to remove bloom from
+     * @param {string} category - Optional category to remove from
      */
-    removeBloomObject(object) {
+    removeBloomObject(object, category = null) {
         if (!object) return;
         
         if (object.isMesh || object.isLine) {
+            // Use stored category if not specified
+            const targetCategory = category || object.userData.bloomCategory;
+            
+            // Remove from specific category or all categories
+            if (targetCategory && this.bloomCategories[targetCategory]) {
+                this.bloomCategories[targetCategory].delete(object);
+            } else {
+                // Remove from all categories
+                Object.values(this.bloomCategories).forEach(set => set.delete(object));
+            }
+            
+            // Clear category tracking
+            delete object.userData.bloomCategory;
+            
             // Remove from bloom layer
             object.layers.disable(this.BLOOM_LAYER);
             this.bloomObjects.delete(object);
@@ -202,10 +264,54 @@ export class PostProcessingManager {
         if (object.type === 'Group' || object.type === 'Object3D') {
             object.traverse(child => {
                 if (child !== object && (child.isMesh || child.isLine)) {
-                    this.removeBloomObject(child);
+                    this.removeBloomObject(child, category);
                 }
             });
         }
+    }
+    
+    /**
+     * Toggle a bloom category on/off
+     * @param {string} category - Category name
+     * @param {boolean} enabled - Enable state
+     */
+    setCategoryEnabled(category, enabled) {
+        if (!this.bloomCategories[category]) {
+            console.warn(`Bloom category '${category}' does not exist`);
+            return;
+        }
+        
+        this.categoryEnabled[category] = enabled;
+        
+        // Update all objects in this category
+        this.bloomCategories[category].forEach(object => {
+            // Double-check this object belongs to this category
+            if (object.userData.bloomCategory === category) {
+                if (enabled) {
+                    object.layers.enable(this.BLOOM_LAYER);
+                    this.bloomObjects.add(object);
+                } else {
+                    object.layers.disable(this.BLOOM_LAYER);
+                    this.bloomObjects.delete(object);
+                }
+            }
+        });
+        
+        console.log(`Bloom category '${category}' set to: ${enabled}, Objects affected: ${this.bloomCategories[category].size}`);
+    }
+    
+    /**
+     * Get current category states
+     */
+    getCategoryStates() {
+        const states = {};
+        Object.keys(this.bloomCategories).forEach(cat => {
+            states[cat] = {
+                enabled: this.categoryEnabled[cat],
+                count: this.bloomCategories[cat].size
+            };
+        });
+        return states;
     }
     
     /**
@@ -217,6 +323,8 @@ export class PostProcessingManager {
             this.removeBloomObject(obj);
         });
         this.bloomObjects.clear();
+        // Also clear all categories
+        Object.values(this.bloomCategories).forEach(set => set.clear());
     }
     
     /**
@@ -398,7 +506,42 @@ export class PostProcessingManager {
      */
     toggleBloom() {
         this.setEnabled(!this.enabled);
+        
+        // Refresh all categories when toggling bloom
+        if (this.enabled) {
+            Object.keys(this.categoryEnabled).forEach(cat => {
+                if (this.categoryEnabled[cat]) {
+                    this.setCategoryEnabled(cat, true);
+                }
+            });
+        }
+        
         return this.enabled;
+    }
+    
+    /**
+     * Refresh bloom state for all objects
+     * Useful after changes to ensure consistency
+     */
+    refreshBloomState() {
+        // Clear current bloom objects
+        this.bloomObjects.clear();
+        
+        // Re-add objects based on category states
+        Object.keys(this.bloomCategories).forEach(cat => {
+            if (this.categoryEnabled[cat]) {
+                this.bloomCategories[cat].forEach(object => {
+                    object.layers.enable(this.BLOOM_LAYER);
+                    this.bloomObjects.add(object);
+                });
+            } else {
+                this.bloomCategories[cat].forEach(object => {
+                    object.layers.disable(this.BLOOM_LAYER);
+                });
+            }
+        });
+        
+        console.log('Bloom state refreshed. Active objects:', this.bloomObjects.size);
     }
     
     /**

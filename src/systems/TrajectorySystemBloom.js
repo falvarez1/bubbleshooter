@@ -191,11 +191,11 @@ export class TrajectorySystem {
         if (this.postProcessing && !this.bloomRegistered) {
             console.log('Registering trajectory components for bloom');
             // Add all trajectory components to bloom
-            this.postProcessing.addBloomObject(this.laserBeam);
-            this.postProcessing.addBloomObject(this.energyCore);
-            this.postProcessing.addBloomObject(this.glowLayer);
-            this.postProcessing.addBloomObject(this.impactRing);
-            this.postProcessing.addBloomObject(this.targetIndicator);
+            this.postProcessing.addBloomObject(this.laserBeam, 'trajectoryLine');
+            this.postProcessing.addBloomObject(this.energyCore, 'trajectoryLine');
+            this.postProcessing.addBloomObject(this.glowLayer, 'trajectoryGlow');
+            this.postProcessing.addBloomObject(this.impactRing, 'impactRing');
+            this.postProcessing.addBloomObject(this.targetIndicator, 'impactIndicator');
             this.bloomRegistered = true;
             console.log('Trajectory bloom registration complete');
         }
@@ -206,11 +206,11 @@ export class TrajectorySystem {
      */
     unregisterFromBloom() {
         if (this.postProcessing && this.bloomRegistered) {
-            this.postProcessing.removeBloomObject(this.laserBeam);
-            this.postProcessing.removeBloomObject(this.energyCore);
-            this.postProcessing.removeBloomObject(this.glowLayer);
-            this.postProcessing.removeBloomObject(this.impactRing);
-            this.postProcessing.removeBloomObject(this.targetIndicator);
+            this.postProcessing.removeBloomObject(this.laserBeam, 'trajectoryLine');
+            this.postProcessing.removeBloomObject(this.energyCore, 'trajectoryLine');
+            this.postProcessing.removeBloomObject(this.glowLayer, 'trajectoryGlow');
+            this.postProcessing.removeBloomObject(this.impactRing, 'impactRing');
+            this.postProcessing.removeBloomObject(this.targetIndicator, 'impactIndicator');
             this.bloomRegistered = false;
         }
     }

@@ -142,14 +142,14 @@ class BubbleShooterGame {
         } else {
             // Using CPU particle system
             // Fallback to CPU particle pool with power support
-            const cpuPool = new ParticlePool(PARTICLE_CONFIG.poolSize);
+            const cpuPool = new ParticlePool(PARTICLE_CONFIG.poolSize, this.postProcessingManager);
             this.gameState.particlePool = {
-                spawn: (x, y, z, color, size, velocity) => {
-                    return cpuPool.spawn(x, y, z, color, size, velocity);
+                spawn: (x, y, z, color, size, velocity, category) => {
+                    return cpuPool.spawn(x, y, z, color, size, velocity, category);
                 },
-                spawnPower: (x, y, z, color, size, velocity, power) => {
+                spawnPower: (x, y, z, color, size, velocity, power, category) => {
                     // Use power-based spawning for enhanced effects
-                    return cpuPool.spawnPower(x, y, z, color, size, velocity, power);
+                    return cpuPool.spawnPower(x, y, z, color, size, velocity, power, category);
                 },
                 update: (deltaTime) => {
                     cpuPool.update(deltaTime);
@@ -735,7 +735,9 @@ class BubbleShooterGame {
                 bubble.position.y,
                 bubble.position.z,
                 bubble.color,
-                0.1
+                0.1,
+                null,
+                'wallImpact'
             );
         }
     }
@@ -894,7 +896,8 @@ class BubbleShooterGame {
                     finalColor,
                     sparkSize,
                     velocity,
-                    power
+                    power,
+                    'shootingParticles'
                 ) :
                 this.gameState.particlePool.spawn(
                     position.x,
@@ -902,7 +905,8 @@ class BubbleShooterGame {
                     position.z,
                     finalColor,
                     sparkSize,
-                    velocity
+                    velocity,
+                    'shootingParticles'
                 );
             
             if (particle && !this.gameState.particlePool.spawnPower) {
@@ -982,7 +986,8 @@ class BubbleShooterGame {
                     hotColor.getHex(),
                     sparkSize,
                     velocity,
-                    power
+                    power,
+                    'shootingParticles'
                 ) :
                 this.gameState.particlePool.spawn(
                     position.x,
@@ -990,7 +995,8 @@ class BubbleShooterGame {
                     position.z,
                     hotColor.getHex(),
                     sparkSize,
-                    velocity
+                    velocity,
+                    'shootingParticles'
                 );
             
             if (particle && !this.gameState.particlePool.spawnPower) {
@@ -1012,7 +1018,9 @@ class BubbleShooterGame {
                 bubble.position.y,
                 bubble.position.z,
                 bubble.color,
-                0.2
+                0.2,
+                null,
+                'shootingParticles'
             );
             
             if (particle) {
@@ -1033,19 +1041,27 @@ class BubbleShooterGame {
             return;
         }
         
-        // Check if mouse is over developer panel
-        const developerPanel = document.getElementById('developerPanel');
-        if (developerPanel && developerPanel.classList.contains('visible')) {
-            const panelRect = developerPanel.getBoundingClientRect();
-            if (event.clientX >= panelRect.left && event.clientX <= panelRect.right &&
-                event.clientY >= panelRect.top && event.clientY <= panelRect.bottom) {
-                // Clear trajectory when hovering over developer panel
-                this.gameState.trajectory = [];
-                if (this.trajectorySystem && this.trajectorySystem.hideTrajectory) {
-                    this.trajectorySystem.hideTrajectory();
+        // Check if mouse is over any UI panel
+        const uiPanels = [
+            document.getElementById('developerPanel'),
+            document.getElementById('bloom-debug-panel'),
+            document.getElementById('settingsOverlay'),
+            document.querySelector('.powerup-indicator'),
+            document.querySelector('.precision-aim-timer'),
+            document.querySelector('.powerup-collection')
+        ];
+        
+        for (const panel of uiPanels) {
+            if (panel && (panel.classList?.contains('visible') || 
+                         (panel.style.display && panel.style.display !== 'none'))) {
+                const rect = panel.getBoundingClientRect();
+                if (event.clientX >= rect.left && event.clientX <= rect.right &&
+                    event.clientY >= rect.top && event.clientY <= rect.bottom) {
+                    // Don't update trajectory when hovering over UI panels
+                    // Keep it visible but frozen
+                    this.renderer.domElement.style.cursor = 'default';
+                    return; // Mouse is over a UI panel, ignore mouse movement
                 }
-                this.renderer.domElement.style.cursor = 'default';
-                return; // Mouse is over developer panel, ignore it
             }
         }
         
@@ -1391,6 +1407,12 @@ class BubbleShooterGame {
                 // Update instanced renderer for moving bubble
                 if (this.gameState.currentBubble.useInstancedRendering) {
                     this.bubbleInstances.updateBubble(this.gameState.currentBubble);
+                }
+                
+                // Update trajectory every frame when bubble is not moving
+                // This ensures rainbow colors cycle and trajectory updates smoothly
+                if (!this.gameState.currentBubble.isMoving) {
+                    this.updateTrajectoryAndIndicator();
                 }
                 
                 // Check collisions

@@ -52,9 +52,42 @@ export class BloomDebugger {
                 <label>Threshold: <span id="bloom-threshold">0.0</span></label><br>
                 <input type="range" id="bloom-threshold-slider" min="0" max="1" step="0.05" value="0.0" style="width: 100%;">
             </div>
+            <div style="margin-top: 10px; border-top: 1px solid #00ffff; padding-top: 10px;">
+                <h4 style="margin: 0 0 5px 0; color: #00ffff; font-size: 12px;">Bloom Categories</h4>
+                <div style="font-size: 11px;">
+                    <label style="display: block; margin: 3px 0;">
+                        <input type="checkbox" id="bloom-cat-trajectoryLine"> Trajectory Line
+                    </label>
+                    <label style="display: block; margin: 3px 0;">
+                        <input type="checkbox" id="bloom-cat-trajectoryGlow"> Trajectory Glow
+                    </label>
+                    <label style="display: block; margin: 3px 0;">
+                        <input type="checkbox" id="bloom-cat-impactIndicator"> Impact Indicator
+                    </label>
+                    <label style="display: block; margin: 3px 0;">
+                        <input type="checkbox" id="bloom-cat-impactRing"> Impact Ring
+                    </label>
+                    <label style="display: block; margin: 3px 0;">
+                        <input type="checkbox" id="bloom-cat-collisionParticles"> Collision Particles
+                    </label>
+                    <label style="display: block; margin: 3px 0;">
+                        <input type="checkbox" id="bloom-cat-explosionParticles"> Explosion Particles
+                    </label>
+                    <label style="display: block; margin: 3px 0;">
+                        <input type="checkbox" id="bloom-cat-powerUpEffects"> Power-Up Effects
+                    </label>
+                    <label style="display: block; margin: 3px 0;">
+                        <input type="checkbox" id="bloom-cat-wallImpact"> Wall Impact
+                    </label>
+                    <label style="display: block; margin: 3px 0;">
+                        <input type="checkbox" id="bloom-cat-shootingParticles"> Shooting Particles
+                    </label>
+                </div>
+            </div>
             <div style="margin-top: 10px;">
                 <button id="toggle-bloom" style="padding: 5px 10px; background: #00ffff; color: black; border: none; cursor: pointer;">Toggle Bloom</button>
-                <button id="log-bloom-objects" style="padding: 5px 10px; background: #00ff00; color: black; border: none; cursor: pointer; margin-left: 5px;">Log Objects</button>
+                <button id="refresh-bloom" style="padding: 5px 10px; background: #ff9900; color: black; border: none; cursor: pointer; margin-left: 5px;">Refresh</button>
+                <button id="log-bloom-objects" style="padding: 5px 10px; background: #00ff00; color: black; border: none; cursor: pointer; margin-left: 5px;">Log</button>
             </div>
         `;
         
@@ -101,20 +134,84 @@ export class BloomDebugger {
             console.log('Bloom enabled:', this.postProcessing.enabled);
         });
         
+        // Refresh bloom button
+        document.getElementById('refresh-bloom')?.addEventListener('click', () => {
+            if (this.postProcessing.refreshBloomState) {
+                this.postProcessing.refreshBloomState();
+                console.log('Bloom state refreshed');
+            }
+            
+            // Log current state
+            const states = this.postProcessing.getCategoryStates();
+            console.log('Current bloom state after refresh:', {
+                enabled: this.postProcessing.enabled,
+                totalObjects: this.postProcessing.bloomObjects.size,
+                categories: states
+            });
+        });
+        
+        // Category checkboxes
+        const categories = ['trajectoryLine', 'trajectoryGlow', 'impactIndicator', 'impactRing', 
+                          'collisionParticles', 'explosionParticles', 'powerUpEffects', 
+                          'wallImpact', 'shootingParticles'];
+        categories.forEach(cat => {
+            const checkbox = document.getElementById(`bloom-cat-${cat}`);
+            if (checkbox) {
+                // Set initial state from post-processing manager (which comes from CONFIG)
+                const isEnabled = this.postProcessing.categoryEnabled?.[cat] ?? false;
+                checkbox.checked = isEnabled;
+                
+                checkbox.addEventListener('change', (e) => {
+                    e.stopPropagation(); // Prevent event bubbling
+                    const enabled = e.target.checked;
+                    this.postProcessing.setCategoryEnabled(cat, enabled);
+                    console.log(`Bloom category '${cat}': ${enabled ? 'enabled' : 'disabled'}`);
+                    
+                    // Force update display
+                    const states = this.postProcessing.getCategoryStates();
+                    console.log('Current category states:', states);
+                });
+            }
+        });
+        
+        // Log initial state
+        console.log('Initial bloom categories:', this.postProcessing.getCategoryStates());
+        
         // Log bloom objects button
         document.getElementById('log-bloom-objects')?.addEventListener('click', () => {
-            console.log('Bloom Objects:', Array.from(this.postProcessing.bloomObjects));
-            console.log('Bloom Object Count:', this.postProcessing.bloomObjects.size);
+            console.log('=== BLOOM OBJECTS DETAILED LOG ===');
+            console.log('Total bloom objects:', this.postProcessing.bloomObjects.size);
             
-            // Log details about each bloom object
-            this.postProcessing.bloomObjects.forEach(obj => {
-                console.log('Object:', obj.name || 'unnamed', {
-                    visible: obj.visible,
-                    layers: obj.layers.mask.toString(2),
-                    material: obj.material,
-                    emissive: obj.material?.emissive,
-                    emissiveIntensity: obj.material?.emissiveIntensity
+            // Log by categories
+            const categories = this.postProcessing.bloomCategories;
+            Object.keys(categories).forEach(cat => {
+                const objects = Array.from(categories[cat]);
+                console.log(`\nCategory: ${cat} (${this.postProcessing.categoryEnabled[cat] ? 'ENABLED' : 'DISABLED'})`);
+                console.log(`  Objects in category: ${objects.length}`);
+                objects.forEach(obj => {
+                    const inBloomSet = this.postProcessing.bloomObjects.has(obj);
+                    console.log(`  - ${obj.name || 'unnamed'}: ${inBloomSet ? 'BLOOMING' : 'NOT BLOOMING'}`, {
+                        category: obj.userData.bloomCategory,
+                        layers: obj.layers.mask.toString(2),
+                        visible: obj.visible
+                    });
                 });
+            });
+            
+            // Check for uncategorized bloom objects
+            console.log('\n=== UNCATEGORIZED BLOOM OBJECTS ===');
+            this.postProcessing.bloomObjects.forEach(obj => {
+                let foundInCategory = false;
+                Object.values(categories).forEach(catSet => {
+                    if (catSet.has(obj)) foundInCategory = true;
+                });
+                if (!foundInCategory) {
+                    console.log('UNCATEGORIZED:', obj.name || 'unnamed', {
+                        layers: obj.layers.mask.toString(2),
+                        material: obj.material?.type,
+                        userData: obj.userData
+                    });
+                }
             });
         });
     }
@@ -124,14 +221,22 @@ export class BloomDebugger {
             const info = document.getElementById('bloom-info');
             if (info && this.postProcessing) {
                 const bloomPass = this.postProcessing.bloomPass;
+                // Get category states
+                const categoryStates = this.postProcessing.getCategoryStates ? this.postProcessing.getCategoryStates() : {};
+                
                 info.innerHTML = `
-                    <div>Objects: ${this.postProcessing.bloomObjects.size}</div>
-                    <div>Enabled: ${this.postProcessing.enabled !== false ? 'Yes' : 'No'}</div>
-                    <div>Pass Strength: ${bloomPass?.strength || 'N/A'}</div>
-                    <div>Pass Radius: ${bloomPass?.radius || 'N/A'}</div>
-                    <div>Pass Threshold: ${bloomPass?.threshold || 'N/A'}</div>
-                    <div style="margin-top: 5px; padding-top: 5px; border-top: 1px solid #444;">
-                        <div style="color: #00ff00;">Bloom Active: ${this.postProcessing.bloomObjects.size > 0 ? 'YES' : 'NO'}</div>
+                    <div>Total Objects: ${this.postProcessing.bloomObjects.size}</div>
+                    <div>Bloom: ${this.postProcessing.enabled !== false ? 'ON' : 'OFF'}</div>
+                    <div style="margin-top: 5px; font-size: 10px;">
+                        <div>TrajLine: ${categoryStates.trajectoryLine?.count || 0} ${categoryStates.trajectoryLine?.enabled ? '✓' : '✗'}</div>
+                        <div>TrajGlow: ${categoryStates.trajectoryGlow?.count || 0} ${categoryStates.trajectoryGlow?.enabled ? '✓' : '✗'}</div>
+                        <div>Impact: ${categoryStates.impactIndicator?.count || 0} ${categoryStates.impactIndicator?.enabled ? '✓' : '✗'}</div>
+                        <div>Ring: ${categoryStates.impactRing?.count || 0} ${categoryStates.impactRing?.enabled ? '✓' : '✗'}</div>
+                        <div>CollPart: ${categoryStates.collisionParticles?.count || 0} ${categoryStates.collisionParticles?.enabled ? '✓' : '✗'}</div>
+                        <div>ExplPart: ${categoryStates.explosionParticles?.count || 0} ${categoryStates.explosionParticles?.enabled ? '✓' : '✗'}</div>
+                        <div>PowerUps: ${categoryStates.powerUpEffects?.count || 0} ${categoryStates.powerUpEffects?.enabled ? '✓' : '✗'}</div>
+                        <div>Wall: ${categoryStates.wallImpact?.count || 0} ${categoryStates.wallImpact?.enabled ? '✓' : '✗'}</div>
+                        <div>Shoot: ${categoryStates.shootingParticles?.count || 0} ${categoryStates.shootingParticles?.enabled ? '✓' : '✗'}</div>
                     </div>
                 `;
             }
