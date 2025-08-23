@@ -207,6 +207,20 @@ class BubbleShooterGame {
         window.testEffect = (effectName) => bubbleEffectsController.testEffect(effectName);
         window.effectsController = bubbleEffectsController;
         
+        // Add global cleanup commands for debugging ghost bubbles
+        window.cleanupGhosts = () => {
+            console.log('Running light orphaned visual cleanup...');
+            const cleaned = this.gameLogic.cleanupOrphanedVisuals();
+            console.log(`Cleanup complete. Removed ${cleaned} orphaned visuals.`);
+            return cleaned;
+        };
+        
+        // Force sync command (use with caution - can cause duplicates)
+        window.forceSync = () => {
+            console.warn('Running force sync - this may cause issues!');
+            this.gameLogic.syncBubbleInstances();
+        };
+        
         // Debug command for precision aim
         window.testPrecisionAim = () => {
             this.gameManager.eventBus.emit('precisionAimActivated', { duration: 10 });
@@ -416,8 +430,8 @@ class BubbleShooterGame {
     createInitialBubbles() {
         const rows = 5;
         for (let y = 0; y < rows; y++) {
-            const isOddRow = y % 2 === 1;
-            const bubblesInRow = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
+            // All rows now have the same width
+            const bubblesInRow = CONFIG.GRID_WIDTH;
             
             for (let x = 0; x < bubblesInRow; x++) {
                 if (Math.random() > 0.3) { // 70% chance to place a bubble

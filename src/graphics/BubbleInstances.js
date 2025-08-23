@@ -1198,4 +1198,75 @@ export class BubbleInstances {
         this.currentCamera = null;
         this.frustum = null;
     }
+    
+    /**
+     * Clean up unused type renderers
+     */
+    cleanupOldTypeRenderers() {
+        // Clean up any type renderers that are no longer in use
+        if (this.typeRenderers) {
+            for (const [type, renderer] of this.typeRenderers.entries()) {
+                if (!this.activeTypes.has(type)) {
+                    console.log(`Cleaning up unused type renderer: ${type}`);
+                    if (renderer.mesh) {
+                        this.scene.remove(renderer.mesh);
+                        if (renderer.mesh.geometry) renderer.mesh.geometry.dispose();
+                        if (renderer.mesh.material) renderer.mesh.material.dispose();
+                    }
+                    this.typeRenderers.delete(type);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Clear all bubble instances
+     * Used for complete reset/sync operations
+     */
+    clearAll() {
+        console.log('Clearing all bubble instances...');
+        
+        // Clear all mappings if they exist
+        if (this.bubbleMap) this.bubbleMap.clear();
+        if (this.activeBubbles) this.activeBubbles.clear();
+        if (this.activeTypes) this.activeTypes.clear();
+        
+        // Reset all instance data if mesh exists
+        if (this.instancedMesh && this.maxInstances) {
+            for (let i = 0; i < this.maxInstances; i++) {
+                // Hide all instances by setting scale to 0
+                this.setMatrixAt(i, new THREE.Matrix4().makeScale(0, 0, 0));
+                
+                // Reset colors to default
+                if (this.instancedMesh.setColorAt) {
+                    this.instancedMesh.setColorAt(i, new THREE.Color(0xffffff));
+                }
+                if (this.glowMesh && this.glowMesh.setColorAt) {
+                    this.glowMesh.setColorAt(i, new THREE.Color(0xffffff));
+                }
+            }
+            
+            // Mark for update
+            if (this.instancedMesh.instanceMatrix) {
+                this.instancedMesh.instanceMatrix.needsUpdate = true;
+            }
+            if (this.instancedMesh.instanceColor) {
+                this.instancedMesh.instanceColor.needsUpdate = true;
+            }
+        }
+        
+        if (this.glowMesh) {
+            if (this.glowMesh.instanceMatrix) {
+                this.glowMesh.instanceMatrix.needsUpdate = true;
+            }
+            if (this.glowMesh.instanceColor) {
+                this.glowMesh.instanceColor.needsUpdate = true;
+            }
+        }
+        
+        // Clean up type renderers
+        this.cleanupOldTypeRenderers();
+        
+        console.log('All bubble instances cleared');
+    }
 }

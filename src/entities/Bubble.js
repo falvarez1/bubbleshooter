@@ -153,7 +153,7 @@ export class Bubble {
             this.mesh.position.copy(this.position);
             
             // Check wall collisions
-            const wallLimit = 5.5;
+            const wallLimit = CONFIG.WALL_LIMIT;
             if (Math.abs(this.position.x) > wallLimit - this.radius) {
                 this.position.x = Math.sign(this.position.x) * (wallLimit - this.radius);
                 this.velocity.x *= -CONFIG.WALL_BOUNCE_DAMPING;

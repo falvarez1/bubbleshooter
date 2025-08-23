@@ -272,7 +272,7 @@ export class TrajectorySystem {
         
         const dt = 0.016;
         const maxSteps = gameState.precisionAimActive ? 400 : 200;
-        const wallLimit = 5.5 - CONFIG.BUBBLE_RADIUS;
+        const wallLimit = CONFIG.WALL_LIMIT - CONFIG.BUBBLE_RADIUS;
         
         let hitBubble = null;
         

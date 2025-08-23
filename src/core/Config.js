@@ -67,6 +67,10 @@ export const CONFIG = {
     GRID_TOP_Y: 6,    // Top position of bubble grid
     CEILING_Y: 7,     // Ceiling position for collision
     
+    // Wall boundaries - calculated from grid width
+    // Wall position = (GRID_WIDTH * HEX_WIDTH) / 2 + small margin
+    WALL_LIMIT: 6.0,  // Was 5.5, now 6.0 for 11 bubbles
+    
     // Impact Physics Configuration
     IMPACT_PHYSICS: {
         // Spring physics
