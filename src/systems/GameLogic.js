@@ -347,44 +347,89 @@ export class GameLogic {
     findConnectedBubbles(startBubble) {
         const connected = [];
         const visited = new Set();
-        const queue = [startBubble];
-        const targetColor = startBubble.color;
         const isRainbowStart = startBubble.isPowerUp && startBubble.powerUpType === 'rainbow';
         
-        // For rainbow bubbles, track which colors we've touched initially
-        let touchedColors = new Set();
         if (isRainbowStart) {
-            // Find all colors that the rainbow bubble directly touches
+            // Rainbow bubble: find separate chains for each color it touches
+            connected.push(startBubble);
+            visited.add(`${startBubble.gridX},${startBubble.gridY}`);
+            
+            // Get immediate neighbors
             const neighbors = this.getNeighbors(startBubble.gridX, startBubble.gridY);
+            
+            // For each unique color touched, do a separate flood fill
+            const colorGroups = new Map();
             neighbors.forEach(neighbor => {
                 if (neighbor && !neighbor.isPowerUp) {
-                    touchedColors.add(neighbor.color);
+                    if (!colorGroups.has(neighbor.color)) {
+                        colorGroups.set(neighbor.color, []);
+                    }
+                    colorGroups.get(neighbor.color).push(neighbor);
                 }
             });
+            
+            // Process each color group separately
+            colorGroups.forEach((startBubbles, color) => {
+                startBubbles.forEach(bubble => {
+                    const colorChain = this.findSameColorChain(bubble, color, visited);
+                    connected.push(...colorChain);
+                });
+            });
+        } else {
+            // Normal bubble: standard flood fill for same color
+            const queue = [startBubble];
+            const targetColor = startBubble.color;
+            
+            while (queue.length > 0) {
+                const current = queue.shift();
+                const key = `${current.gridX},${current.gridY}`;
+                
+                if (visited.has(key)) continue;
+                visited.add(key);
+                
+                const isRainbowCurrent = current.isPowerUp && current.powerUpType === 'rainbow';
+                
+                // Include if same color or rainbow
+                if (current.color === targetColor || isRainbowCurrent) {
+                    connected.push(current);
+                    
+                    // Add neighbors to queue
+                    const neighbors = this.getNeighbors(current.gridX, current.gridY);
+                    neighbors.forEach(neighbor => {
+                        if (neighbor && !visited.has(`${neighbor.gridX},${neighbor.gridY}`)) {
+                            queue.push(neighbor);
+                        }
+                    });
+                }
+            }
         }
+        
+        return connected;
+    }
+    
+    /**
+     * Find a chain of bubbles of the same color starting from a bubble
+     * @param {Bubble} startBubble - The starting bubble
+     * @param {number} targetColor - The color to match
+     * @param {Set} visited - Set of already visited positions
+     * @returns {Array} Array of connected bubbles of the same color
+     */
+    findSameColorChain(startBubble, targetColor, visited) {
+        const chain = [];
+        const queue = [startBubble];
         
         while (queue.length > 0) {
             const current = queue.shift();
             const key = `${current.gridX},${current.gridY}`;
             
             if (visited.has(key)) continue;
-            visited.add(key);
             
-            const isRainbowCurrent = current.isPowerUp && current.powerUpType === 'rainbow';
-            let shouldInclude = false;
-            
-            if (isRainbowStart) {
-                // Rainbow mode: include rainbow bubble and bubbles of touched colors
-                shouldInclude = isRainbowCurrent || touchedColors.has(current.color);
-            } else {
-                // Normal mode: same color or rainbow bubbles
-                shouldInclude = current.color === targetColor || isRainbowCurrent;
-            }
-            
-            if (shouldInclude) {
-                connected.push(current);
+            // Only include bubbles of the target color (not rainbow bubbles in the chain)
+            if (current.color === targetColor && !current.isPowerUp) {
+                visited.add(key);
+                chain.push(current);
                 
-                // Check neighbors - rainbow bubbles can spread through any color
+                // Add neighbors of the same color
                 const neighbors = this.getNeighbors(current.gridX, current.gridY);
                 neighbors.forEach(neighbor => {
                     if (neighbor && !visited.has(`${neighbor.gridX},${neighbor.gridY}`)) {
@@ -394,7 +439,7 @@ export class GameLogic {
             }
         }
         
-        return connected;
+        return chain;
     }
     
     /**
@@ -709,6 +754,9 @@ export class GameLogic {
             
             // Add new rows after celebration with longer delays to prevent overlap
             setTimeout(() => {
+                // Clean up any ghost bubbles before adding new rows
+                this.cleanupGhostBubbles();
+                
                 for (let i = 0; i < 3; i++) {
                     setTimeout(() => {
                         this.addNewRow();
@@ -718,6 +766,11 @@ export class GameLogic {
                         }
                     }, i * 300); // Increased delay between rows
                 }
+                
+                // Final cleanup after all rows are added
+                setTimeout(() => {
+                    this.cleanupGhostBubbles();
+                }, 1000);
             }, 1500);
         }
     }
