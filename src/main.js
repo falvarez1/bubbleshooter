@@ -46,8 +46,8 @@ class BubbleShooterGame {
         this.trajectorySystem = new TrajectorySystem(this.scene);
         this.collisionSystem = new CollisionSystem(this.gameState, this.gameManager);
         this.gameLogic = new GameLogic(this.gameState, this.gameManager, this.scene);
-        // Add gameLogic reference to gameManager for power-ups
-        this.gameManager.gameLogic = this.gameLogic;
+        // Use event bus for communication instead of circular reference
+        // GameManager can emit events that GameLogic responds to
         this.effectsSystem = new BubbleEffectsSystem(this.scene);
         this.precisionAimIndicator = new PrecisionAimIndicator(this.scene);
         
@@ -71,7 +71,7 @@ class BubbleShooterGame {
         if (this.DEBUG_MODE) {
             window.soundStatus = () => {
                 const status = this.gameManager.soundManager.getStatus();
-                console.log('Sound System Status:', status);
+                // Sound System Status
                 return status;
             };
         }
@@ -98,7 +98,7 @@ class BubbleShooterGame {
         this.gpuParticles = USE_GPU_PARTICLES ? this.performanceManager.createOptimalParticleSystem(this.scene) : null;
         
         if (this.gpuParticles) {
-            console.log('Using GPU particle system');
+            // Using GPU particle system
             // Create a hybrid particle pool that uses GPU particles
             this.gameState.particlePool = {
                 spawn: (x, y, z, color, _size, velocity) => {
@@ -125,7 +125,7 @@ class BubbleShooterGame {
             };
             this.gameState.particlePool.addToScene(this.scene);
         } else {
-            console.log('Using CPU particle system');
+            // Using CPU particle system
             // Fallback to CPU particle pool with power support
             const cpuPool = new ParticlePool(PARTICLE_CONFIG.poolSize);
             this.gameState.particlePool = {
@@ -416,7 +416,7 @@ class BubbleShooterGame {
                 // Removed bubble from instanced renderer
             } else if (this.gameState.currentBubble.mesh && this.gameState.currentBubble.mesh.parent) {
                 this.scene.remove(this.gameState.currentBubble.mesh);
-                console.log('Removed individual mesh from scene');
+                // Removed individual mesh from scene
             }
             
             // Properly destroy the bubble to free all resources
@@ -449,7 +449,7 @@ class BubbleShooterGame {
             }
         });
         
-        console.log('Cleaned up', meshesToRemove.length, 'legacy meshes');
+        // Cleaned up legacy meshes
         
         let color;
         let powerUpToApply = null;
@@ -1121,7 +1121,7 @@ class BubbleShooterGame {
             }
             
             forcedType = CONFIG.BUBBLE_COLORS[currentColorIndex];
-            console.log(`Debug: Cycling to bubble color ${forcedType.toString(16)}`);
+            // Debug: Cycling to bubble color
         } else {
             switch (key) {
                 case '8':
@@ -1259,7 +1259,7 @@ class BubbleShooterGame {
                     const bubble = this.gameState.getBubbleAt(x, y);
                     if (bubble && bubble.isDestroyed) {
                         // Found a destroyed bubble still in grid - clean it up immediately
-                        console.warn(`Ghost bubble detected at ${x},${y} - removing from grid`);
+                        // Ghost bubble detected - removing from grid
                         this.gameState.bubbleGrid[y][x] = null;
                         continue;
                     }
@@ -1268,7 +1268,7 @@ class BubbleShooterGame {
                         const posKey = `${bubble.position.x.toFixed(2)},${bubble.position.y.toFixed(2)}`;
                         if (seenPositions.has(posKey)) {
                             const otherBubble = seenPositions.get(posKey);
-                            console.warn(`Duplicate bubble found at position ${posKey}. Grid: (${x},${y}) vs (${otherBubble.gridX},${otherBubble.gridY})`);
+                            // Duplicate bubble found at position - removing duplicate
                             
                             // Remove the duplicate (keep the one in the correct grid position)
                             if (bubble.gridX !== x || bubble.gridY !== y) {
@@ -1287,7 +1287,7 @@ class BubbleShooterGame {
                         }
                         // Migrate non-instanced bubbles to instanced rendering
                         if (!bubble.useInstancedRendering && !bubble.isDestroyed) {
-                            console.warn(`Migrating non-instanced bubble at ${x},${y} to instanced rendering`);
+                            // Migrating non-instanced bubble to instanced rendering
                             // Remove mesh from scene if it was added
                             if (bubble.mesh && bubble.mesh.parent) {
                                 this.scene.remove(bubble.mesh);
@@ -1325,7 +1325,7 @@ class BubbleShooterGame {
             if (this.victoryCheckTimer > 1.0) { // Check every second
                 this.victoryCheckTimer = 0;
                 if (bubblesRemaining === 0 && !this.gameState.isGameOver) {
-                    console.log('No bubbles remaining - triggering victory check');
+                    // No bubbles remaining - triggering victory check
                     this.gameLogic.checkVictory();
                 }
             }

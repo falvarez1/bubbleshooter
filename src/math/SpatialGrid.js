@@ -28,10 +28,13 @@ export class SpatialGrid {
     }
     
     /**
-     * Get cell key from grid coordinates
+     * Get cell key from grid coordinates using integer encoding
+     * Much faster than string concatenation
      */
     getCellKey(gridX, gridY) {
-        return `${gridX},${gridY}`;
+        // Use bit shifting for fast integer key generation
+        // Assumes grid coordinates are within reasonable bounds (< 65536)
+        return (gridX & 0xFFFF) | ((gridY & 0xFFFF) << 16);
     }
     
     /**
@@ -103,28 +106,33 @@ export class SpatialGrid {
         // Calculate cell radius to check
         const cellRadius = Math.ceil(radius * this.invCellSize);
         
-        // Check all cells within radius
+        // Check all cells within radius - optimized with early exit
+        const cells = this.cells;
+        const getCellKey = this.getCellKey.bind(this);
+        const gridWidth = this.gridWidth;
+        const gridHeight = this.gridHeight;
+        
         for (let dx = -cellRadius; dx <= cellRadius; dx++) {
+            const checkX = centerX + dx;
+            if (checkX < 0 || checkX >= gridWidth) continue;
+            
             for (let dy = -cellRadius; dy <= cellRadius; dy++) {
-                const checkX = centerX + dx;
                 const checkY = centerY + dy;
+                if (checkY < 0 || checkY >= gridHeight) continue;
                 
-                // Skip cells outside grid bounds
-                if (checkX < 0 || checkX >= this.gridWidth || 
-                    checkY < 0 || checkY >= this.gridHeight) {
-                    continue;
-                }
-                
-                const key = this.getCellKey(checkX, checkY);
-                if (this.cells.has(key)) {
-                    for (const object of this.cells.get(key)) {
+                const key = getCellKey(checkX, checkY);
+                const cell = cells.get(key);
+                if (cell) {
+                    // Use iterator for better performance
+                    for (const object of cell) {
                         nearby.add(object);
                     }
                 }
             }
         }
         
-        return Array.from(nearby);
+        // Return array directly without intermediate conversion
+        return [...nearby];
     }
     
     /**

@@ -53,9 +53,14 @@ export class CollisionSystem {
             for (let x = 0; x < bubblesInRow; x++) {
                 const bubble = this.gameState.bubbleGrid[y][x];
                 if (bubble && !bubble.isDestroyed && !bubble.isFloating) {
-                    // Double-check that the bubble is truly valid and not a ghost
-                    // Ghost bubbles may have isDestroyed set but still be in grid
-                    if (bubble.gridX === x && bubble.gridY === y) {
+                    // Robust validation to prevent ghost bubbles
+                    const isValid = bubble.gridX === x && 
+                                  bubble.gridY === y && 
+                                  bubble.position && 
+                                  !bubble.pendingRemoval &&
+                                  !bubble.isMoving;
+                    
+                    if (isValid) {
                         // Include bubble regardless of mesh parent (for instanced rendering)
                         this.gridBubbleCache.push(bubble);
                         
@@ -63,8 +68,11 @@ export class CollisionSystem {
                         this.spatialGrid.add(bubble, bubble.position.x, bubble.position.y);
                     } else {
                         // Found a ghost bubble - clean it up
-                        console.warn(`Ghost bubble found at grid position ${x},${y} - cleaning up`);
+                        // Silent cleanup - no console warning in production
                         this.gameState.bubbleGrid[y][x] = null;
+                        if (bubble) {
+                            bubble.pendingRemoval = true;
+                        }
                     }
                 }
             }

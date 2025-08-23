@@ -11,6 +11,9 @@ export class SceneManager {
         this.camera = null;
         this.renderer = null;
         this.lights = {};
+        this.temporaryTimeouts = [];
+        this.environmentMap = null;
+        this.cubeTextures = [];
         
         this.initialize();
     }
@@ -173,9 +176,18 @@ export class SceneManager {
             light.intensity -= fadeStep;
             if (light.intensity <= 0) {
                 this.scene.remove(light);
+                light.dispose?.();
                 clearInterval(fadeInterval);
+                // Remove from temporaryTimeouts array
+                const index = this.temporaryTimeouts.indexOf(fadeInterval);
+                if (index > -1) {
+                    this.temporaryTimeouts.splice(index, 1);
+                }
             }
         }, 16);
+        
+        // Store interval for cleanup
+        this.temporaryTimeouts.push(fadeInterval);
     }
     
     /**
@@ -232,6 +244,7 @@ export class SceneManager {
                 THREE.RGBAFormat
             );
             texture.needsUpdate = true;
+            this.cubeTextures.push(texture); // Track for disposal
             faces.push(texture);
         }
         
@@ -239,10 +252,70 @@ export class SceneManager {
         cubeTexture.needsUpdate = true;
         
         // Set as scene environment
+        this.environmentMap = cubeTexture;
         this.scene.environment = cubeTexture;
         this.scene.background = null; // Keep transparent background
         
         // Store reference for particle materials
         this.environmentMap = cubeTexture;
+    }
+    
+    /**
+     * Dispose of all resources to prevent memory leaks
+     */
+    dispose() {
+        // Clear all temporary timeouts
+        this.temporaryTimeouts.forEach(timeout => clearInterval(timeout));
+        this.temporaryTimeouts = [];
+        
+        // Dispose cube textures
+        this.cubeTextures.forEach(texture => {
+            if (texture && texture.dispose) {
+                texture.dispose();
+            }
+        });
+        this.cubeTextures = [];
+        
+        // Dispose environment map
+        if (this.environmentMap) {
+            this.environmentMap.dispose();
+            this.environmentMap = null;
+        }
+        
+        // Dispose lights
+        Object.values(this.lights).forEach(light => {
+            if (light.parent) {
+                light.parent.remove(light);
+            }
+            light.dispose?.();
+        });
+        this.lights = {};
+        
+        // Dispose renderer
+        if (this.renderer) {
+            this.renderer.dispose();
+            this.renderer = null;
+        }
+        
+        // Clear scene
+        if (this.scene) {
+            while(this.scene.children.length > 0) {
+                const child = this.scene.children[0];
+                this.scene.remove(child);
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(mat => mat.dispose());
+                    } else {
+                        child.material.dispose();
+                    }
+                }
+            }
+            this.scene = null;
+        }
+        
+        // Clear references
+        this.camera = null;
+        this.canvas = null;
     }
 }

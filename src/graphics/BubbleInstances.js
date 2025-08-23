@@ -902,7 +902,7 @@ export class BubbleInstances {
                 }
             }
             
-            console.log(`Updated bubble ${bubble.id} type from ${oldType} to ${newType}`);
+            // Updated bubble type
             return true;
         }
         return false;
@@ -1122,5 +1122,54 @@ export class BubbleInstances {
         if (presets[preset]) {
             this.setEffects(presets[preset]);
         }
+    }
+    
+    /**
+     * Dispose of all resources to prevent memory leaks
+     */
+    dispose() {
+        // Remove from scene
+        if (this.instancedMesh && this.instancedMesh.parent) {
+            this.instancedMesh.parent.remove(this.instancedMesh);
+        }
+        if (this.glowMesh && this.glowMesh.parent) {
+            this.glowMesh.parent.remove(this.glowMesh);
+        }
+        
+        // Dispose geometries
+        if (this.geometry) {
+            this.geometry.dispose();
+        }
+        
+        // Dispose materials
+        if (this.material) {
+            this.material.dispose();
+        }
+        if (this.glowMaterial) {
+            this.glowMaterial.dispose();
+        }
+        
+        // Dispose meshes
+        if (this.instancedMesh) {
+            this.instancedMesh.dispose();
+        }
+        if (this.glowMesh) {
+            this.glowMesh.dispose();
+        }
+        
+        // Clear maps and arrays
+        this.bubbleMap.clear();
+        this.freeIndices = [];
+        this.activeTypes.clear();
+        
+        // Clear references
+        this.instancedMesh = null;
+        this.glowMesh = null;
+        this.geometry = null;
+        this.material = null;
+        this.glowMaterial = null;
+        this.scene = null;
+        this.currentCamera = null;
+        this.frustum = null;
     }
 }

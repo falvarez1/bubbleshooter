@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG } from '../core/Config.js';
+import { Vector3Pool } from '../utils/Vector3Pool.js';
 
 // Material pool for reusing materials
 const materialPool = new Map();
@@ -131,7 +132,7 @@ export class Bubble {
             if (this.movementStartTime === 0) {
                 this.movementStartTime = Date.now();
             } else if (Date.now() - this.movementStartTime > 10000) { // 10 second timeout
-                console.warn('Bubble movement timeout, forcing attachment');
+                // Bubble movement timeout, forcing attachment
                 this.position.y = CONFIG.CEILING_Y - 0.5 - this.radius;
                 this.velocity.set(0, 0, 0);
                 this.isMoving = false;
@@ -139,8 +140,16 @@ export class Bubble {
                 return;
             }
             
-            // Update position
-            this.position.add(this.velocity.clone().multiplyScalar(deltaTime));
+            // Update position with frame-rate independence
+            // Cap deltaTime to prevent physics explosions during frame drops
+            const safeDelta = Math.min(deltaTime, 0.033); // Cap at 30fps minimum
+            
+            // Use Vector3Pool to avoid allocation
+            const movement = Vector3Pool.get();
+            movement.copy(this.velocity).multiplyScalar(safeDelta);
+            this.position.add(movement);
+            Vector3Pool.release(movement);
+            
             this.mesh.position.copy(this.position);
             
             // Check wall collisions
@@ -163,7 +172,7 @@ export class Bubble {
             
             // Safety check: if bubble goes way out of bounds, force attachment
             if (this.position.y > CONFIG.CEILING_Y + 2) {
-                console.warn('Bubble went out of bounds, forcing attachment');
+                // Bubble went out of bounds, forcing attachment
                 this.position.y = CONFIG.CEILING_Y - this.radius;
                 this.velocity.set(0, 0, 0);
                 this.isMoving = false;
@@ -206,8 +215,13 @@ export class Bubble {
             this.impactVelocity.add(springForce);
             this.impactVelocity.multiplyScalar(this.impactDamping);
             
-            // Update position based on impact velocity
-            this.position.add(this.impactVelocity.clone().multiplyScalar(deltaTime * CONFIG.IMPACT_PHYSICS.POSITION_MULTIPLIER));
+            // Update position based on impact velocity with frame-rate independence
+            const safeDelta = Math.min(deltaTime, 0.033); // Cap at 30fps minimum
+            const impactMovement = Vector3Pool.get();
+            impactMovement.copy(this.impactVelocity).multiplyScalar(safeDelta * CONFIG.IMPACT_PHYSICS.POSITION_MULTIPLIER);
+            this.position.add(impactMovement);
+            Vector3Pool.release(impactMovement);
+            
             this.mesh.position.copy(this.position);
             
             // Add subtle scale pulse

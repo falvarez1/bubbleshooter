@@ -54,7 +54,7 @@ export class ChainLightningPowerUp extends PowerUp {
         }
         
         if (!impactBubble) {
-            console.log('Chain Lightning: No bubble found for activation');
+            // Chain Lightning: No bubble found for activation
             return false;
         }
         
@@ -174,13 +174,13 @@ export class ChainLightningPowerUp extends PowerUp {
                     
                     // Schedule proper destruction after electrical effects
                     setTimeout(() => {
-                        // Use GameLogic's unified destruction method
-                        if (gameManager.gameLogic && !bubble.isDestroyed) {
-                            gameManager.gameLogic.destroyBubbleImmediately(bubble);
-                        } else {
-                            // Fallback if GameLogic not available
-                            console.error('GameLogic not available for bubble destruction');
-                            bubble.destroy();
+                        // Use event bus to trigger destruction through GameLogic
+                        if (!bubble.isDestroyed) {
+                            // Emit event for GameLogic to handle destruction
+                            gameManager.eventBus.emit('destroyBubble', {
+                                bubble: bubble,
+                                skipAnimation: true
+                            });
                         }
                     }, 450); // Remove after effects complete
                     
@@ -724,7 +724,7 @@ export class ChainLightningPowerUp extends PowerUp {
     createElectricCoursingEffect(bubble, gameState, gameManager) {
         // Legacy method - effects now handled by BubbleEffectsSystem
         // Keep for compatibility but most effects moved to world-space system
-        console.log('Creating electric coursing effect for bubble:', bubble.position);
+        // Creating electric coursing effect for bubble
         
         this.createBubbleElectricFlash(bubble.position, gameManager);
         this.createBubbleFlickerEffect(bubble);

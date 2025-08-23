@@ -116,7 +116,7 @@ export class SimpleShockwaveEffect {
     }
     
     trigger(worldPosition, params = {}) {
-        console.log('🌊 Simple shockwave triggered at:', worldPosition);
+        // Simple shockwave triggered
         
         this.position.copy(worldPosition);
         this.startTime = 0;
@@ -144,7 +144,7 @@ export class SimpleShockwaveEffect {
         if (progress >= 1.0) {
             this.isActive = false;
             this.shockwaveMesh.visible = false;
-            console.log('🏁 Enhanced shockwave completed');
+            // Enhanced shockwave completed
             return;
         }
         
@@ -181,15 +181,39 @@ export class SimpleShockwaveEffect {
         
         // Debug output for first few frames
         if (this.startTime < 0.5) {
-            console.log(`🌊 Shockwave: time=${this.startTime.toFixed(2)}, scale=${scale.toFixed(1)}, opacity=${opacity.toFixed(2)}`);
+            // Shockwave animation in progress
         }
     }
     
+    /**
+     * Dispose of all resources to prevent memory leaks
+     */
     dispose() {
+        // Remove from scene
         if (this.shockwaveMesh) {
-            this.scene.remove(this.shockwaveMesh);
-            this.shockwaveMesh.geometry.dispose();
-            this.shockwaveMesh.material.dispose();
+            if (this.shockwaveMesh.parent) {
+                this.shockwaveMesh.parent.remove(this.shockwaveMesh);
+            }
+            
+            // Dispose geometry
+            if (this.shockwaveMesh.geometry) {
+                this.shockwaveMesh.geometry.dispose();
+            }
+            
+            // Dispose material
+            if (this.shaderMaterial) {
+                this.shaderMaterial.dispose();
+            }
+            
+            this.shockwaveMesh = null;
         }
+        
+        // Clear references
+        this.shaderMaterial = null;
+        this.scene = null;
+        this.renderer = null;
+        this.camera = null;
+        this.position = null;
+        this.isActive = false;
     }
 }

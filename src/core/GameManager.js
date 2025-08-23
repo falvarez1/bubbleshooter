@@ -51,14 +51,14 @@ export class GameManager {
     setupEventListeners() {
         // Rainbow activation handler
         this.eventBus.on('rainbowActivated', (data) => {
-            console.log('Rainbow power-up activated at', data.position);
+            // Rainbow power-up activated
             this.visualTextDisplay.showPowerUpText('rainbow', data.position);
             this.soundManager.play('rainbowActivate');
         });
         
         // Bomb explosion handler
         this.eventBus.on('bombExploded', (data) => {
-            console.log('Bomb exploded at', data.position, 'with radius', data.radius);
+            // Bomb exploded
             this.visualTextDisplay.showPowerUpText('bomb', data.position);
             this.soundManager.play('bombExplode');
             
@@ -73,12 +73,12 @@ export class GameManager {
         
         // Score update handler
         this.eventBus.on('scoreUpdated', (data) => {
-            console.log('Score updated:', data.score);
+            // Score updated
         });
         
         // Combo handler
         this.eventBus.on('comboAchieved', (data) => {
-            console.log('Combo achieved:', data.comboSize);
+            // Combo achieved
             this.soundManager.playCombo(data.comboSize);
             if (data.comboSize >= 3) {
                 this.visualTextDisplay.showEffectText('combo', data.comboSize);
@@ -87,14 +87,14 @@ export class GameManager {
         
         // Chain Lightning activation handler
         this.eventBus.on('chainLightningActivated', (data) => {
-            console.log('Chain Lightning power-up activated at', data.position);
+            // Chain Lightning power-up activated
             this.visualTextDisplay.showPowerUpText('chainLightning', data.position);
             this.soundManager.play('lightningStrike');
         });
         
         // Precision aim activation handler
         this.eventBus.on('precisionAimActivated', (data) => {
-            console.log('Precision aim activated for', data.duration, 'seconds');
+            // Precision aim activated
             this.visualTextDisplay.showPowerUpText('precision');
             this.soundManager.play('precisionActivate');
             this.activatePrecisionAim(data.duration);
@@ -102,7 +102,7 @@ export class GameManager {
         
         // Color Splash activation handler
         this.eventBus.on('colorSplashActivated', (data) => {
-            console.log('Color Splash power-up activated at', data.position);
+            // Color Splash power-up activated
             this.visualTextDisplay.showPowerUpText('colorSplash', data.position);
             this.soundManager.play('colorSplash');
         });

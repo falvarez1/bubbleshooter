@@ -52,6 +52,13 @@ export class GameLogic {
         this.gameManager.eventBus.on('checkFloatingBubbles', () => {
             this.removeFloatingBubbles();
         });
+        
+        // Handle individual bubble destruction (e.g., from Chain Lightning)
+        this.gameManager.eventBus.on('destroyBubble', (data) => {
+            if (data.bubble && !data.bubble.isDestroyed) {
+                this.destroyBubbleImmediately(data.bubble, data.skipAnimation);
+            }
+        });
     }
     
     handleChainLightningDestroy(bubbles, points) {
