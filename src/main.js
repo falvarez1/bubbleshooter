@@ -470,6 +470,11 @@ class BubbleShooterGame {
         }
         this.isCreatingShootingBubble = true;
         
+        // Reset trajectory power smoothing to prevent carryover from previous shot
+        if (this.trajectorySystem) {
+            this.trajectorySystem.resetPower();
+        }
+        
         // Debug: Creating new shooting bubble
         // Creating new shooting bubble
         
@@ -746,6 +751,11 @@ class BubbleShooterGame {
     
     shootBubble(power) {
         if (!this.gameState.currentBubble || this.gameState.currentBubble.isMoving || this.gameState.isGameOver) return;
+        
+        // Reset trajectory power to prevent carryover to next bubble
+        if (this.trajectorySystem) {
+            this.trajectorySystem.resetPower();
+        }
         
         // Calculate direction
         const direction = new THREE.Vector3(
@@ -1411,11 +1421,10 @@ class BubbleShooterGame {
                     this.bubbleInstances.updateBubble(this.gameState.currentBubble);
                 }
                 
-                // Update trajectory every frame when bubble is not moving
+                // Update trajectory every frame
                 // This ensures rainbow colors cycle and trajectory updates smoothly
-                if (!this.gameState.currentBubble.isMoving) {
-                    this.updateTrajectoryAndIndicator();
-                }
+                // Also ensures trajectory is hidden when bubble is moving
+                this.updateTrajectoryAndIndicator();
                 
                 // Check collisions
                 if (this.collisionSystem.checkBubbleCollisions()) {
@@ -1551,7 +1560,8 @@ class BubbleShooterGame {
             
             // Update power meter
             if (this.gameState.isCharging) {
-                this.gameState.shootingPower = Math.min(this.gameState.shootingPower + deltaTime * 2, 1);
+                // Reduced from 2 to 1 to double the charge time (from 0.5s to 1s for full charge)
+                this.gameState.shootingPower = Math.min(this.gameState.shootingPower + deltaTime * 1, 1);
                 this.uiManager.updatePowerMeter(this.gameState.shootingPower);
                 
                 if (this.gameState.currentBubble) {

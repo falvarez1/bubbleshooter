@@ -21,6 +21,12 @@ export class TrajectorySystem {
         this.lastMouseY = 0;
         this.lastTrajectoryHash = '';
         
+        // Smooth power tracking for visual effects and trajectory
+        this.smoothPower = 0;
+        this.smoothTrajectoryPower = 0;
+        this.powerSmoothingFactor = 0.15; // Lower = smoother for visual effects
+        this.trajectorySmoothingFactor = 0.01; // Ultra smooth for trajectory to eliminate shaking
+        
         // Visual components
         this.trajectoryGroup = new THREE.Group();
         this.trajectoryGroup.name = 'TrajectoryGroup';
@@ -221,14 +227,7 @@ export class TrajectorySystem {
             return;
         }
         
-        // Check for significant mouse movement
-        const dx = Math.abs(mousePosition.x - this.lastMouseX);
-        const dy = Math.abs(mousePosition.y - this.lastMouseY);
-        
-        if (!forceRecalculate && dx < 0.01 && dy < 0.01) {
-            return; // Just update animation
-        }
-        
+        // Always update position tracking
         this.lastMouseX = mousePosition.x;
         this.lastMouseY = mousePosition.y;
         
@@ -252,11 +251,17 @@ export class TrajectorySystem {
         
         dir.normalize();
         
-        // Calculate trajectory points
-        const power = gameState.shootingPower || 0;
+        // Calculate trajectory points with smoothed power to reduce shaking
+        const targetPower = gameState.shootingPower || 0;
+        this.smoothTrajectoryPower += (targetPower - this.smoothTrajectoryPower) * this.trajectorySmoothingFactor;
+        
+        // Round the smoothed power to reduce micro-adjustments
+        const roundedPower = Math.round(this.smoothTrajectoryPower * 100) / 100;
+        
+        // Use smoothed and rounded power for trajectory to eliminate shaking
         const speed = gameState.precisionAimActive ? 
             CONFIG.SHOOTING_SPEED : 
-            CONFIG.SHOOTING_SPEED + (CONFIG.MAX_SHOOTING_SPEED - CONFIG.SHOOTING_SPEED) * power;
+            CONFIG.SHOOTING_SPEED + (CONFIG.MAX_SHOOTING_SPEED - CONFIG.SHOOTING_SPEED) * roundedPower;
         
         let pos = startBubble.position.clone();
         let vel = dir.multiplyScalar(speed);
@@ -369,10 +374,15 @@ export class TrajectorySystem {
         this.glowMaterial.emissive = colorObj;
         this.glowMaterial.emissiveIntensity = gameState.precisionAimActive ? 2.5 : 2.0; // Increased intensity
         
+        // Smooth the power value for visual effects
+        const targetPower = gameState.shootingPower || 0;
+        this.smoothPower += (targetPower - this.smoothPower) * this.powerSmoothingFactor;
+        
         // Update shader uniforms
         this.coreShaderMaterial.uniforms.color.value = colorObj;
         this.coreShaderMaterial.uniforms.glowColor.value = colorObj;
-        this.coreShaderMaterial.uniforms.power.value = gameState.shootingPower || 0;
+        // Use smoothed power for visual effects to eliminate jarring changes
+        this.coreShaderMaterial.uniforms.power.value = this.smoothPower * 0.3;
         this.coreShaderMaterial.uniforms.intensity.value = gameState.precisionAimActive ? 3.0 : 2.5; // Increased intensity
         
         // Update impact indicator
@@ -406,6 +416,43 @@ export class TrajectorySystem {
         // Animate shader uniforms
         if (this.coreShaderMaterial) {
             this.coreShaderMaterial.uniforms.time.value = this.time;
+        }
+        
+        // Update colors every frame for rainbow cycling and other dynamic effects
+        const color = this.getColor(gameState);
+        const colorObj = new THREE.Color(color);
+        
+        // Update main beam material color
+        this.beamMaterial.color = colorObj;
+        this.beamMaterial.emissive = colorObj;
+        this.beamMaterial.emissiveIntensity = gameState.precisionAimActive ? 4.0 : 3.0;
+        
+        // Update glow material color
+        this.glowMaterial.color = colorObj;
+        this.glowMaterial.emissive = colorObj;
+        this.glowMaterial.emissiveIntensity = gameState.precisionAimActive ? 2.5 : 2.0;
+        
+        // Smooth the power value for visual effects
+        const targetPower = gameState.shootingPower || 0;
+        this.smoothPower += (targetPower - this.smoothPower) * this.powerSmoothingFactor;
+        
+        // Update core shader color and power
+        if (this.coreShaderMaterial) {
+            this.coreShaderMaterial.uniforms.glowColor.value = colorObj;
+            // Use smoothed power for consistent visuals
+            this.coreShaderMaterial.uniforms.power.value = this.smoothPower * 0.3;
+        }
+        
+        // Update impact ring color
+        if (this.impactRingMaterial) {
+            this.impactRingMaterial.color = colorObj;
+            this.impactRingMaterial.emissive = colorObj;
+        }
+        
+        // Update target indicator color
+        if (this.targetMaterial) {
+            this.targetMaterial.color = colorObj;
+            this.targetMaterial.emissive = colorObj;
         }
         
         // Animate impact ring
@@ -450,6 +497,12 @@ export class TrajectorySystem {
         
         // Unregister from bloom when hidden
         this.unregisterFromBloom();
+    }
+    
+    resetPower() {
+        // Reset smoothed power values to prevent carryover from previous shot
+        this.smoothPower = 0;
+        this.smoothTrajectoryPower = 0;
     }
     
     getColor(gameState) {

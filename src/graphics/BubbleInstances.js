@@ -691,6 +691,28 @@ export class BubbleInstances {
             this.glowMesh.setMatrixAt(instanceIndex, matrix);
         }
         
+        // Update color for rainbow bubbles
+        if (bubble.isPowerUp && bubble.powerUpType === 'rainbow' && !bubble.isMoving) {
+            // Calculate rainbow color based on time
+            const time = Date.now() * 0.001;
+            const hue = (time * 0.1) % 1; // Same speed as in RainbowPowerUp.js
+            const color = new THREE.Color().setHSL(hue, 1, 0.5);
+            
+            const colorAttr = this.instancedMesh.geometry.getAttribute('instanceColor');
+            if (colorAttr) {
+                colorAttr.setXYZ(instanceIndex, color.r, color.g, color.b);
+                colorAttr.needsUpdate = true;
+            }
+            
+            if (this.glowMesh) {
+                const glowColorAttr = this.glowMesh.geometry.getAttribute('instanceColor');
+                if (glowColorAttr) {
+                    glowColorAttr.setXYZ(instanceIndex, color.r, color.g, color.b);
+                    glowColorAttr.needsUpdate = true;
+                }
+            }
+        }
+        
         // Update scale for animations on both meshes
         const scaleAttr = this.instancedMesh.geometry.getAttribute('instanceScale');
         if (scaleAttr) {
