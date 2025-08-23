@@ -723,9 +723,19 @@ export class GameLogic {
             if (Math.random() > 0.2) { // 80% chance for bubble
                 const color = CONFIG.BUBBLE_COLORS[Math.floor(Math.random() * CONFIG.BUBBLE_COLORS.length)];
                 const bubble = new Bubble(0, 0, color);
+                
+                // Set flag for instanced rendering BEFORE setGridPosition
+                bubble.useInstancedRendering = true;
                 bubble.setGridPosition(x, 0);
                 
-                this.scene.add(bubble.mesh);
+                // Add to instanced renderer instead of scene
+                if (this.bubbleInstances) {
+                    this.bubbleInstances.addBubble(bubble, 'grid');
+                } else {
+                    // Fallback to direct scene addition if instanced renderer not available
+                    this.scene.add(bubble.mesh);
+                }
+                
                 this.gameState.setBubbleAt(x, 0, bubble);
                 
                 // Apply current effect combination settings from developer panel

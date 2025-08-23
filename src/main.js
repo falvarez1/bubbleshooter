@@ -303,10 +303,14 @@ class BubbleShooterGame {
                 this.bubbleInstances.updateBubbleType(data.bubble, 'grid');
             }
             
-            // Clear current bubble reference immediately
-            this.gameState.currentBubble = null;
+            // Clear current bubble reference AFTER checking matches
+            // This ensures proper cleanup when creating the next bubble
+            const attachedBubble = data.bubble;
             
-            this.gameLogic.checkMatches(data.bubble);
+            this.gameLogic.checkMatches(attachedBubble);
+            
+            // NOW clear the reference after match checking is done
+            this.gameState.currentBubble = null;
             
             // Check game over
             if (this.gameLogic.checkGameOver()) {
@@ -1252,6 +1256,18 @@ class BubbleShooterGame {
                 for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
                     const bubble = this.gameState.getBubbleAt(x, y);
                     if (bubble) {
+                        // Migrate non-instanced bubbles to instanced rendering
+                        if (!bubble.useInstancedRendering && !bubble.isDestroyed) {
+                            console.warn(`Migrating non-instanced bubble at ${x},${y} to instanced rendering`);
+                            // Remove mesh from scene if it was added
+                            if (bubble.mesh && bubble.mesh.parent) {
+                                this.scene.remove(bubble.mesh);
+                            }
+                            // Set flag and add to instanced renderer
+                            bubble.useInstancedRendering = true;
+                            this.bubbleInstances.addBubble(bubble, 'grid');
+                        }
+                        
                         bubble.update(deltaTime);
                         
                         // Only update instanced renderer if bubble is animating or has impact physics
@@ -1272,6 +1288,17 @@ class BubbleShooterGame {
             // Update instanced renderer uniforms (time-based animations)
             if (this.bubbleInstances) {
                 this.bubbleInstances.update(deltaTime, this.camera);
+            }
+            
+            // Periodic victory check (as a safety net)
+            if (!this.victoryCheckTimer) this.victoryCheckTimer = 0;
+            this.victoryCheckTimer += deltaTime;
+            if (this.victoryCheckTimer > 1.0) { // Check every second
+                this.victoryCheckTimer = 0;
+                if (bubblesRemaining === 0 && !this.gameState.isGameOver) {
+                    console.log('No bubbles remaining - triggering victory check');
+                    this.gameLogic.checkVictory();
+                }
             }
             
             // Update ambient audio based on game state (throttled to 30fps)

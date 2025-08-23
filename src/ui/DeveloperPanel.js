@@ -1637,14 +1637,29 @@ export class DeveloperPanel {
     }
     
     deleteBubble(bubble) {
-        // Remove from grid
-        if (bubble.gridX >= 0 && bubble.gridY >= 0) {
-            this.game.gameState.setBubbleAt(bubble.gridX, bubble.gridY, null);
-        }
-        
-        // Remove from scene
-        if (bubble.mesh && bubble.mesh.parent) {
-            bubble.mesh.parent.remove(bubble.mesh);
+        // Properly destroy the bubble using the game's destruction system
+        // This ensures it's removed from ALL systems (grid, renderer, collision, etc.)
+        if (this.game.gameLogic && this.game.gameLogic.destroyBubbleImmediately) {
+            this.game.gameLogic.destroyBubbleImmediately(bubble, true);
+        } else {
+            // Fallback to manual removal if game logic not available
+            // Remove from grid
+            if (bubble.gridX >= 0 && bubble.gridY >= 0) {
+                this.game.gameState.setBubbleAt(bubble.gridX, bubble.gridY, null);
+            }
+            
+            // Remove from instanced renderer if using it
+            if (bubble.useInstancedRendering && this.game.bubbleInstances) {
+                this.game.bubbleInstances.removeBubble(bubble);
+            }
+            
+            // Remove from scene for non-instanced bubbles
+            if (bubble.mesh && bubble.mesh.parent) {
+                bubble.mesh.parent.remove(bubble.mesh);
+            }
+            
+            // Mark as destroyed
+            bubble.isDestroyed = true;
         }
         
         // Clear selection if this was selected
@@ -1955,8 +1970,33 @@ export class DeveloperPanel {
             return;
         }
         
+        // Get all bubbles from the grid
         const bubbles = this.game.gameState.getAllBubbles();
+        
+        // Also check for any ghost bubbles by scanning the entire grid directly
+        for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
+            for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
+                const bubble = this.game.gameState.bubbleGrid[y][x];
+                if (bubble && !bubbles.includes(bubble)) {
+                    console.warn(`Found ghost bubble at ${x},${y} not in getAllBubbles`);
+                    bubbles.push(bubble);
+                }
+            }
+        }
+        
+        // Delete all bubbles properly
         bubbles.forEach(bubble => this.deleteBubble(bubble));
+        
+        // Force update of collision system cache
+        if (this.game.collisionSystem) {
+            this.game.collisionSystem.lastCacheUpdate = 0;
+            this.game.collisionSystem.updateGridBubbleCache();
+        }
+        
+        // Force re-render of instanced bubbles
+        if (this.game.bubbleInstances) {
+            this.game.bubbleInstances.update(0, this.game.camera);
+        }
         
         this.showNotification('Grid cleared');
     }

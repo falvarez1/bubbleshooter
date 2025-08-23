@@ -152,7 +152,8 @@ export class GameState {
             
             for (let x = 0; x < bubblesInRow; x++) {
                 const bubble = this.bubbleGrid[y][x];
-                if (bubble) {
+                // Only include non-destroyed bubbles
+                if (bubble && !bubble.isDestroyed) {
                     bubbles.push(bubble);
                 }
             }
@@ -169,7 +170,8 @@ export class GameState {
             
             for (let x = 0; x < bubblesInRow; x++) {
                 const bubble = this.bubbleGrid[y][x];
-                if (bubble && (!filterFn || filterFn(bubble))) {
+                // Only count non-destroyed bubbles
+                if (bubble && !bubble.isDestroyed && (!filterFn || filterFn(bubble))) {
                     count++;
                 }
             }
