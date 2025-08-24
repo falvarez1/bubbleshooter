@@ -161,6 +161,16 @@ export class ProgressiveTimerSystem {
             }
         });
         
+        // Pause/resume for game pause system
+        this.eventBus.on('gamePaused', () => {
+            this.config.isPaused = true;
+        });
+        
+        this.eventBus.on('gameResumed', () => {
+            this.config.isPaused = false;
+            this.config.lastUpdate = Date.now(); // Reset to prevent time jump
+        });
+        
         // Reset timer on big clears
         this.eventBus.on('bubblesDestroyed', (data) => {
             if (data.count >= 7) {

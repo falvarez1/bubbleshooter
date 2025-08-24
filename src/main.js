@@ -11,6 +11,7 @@ import { PrecisionAimIndicator } from './systems/PrecisionAimIndicator.js';
 import { GameLogic } from './systems/GameLogic.js';
 import { UIManager } from './ui/VisualTextDisplay.js';
 import { PerformanceManager } from './core/PerformanceManager.js';
+import { PauseSystem } from './systems/PauseSystem.js';
 import { SmartColorDebugUI } from './ui/SmartColorDebugUI.js';
 import { BubbleEffectsSystem } from './graphics/BubbleEffectsSystem.js';
 import { developerPanel } from './ui/DeveloperPanel.js';
@@ -45,6 +46,7 @@ class BubbleShooterGame {
         this.audioSystem = new AudioSystem();
         this.uiManager = new UIManager();
         this.performanceManager = new PerformanceManager();
+        this.pauseSystem = new PauseSystem(this.gameManager.eventBus);
         
         
         // Get Three.js objects
@@ -1423,6 +1425,12 @@ class BubbleShooterGame {
     handleKeyDown(event) {
         const key = event.key.toLowerCase();
         
+        // P key is handled by PauseSystem, but also update gameState
+        if (key === 'p') {
+            this.gameState.togglePause();
+            return;
+        }
+        
         // Number keys 1-3 activate collected power-ups (not debug-only)
         if (key >= '1' && key <= '3') {
             const slotIndex = parseInt(key) - 1;
@@ -1603,13 +1611,23 @@ class BubbleShooterGame {
         this.lastTime = currentTime;
         
         // Clamp deltaTime to prevent issues with large gaps
-        const clampedDeltaTime = Math.min(deltaTime, 0.1); // Max 100ms per frame
+        let clampedDeltaTime = Math.min(deltaTime, 0.1); // Max 100ms per frame
         
-        // Check if game should be paused due to blocking notifications
-        const shouldPause = this.pausedByNotification || 
+        // Update pause system tracking
+        this.pauseSystem.updateFrameCount();
+        this.pauseSystem.updateGameTime(clampedDeltaTime);
+        
+        // If paused by debug pause system, set deltaTime to 0 to freeze everything
+        if (this.pauseSystem.getIsPaused()) {
+            clampedDeltaTime = 0;
+        }
+        
+        // Check if game should be paused due to blocking notifications or debug pause
+        const shouldPause = this.pauseSystem.getIsPaused() || 
+            this.pausedByNotification || 
             (this.gameManager.visualTextDisplay?.notificationManager?.blockingNotificationCount > 0);
         
-        if (!this.gameState.isGameOver && !this.gameState.isPaused && !shouldPause) {
+        if (!this.gameState.isGameOver && !shouldPause) {
             // Update progressive game systems
             this.progressiveTimerSystem.update(clampedDeltaTime);
             this.dangerZoneSystem.update(clampedDeltaTime, this.camera);
@@ -1834,16 +1852,21 @@ class BubbleShooterGame {
             this.trajectorySystem.renderTrajectory(this.gameState);
         }
         
-        // Update game board (starfield, etc.)
-        this.gameBoard.update(clampedDeltaTime, currentTime, this.gameState.mousePosition);
+        // When paused, skip updates but still render for debugging visibility
+        if (!this.pauseSystem.getIsPaused()) {
+            // Update game board (starfield, etc.) only when not paused
+            this.gameBoard.update(clampedDeltaTime, currentTime, this.gameState.mousePosition);
+            
+            // Animate lights only when not paused
+            this.sceneManager.animateLights(currentTime * 0.001);
+        }
         
-        // Animate lights
-        this.sceneManager.animateLights(currentTime * 0.001);
-        
-        // Render blast wave effect if active, otherwise render normally
+        // Always render, even when paused (for debugging)
         if (!this.gameManager.render()) {
             // Pass deltaTime to scene manager for post-processing
-            this.sceneManager.render(clampedDeltaTime);
+            // Use 0 deltaTime when paused to freeze post-processing effects
+            const renderDeltaTime = this.pauseSystem.getIsPaused() ? 0 : clampedDeltaTime;
+            this.sceneManager.render(renderDeltaTime);
         }
     }
 }

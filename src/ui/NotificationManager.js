@@ -10,6 +10,8 @@ export class NotificationManager {
         this.processing = false;
         this.eventBus = eventBus;
         this.blockingNotificationCount = 0;
+        this.pausedTimeouts = new Map();
+        this.isPaused = false;
         
         // Define zones for different notification types
         // Each zone has a base position and can stack notifications vertically
@@ -85,6 +87,12 @@ export class NotificationManager {
         
         // Initialize DOM container
         this.initializeContainer();
+        
+        // Listen for pause/resume events if eventBus is available
+        if (this.eventBus) {
+            this.eventBus.on('gamePaused', () => this.pause());
+            this.eventBus.on('gameResumed', () => this.resume());
+        }
     }
     
     initializeContainer() {
@@ -216,10 +224,17 @@ export class NotificationManager {
             element.classList.add('notification-enter');
         });
         
-        // Set up removal
-        setTimeout(() => {
+        // Set up removal with tracking for pause/resume
+        const timeoutId = setTimeout(() => {
             this.removeNotification(notification.id);
         }, notification.duration);
+        
+        // Update tracking with timeout ID and start time
+        const trackedNotification = this.activeNotifications.get(notification.id);
+        if (trackedNotification) {
+            trackedNotification.timeoutId = timeoutId;
+            trackedNotification.startTime = Date.now();
+        }
     }
     
     calculatePosition(notification, zone, zoneName) {
@@ -475,6 +490,80 @@ export class NotificationManager {
                     this.overlay = null;
                 }
             }, 300);
+        }
+    }
+    
+    /**
+     * Pause all notifications and their animations
+     */
+    pause() {
+        if (this.isPaused) return;
+        this.isPaused = true;
+        
+        // Pause all active notification animations
+        this.activeNotifications.forEach((notification, id) => {
+            if (notification.element) {
+                // Pause CSS animations
+                const element = notification.element;
+                const computedStyle = window.getComputedStyle(element);
+                
+                // Store current animation state
+                element.dataset.animationPlayState = computedStyle.animationPlayState;
+                element.style.animationPlayState = 'paused';
+                
+                // If there's a removal timeout, clear it and store remaining time
+                if (notification.timeoutId) {
+                    clearTimeout(notification.timeoutId);
+                    const elapsed = Date.now() - notification.startTime;
+                    const remaining = notification.duration - elapsed;
+                    this.pausedTimeouts.set(id, {
+                        remaining: Math.max(0, remaining),
+                        notification: notification
+                    });
+                }
+            }
+        });
+        
+        // Pause processing of queued notifications
+        this.processingPaused = this.processing;
+        this.processing = false;
+    }
+    
+    /**
+     * Resume all notifications and their animations
+     */
+    resume() {
+        if (!this.isPaused) return;
+        this.isPaused = false;
+        
+        // Resume all active notification animations
+        this.activeNotifications.forEach((notification, id) => {
+            if (notification.element) {
+                const element = notification.element;
+                
+                // Resume CSS animations
+                element.style.animationPlayState = element.dataset.animationPlayState || 'running';
+                delete element.dataset.animationPlayState;
+            }
+        });
+        
+        // Restart removal timeouts with remaining time
+        this.pausedTimeouts.forEach((pausedData, id) => {
+            const notification = this.activeNotifications.get(id);
+            if (notification) {
+                notification.startTime = Date.now();
+                notification.timeoutId = setTimeout(() => {
+                    this.removeNotification(id);
+                }, pausedData.remaining);
+            }
+        });
+        this.pausedTimeouts.clear();
+        
+        // Resume processing if it was paused
+        if (this.processingPaused) {
+            this.processing = true;
+            this.processingPaused = false;
+            this.processQueue();
         }
     }
 }
