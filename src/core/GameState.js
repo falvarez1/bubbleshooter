@@ -170,6 +170,27 @@ export class GameState {
         return bubbles;
     }
     
+    // Get bubble by ID
+    getBubbleById(bubbleId) {
+        if (!bubbleId) return null;
+        
+        for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
+            for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
+                const bubble = this.bubbleGrid[y][x];
+                if (bubble && bubble.id === bubbleId && !bubble.isDestroyed) {
+                    return bubble;
+                }
+            }
+        }
+        
+        // Also check current bubble
+        if (this.currentBubble && this.currentBubble.id === bubbleId && !this.currentBubble.isDestroyed) {
+            return this.currentBubble;
+        }
+        
+        return null;
+    }
+    
     // Count bubbles
     countBubbles(filterFn = null) {
         let count = 0;

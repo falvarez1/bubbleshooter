@@ -65,7 +65,95 @@ export class CascadeAmplificationSystem {
             window.game.eventBus.on('bubblesRepositioned', (data) => {
                 this.handleBubblesRepositioned(data);
             });
+            
+            // Listen for bubble destruction to clean up associated effects
+            window.game.eventBus.on('bubbleDestroyed', (data) => {
+                this.handleBubbleDestroyed(data);
+            });
         }
+    }
+    
+    /**
+     * Handle bubble destruction - clean up all associated effects
+     */
+    handleBubbleDestroyed(data) {
+        if (!data || !data.bubble) return;
+        
+        const bubbleId = data.bubble.id;
+        if (!bubbleId) return;
+        
+        // Clean up effects associated with this bubble
+        const effects = this.bubbleEffectMap.get(bubbleId);
+        if (effects) {
+            // Remove orbiting lights
+            if (effects.orbitingLights) {
+                effects.orbitingLights.forEach(light => {
+                    if (light.sprite) {
+                        this.scene.remove(light.sprite);
+                        if (light.sprite.material) {
+                            light.sprite.material.dispose();
+                        }
+                    }
+                });
+            }
+            
+            // Remove geometry patterns
+            if (effects.geometryPatterns) {
+                effects.geometryPatterns.forEach(pattern => {
+                    if (pattern.mesh) {
+                        this.scene.remove(pattern.mesh);
+                        if (pattern.mesh.geometry) pattern.mesh.geometry.dispose();
+                        if (pattern.mesh.material) pattern.mesh.material.dispose();
+                    }
+                });
+            }
+            
+            // Remove sacred shapes
+            if (effects.sacredShapes) {
+                effects.sacredShapes.forEach(shape => {
+                    if (shape.mesh) {
+                        this.scene.remove(shape.mesh);
+                        if (shape.mesh.geometry) shape.mesh.geometry.dispose();
+                        if (shape.mesh.material) shape.mesh.material.dispose();
+                    }
+                });
+            }
+            
+            // Clean up from tracking arrays
+            this.orbitingLights = this.orbitingLights.filter(light => 
+                !effects.orbitingLights || !effects.orbitingLights.includes(light)
+            );
+            this.geometryPatterns = this.geometryPatterns.filter(pattern => 
+                !effects.geometryPatterns || !effects.geometryPatterns.includes(pattern)
+            );
+            
+            // Remove from map
+            this.bubbleEffectMap.delete(bubbleId);
+        }
+        
+        // Also clean up breathing glow for this bubble
+        const glow = this.breathingGlows.get(bubbleId);
+        if (glow) {
+            if (glow.bubble && glow.bubble.mesh && glow.bubble.mesh.material) {
+                glow.bubble.mesh.material.emissive = glow.originalEmissive;
+                glow.bubble.mesh.material.emissiveIntensity = 0;
+            }
+            this.breathingGlows.delete(bubbleId);
+        }
+        
+        // Clean up any chain connections involving this bubble
+        this.chainConnections = this.chainConnections.filter(connection => {
+            if (connection.startBubbleId === bubbleId || connection.endBubbleId === bubbleId) {
+                // Remove the connection mesh
+                if (connection.mesh) {
+                    this.scene.remove(connection.mesh);
+                    if (connection.mesh.geometry) connection.mesh.geometry.dispose();
+                    if (connection.material) connection.material.dispose();
+                }
+                return false;
+            }
+            return true;
+        });
     }
     
     /**
@@ -261,8 +349,9 @@ export class CascadeAmplificationSystem {
             this.createBasicBurst(bubbles, epicenter, tier);
         }
         
-        if (tier >= 2) {
-            this.createOrbitingLights(epicenter, comboCount);
+        if (tier >= 2 && bubbles.length > 0) {
+            // Attach orbiting lights to specific bubbles
+            this.createOrbitingLights(epicenter, comboCount, bubbles);
         }
         
         if (tier >= 3) {
@@ -346,16 +435,27 @@ export class CascadeAmplificationSystem {
      * Create orbiting light sprites (Tier 2)
      * @param {Vector3} center - Center of orbit
      * @param {number} comboCount - Current combo
+     * @param {Array} bubbles - Bubbles to attach lights to
      */
-    createOrbitingLights(center, comboCount) {
+    createOrbitingLights(center, comboCount, bubbles) {
         const orbitCount = Math.min(3 + Math.floor(comboCount / 2), 8);
         
         // Clear old orbits
         this.clearOrbitingLights();
         
+        // Attach lights to bubbles (distribute evenly among available bubbles)
+        const lightsPerBubble = Math.ceil(orbitCount / Math.max(1, bubbles.length));
+        const allLights = [];
+        
         for (let i = 0; i < orbitCount; i++) {
             const angle = (Math.PI * 2 * i) / orbitCount;
             const radius = 2 + Math.sin(Date.now() * 0.001 + i) * 0.5;
+            
+            // Determine which bubble this light should orbit
+            const bubbleIndex = Math.floor(i / lightsPerBubble) % bubbles.length;
+            const targetBubble = bubbles[bubbleIndex];
+            const orbitCenter = targetBubble ? targetBubble.position.clone() : center.clone();
+            const attachedBubbleId = targetBubble ? targetBubble.id : null;
             
             // Create light sprite
             const spriteMaterial = new THREE.SpriteMaterial({
@@ -370,20 +470,38 @@ export class CascadeAmplificationSystem {
             
             // Position in orbit
             sprite.position.set(
-                center.x + Math.cos(angle) * radius,
-                center.y + Math.sin(angle) * radius,
-                center.z + 0.5
+                orbitCenter.x + Math.cos(angle) * radius,
+                orbitCenter.y + Math.sin(angle) * radius,
+                orbitCenter.z + 0.5
             );
             
             this.scene.add(sprite);
-            this.orbitingLights.push({
+            
+            const lightData = {
                 sprite: sprite,
-                center: center.clone(),
+                center: orbitCenter,
+                orbitCenter: orbitCenter,
+                attachedBubbleId: attachedBubbleId,
                 angle: angle,
                 radius: radius,
                 speed: 1 + comboCount * 0.1,
                 lifetime: 3
-            });
+            };
+            
+            this.orbitingLights.push(lightData);
+            allLights.push(lightData);
+            
+            // Track association with bubble
+            if (attachedBubbleId) {
+                if (!this.bubbleEffectMap.has(attachedBubbleId)) {
+                    this.bubbleEffectMap.set(attachedBubbleId, {
+                        orbitingLights: [],
+                        geometryPatterns: [],
+                        sacredShapes: []
+                    });
+                }
+                this.bubbleEffectMap.get(attachedBubbleId).orbitingLights.push(lightData);
+            }
         }
     }
     
@@ -416,24 +534,44 @@ export class CascadeAmplificationSystem {
                 const geometry = new THREE.BufferGeometry().setFromPoints(points);
                 const line = new THREE.Line(geometry, lineMaterial);
                 
-                this.scene.add(line);
-                this.geometryPatterns.push({
+                const patternData = {
                     mesh: line,
+                    attachedBubbleId: bubbles[i].id,
+                    secondaryBubbleId: bubbles[j].id,
                     lifetime: 2,
                     fadeSpeed: 0.5
+                };
+                
+                this.scene.add(line);
+                this.geometryPatterns.push(patternData);
+                
+                // Track association with both bubbles
+                [bubbles[i].id, bubbles[j].id].forEach(bubbleId => {
+                    if (bubbleId) {
+                        if (!this.bubbleEffectMap.has(bubbleId)) {
+                            this.bubbleEffectMap.set(bubbleId, {
+                                orbitingLights: [],
+                                geometryPatterns: [],
+                                sacredShapes: []
+                            });
+                        }
+                        this.bubbleEffectMap.get(bubbleId).geometryPatterns.push(patternData);
+                    }
                 });
             }
         }
         
-        // Add sacred shapes (triangles, hexagons, etc.)
+        // Add sacred shapes (triangles, hexagons, etc.) - attach to center bubble if available
+        const centerBubble = bubbles.length > 0 ? bubbles[Math.floor(bubbles.length / 2)] : null;
+        
         if (complexity >= 2) {
-            this.createSacredShape(center, 'hexagon', comboCount);
+            this.createSacredShape(center, 'hexagon', comboCount, centerBubble);
         }
         if (complexity >= 3) {
-            this.createSacredShape(center, 'star', comboCount);
+            this.createSacredShape(center, 'star', comboCount, centerBubble);
         }
         if (complexity >= 4) {
-            this.createSacredShape(center, 'flower', comboCount);
+            this.createSacredShape(center, 'flower', comboCount, centerBubble);
         }
     }
     
@@ -818,8 +956,9 @@ export class CascadeAmplificationSystem {
      * @param {Vector3} center - Center of shape
      * @param {string} shapeType - Type of shape
      * @param {number} comboCount - Current combo
+     * @param {Bubble} attachedBubble - Bubble to attach the shape to (optional)
      */
-    createSacredShape(center, shapeType, comboCount) {
+    createSacredShape(center, shapeType, comboCount, attachedBubble = null) {
         let geometry;
         
         switch(shapeType) {
@@ -849,11 +988,33 @@ export class CascadeAmplificationSystem {
         shape.position.z += 0.5;
         this.scene.add(shape);
         
+        // Track association with bubble if provided
+        const attachedBubbleId = attachedBubble ? attachedBubble.id : null;
+        
+        // Store shape data for tracking
+        const shapeData = {
+            mesh: shape,
+            attachedBubbleId: attachedBubbleId,
+            shapeType: shapeType
+        };
+        
+        if (attachedBubbleId) {
+            if (!this.bubbleEffectMap.has(attachedBubbleId)) {
+                this.bubbleEffectMap.set(attachedBubbleId, {
+                    orbitingLights: [],
+                    geometryPatterns: [],
+                    sacredShapes: []
+                });
+            }
+            this.bubbleEffectMap.get(attachedBubbleId).sacredShapes.push(shapeData);
+        }
+        
         // Rotation and fade animation
         const shapeAnim = {
             rotation: 0,
             scale: 0.1,
             opacity: 0.5,
+            shapeData: shapeData,
             update: (deltaTime) => {
                 shapeAnim.rotation += deltaTime * 2;
                 shapeAnim.scale = Math.min(2, shapeAnim.scale + deltaTime * 2);
@@ -1106,6 +1267,15 @@ export class CascadeAmplificationSystem {
         
         // Update orbiting lights
         this.orbitingLights = this.orbitingLights.filter(light => {
+            // Update orbit center if attached to a bubble that still exists
+            if (light.attachedBubbleId && window.game && window.game.gameState) {
+                const bubble = window.game.gameState.getBubbleById(light.attachedBubbleId);
+                if (bubble && !bubble.isDestroyed && bubble.position) {
+                    light.center = bubble.position.clone();
+                    light.orbitCenter = bubble.position.clone();
+                }
+            }
+            
             light.angle += light.speed * deltaTime;
             light.radius += Math.sin(Date.now() * 0.001) * 0.01;
             
@@ -1116,6 +1286,17 @@ export class CascadeAmplificationSystem {
             light.sprite.material.opacity = Math.min(0.8, light.lifetime);
             
             if (light.lifetime <= 0) {
+                // Clean up from bubble effect map
+                if (light.attachedBubbleId) {
+                    const effects = this.bubbleEffectMap.get(light.attachedBubbleId);
+                    if (effects && effects.orbitingLights) {
+                        const index = effects.orbitingLights.indexOf(light);
+                        if (index > -1) {
+                            effects.orbitingLights.splice(index, 1);
+                        }
+                    }
+                }
+                
                 this.scene.remove(light.sprite);
                 light.sprite.material.dispose();
                 return false;
@@ -1139,10 +1320,36 @@ export class CascadeAmplificationSystem {
         
         // Update geometry patterns
         this.geometryPatterns = this.geometryPatterns.filter(pattern => {
+            // Update positions if attached to bubbles that still exist
+            if (pattern.attachedBubbleId && pattern.secondaryBubbleId && 
+                window.game && window.game.gameState) {
+                const bubble1 = window.game.gameState.getBubbleById(pattern.attachedBubbleId);
+                const bubble2 = window.game.gameState.getBubbleById(pattern.secondaryBubbleId);
+                
+                if (bubble1 && !bubble1.isDestroyed && bubble2 && !bubble2.isDestroyed) {
+                    // Update line positions
+                    const points = [bubble1.position, bubble2.position];
+                    pattern.mesh.geometry.setFromPoints(points);
+                }
+            }
+            
             pattern.lifetime -= deltaTime;
             pattern.mesh.material.opacity = Math.min(0.6, pattern.lifetime * pattern.fadeSpeed);
             
             if (pattern.lifetime <= 0) {
+                // Clean up from bubble effect map
+                [pattern.attachedBubbleId, pattern.secondaryBubbleId].forEach(bubbleId => {
+                    if (bubbleId) {
+                        const effects = this.bubbleEffectMap.get(bubbleId);
+                        if (effects && effects.geometryPatterns) {
+                            const index = effects.geometryPatterns.indexOf(pattern);
+                            if (index > -1) {
+                                effects.geometryPatterns.splice(index, 1);
+                            }
+                        }
+                    }
+                });
+                
                 this.scene.remove(pattern.mesh);
                 pattern.mesh.geometry.dispose();
                 pattern.mesh.material.dispose();

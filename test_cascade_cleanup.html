@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cascade Effects Cleanup Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+        }
+        canvas { 
+            display: block; 
+            margin: 20px auto;
+            border: 2px solid #444;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .status {
+            text-align: center;
+            margin: 20px;
+            padding: 10px;
+            background: #333;
+            border-radius: 5px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .test-result.pass {
+            background: #2d5a2d;
+            border: 1px solid #4CAF50;
+        }
+        .test-result.fail {
+            background: #5a2d2d;
+            border: 1px solid #f44336;
+        }
+        .test-result.info {
+            background: #2d3a5a;
+            border: 1px solid #2196F3;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align: center;">Cascade Effects Cleanup Test</h1>
+    
+    <div class="controls">
+        <button onclick="testCascadeEffects()">Test Cascade Effects (Combo 7)</button>
+        <button onclick="testTranscendence()">Test Transcendence (Combo 10+)</button>
+        <button onclick="destroyRandomBubbles()">Destroy Random Bubbles</button>
+        <button onclick="addRow()">Add Row (Test Movement)</button>
+        <button onclick="checkOrphanedEffects()">Check for Orphaned Effects</button>
+        <button onclick="clearAllEffects()">Clear All Effects</button>
+    </div>
+    
+    <div id="status" class="status">
+        <h3>Test Results:</h3>
+        <div id="results"></div>
+    </div>
+    
+    <canvas id="gameCanvas"></canvas>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        
+        let game;
+        const results = document.getElementById('results');
+        
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.textContent = message;
+            results.appendChild(div);
+            
+            // Auto-scroll to latest result
+            results.scrollTop = results.scrollHeight;
+        }
+        
+        window.testCascadeEffects = function() {
+            if (!game || !game.gameManager || !game.gameManager.cascadeSystem) {
+                addResult('❌ Cascade system not initialized', 'fail');
+                return;
+            }
+            
+            const cascadeSystem = game.gameManager.cascadeSystem;
+            const bubbles = game.gameState.getAllBubbles().slice(0, 7);
+            
+            if (bubbles.length < 3) {
+                addResult('⚠️ Not enough bubbles for test. Add more bubbles first.', 'info');
+                return;
+            }
+            
+            // Track initial state
+            const initialLights = cascadeSystem.orbitingLights.length;
+            const initialPatterns = cascadeSystem.geometryPatterns.length;
+            const initialEffectMap = cascadeSystem.bubbleEffectMap.size;
+            
+            // Create combo effect
+            const epicenter = bubbles[0].position.clone();
+            cascadeSystem.updateCombo(7, bubbles, epicenter);
+            
+            // Check effects were created
+            setTimeout(() => {
+                const newLights = cascadeSystem.orbitingLights.length;
+                const newPatterns = cascadeSystem.geometryPatterns.length;
+                const newEffectMap = cascadeSystem.bubbleEffectMap.size;
+                
+                addResult(`✅ Created ${newLights - initialLights} orbiting lights`, 'pass');
+                addResult(`✅ Created ${newPatterns - initialPatterns} geometry patterns`, 'pass');
+                addResult(`✅ Tracking effects for ${newEffectMap - initialEffectMap} bubbles`, 'pass');
+                
+                // Check attachment
+                let attached = 0;
+                cascadeSystem.orbitingLights.forEach(light => {
+                    if (light.attachedBubbleId) attached++;
+                });
+                
+                if (attached > 0) {
+                    addResult(`✅ ${attached} lights attached to specific bubbles`, 'pass');
+                } else {
+                    addResult(`⚠️ No lights attached to bubbles`, 'info');
+                }
+            }, 100);
+        };
+        
+        window.testTranscendence = function() {
+            if (!game || !game.gameManager || !game.gameManager.cascadeSystem) {
+                addResult('❌ Cascade system not initialized', 'fail');
+                return;
+            }
+            
+            const cascadeSystem = game.gameManager.cascadeSystem;
+            const bubbles = game.gameState.getAllBubbles().slice(0, 10);
+            
+            if (bubbles.length < 5) {
+                addResult('⚠️ Not enough bubbles for transcendence test.', 'info');
+                return;
+            }
+            
+            const epicenter = bubbles[0].position.clone();
+            cascadeSystem.updateCombo(10, bubbles, epicenter);
+            
+            setTimeout(() => {
+                if (cascadeSystem.isTranscendenceActive) {
+                    addResult('✅ Transcendence mode activated', 'pass');
+                    addResult(`✅ Breathing glows applied to ${cascadeSystem.breathingGlows.size} bubbles`, 'pass');
+                } else {
+                    addResult('❌ Transcendence mode failed to activate', 'fail');
+                }
+            }, 100);
+        };
+        
+        window.destroyRandomBubbles = function() {
+            if (!game || !game.gameState) {
+                addResult('❌ Game not initialized', 'fail');
+                return;
+            }
+            
+            const bubbles = game.gameState.getAllBubbles();
+            const toDestroy = Math.min(5, Math.floor(bubbles.length / 3));
+            
+            if (bubbles.length === 0) {
+                addResult('⚠️ No bubbles to destroy', 'info');
+                return;
+            }
+            
+            // Track effects before destruction
+            const cascadeSystem = game.gameManager.cascadeSystem;
+            const beforeLights = cascadeSystem.orbitingLights.length;
+            const beforePatterns = cascadeSystem.geometryPatterns.length;
+            const beforeEffectMap = cascadeSystem.bubbleEffectMap.size;
+            
+            // Destroy random bubbles
+            for (let i = 0; i < toDestroy; i++) {
+                const index = Math.floor(Math.random() * bubbles.length);
+                const bubble = bubbles[index];
+                
+                // Emit destruction event
+                game.gameManager.eventBus.emit('bubbleDestroyed', { bubble: bubble });
+                
+                // Actually destroy the bubble
+                if (game.gameLogic && game.gameLogic.destroyBubbleImmediately) {
+                    game.gameLogic.destroyBubbleImmediately(bubble);
+                }
+                
+                bubbles.splice(index, 1);
+            }
+            
+            // Check cleanup after a short delay
+            setTimeout(() => {
+                const afterLights = cascadeSystem.orbitingLights.length;
+                const afterPatterns = cascadeSystem.geometryPatterns.length;
+                const afterEffectMap = cascadeSystem.bubbleEffectMap.size;
+                
+                addResult(`🗑️ Destroyed ${toDestroy} bubbles`, 'info');
+                
+                if (afterLights < beforeLights) {
+                    addResult(`✅ Cleaned up ${beforeLights - afterLights} orbiting lights`, 'pass');
+                }
+                
+                if (afterPatterns < beforePatterns) {
+                    addResult(`✅ Cleaned up ${beforePatterns - afterPatterns} geometry patterns`, 'pass');
+                }
+                
+                if (afterEffectMap < beforeEffectMap) {
+                    addResult(`✅ Removed ${beforeEffectMap - afterEffectMap} bubble effect mappings`, 'pass');
+                }
+                
+                // Check for orphaned effects
+                checkOrphanedEffects();
+            }, 100);
+        };
+        
+        window.addRow = function() {
+            if (!game || !game.gameState) {
+                addResult('❌ Game not initialized', 'fail');
+                return;
+            }
+            
+            // Track positions before
+            const cascadeSystem = game.gameManager.cascadeSystem;
+            const lightPositionsBefore = cascadeSystem.orbitingLights.map(l => ({
+                id: l.attachedBubbleId,
+                pos: l.center ? l.center.clone() : null
+            }));
+            
+            // Add a new row (this should trigger repositioning)
+            game.gameState.shiftRowsDown();
+            
+            // Update bubble positions
+            const bubbles = game.gameState.getAllBubbles();
+            const movements = new Map();
+            
+            bubbles.forEach(bubble => {
+                const oldY = bubble.position.y;
+                bubble.position.y += 1.7; // Approximate row height
+                movements.set(bubble.id, {
+                    bubble: bubble,
+                    oldPosition: new THREE.Vector3(bubble.position.x, oldY, bubble.position.z)
+                });
+            });
+            
+            // Emit repositioning event
+            game.gameManager.eventBus.emit('bubblesRepositioned', {
+                movements: movements,
+                reason: 'rowAdded'
+            });
+            
+            // Check if effects moved
+            setTimeout(() => {
+                let moved = 0;
+                cascadeSystem.orbitingLights.forEach((light, i) => {
+                    const before = lightPositionsBefore[i];
+                    if (before && before.pos && light.center) {
+                        if (Math.abs(light.center.y - before.pos.y) > 0.1) {
+                            moved++;
+                        }
+                    }
+                });
+                
+                if (moved > 0) {
+                    addResult(`✅ ${moved} effects moved with their bubbles`, 'pass');
+                } else if (cascadeSystem.orbitingLights.length > 0) {
+                    addResult(`⚠️ Effects did not move with bubbles`, 'info');
+                } else {
+                    addResult(`ℹ️ No effects to move`, 'info');
+                }
+            }, 100);
+        };
+        
+        window.checkOrphanedEffects = function() {
+            if (!game || !game.gameManager || !game.gameManager.cascadeSystem) {
+                addResult('❌ Cascade system not initialized', 'fail');
+                return;
+            }
+            
+            const cascadeSystem = game.gameManager.cascadeSystem;
+            const gameState = game.gameState;
+            let orphaned = 0;
+            
+            // Check orbiting lights
+            cascadeSystem.orbitingLights.forEach(light => {
+                if (light.attachedBubbleId) {
+                    const bubble = gameState.getBubbleById(light.attachedBubbleId);
+                    if (!bubble || bubble.isDestroyed) {
+                        orphaned++;
+                        addResult(`❌ Orphaned light attached to destroyed bubble ${light.attachedBubbleId}`, 'fail');
+                    }
+                }
+            });
+            
+            // Check geometry patterns
+            cascadeSystem.geometryPatterns.forEach(pattern => {
+                if (pattern.attachedBubbleId) {
+                    const bubble = gameState.getBubbleById(pattern.attachedBubbleId);
+                    if (!bubble || bubble.isDestroyed) {
+                        orphaned++;
+                        addResult(`❌ Orphaned pattern attached to destroyed bubble ${pattern.attachedBubbleId}`, 'fail');
+                    }
+                }
+            });
+            
+            // Check bubble effect map
+            cascadeSystem.bubbleEffectMap.forEach((effects, bubbleId) => {
+                const bubble = gameState.getBubbleById(bubbleId);
+                if (!bubble || bubble.isDestroyed) {
+                    orphaned++;
+                    addResult(`❌ Effect map contains destroyed bubble ${bubbleId}`, 'fail');
+                }
+            });
+            
+            if (orphaned === 0) {
+                addResult('✅ No orphaned effects found!', 'pass');
+            } else {
+                addResult(`❌ Found ${orphaned} orphaned effects`, 'fail');
+            }
+        };
+        
+        window.clearAllEffects = function() {
+            if (!game || !game.gameManager || !game.gameManager.cascadeSystem) {
+                addResult('❌ Cascade system not initialized', 'fail');
+                return;
+            }
+            
+            const cascadeSystem = game.gameManager.cascadeSystem;
+            
+            cascadeSystem.resetCombo();
+            cascadeSystem.cleanup();
+            
+            addResult('✅ All effects cleared', 'pass');
+        };
+        
+        // Initialize game when ready
+        window.addEventListener('load', () => {
+            // Wait for game to be initialized
+            const checkGame = setInterval(() => {
+                if (window.game && window.game.gameManager && window.game.gameManager.cascadeSystem) {
+                    game = window.game;
+                    clearInterval(checkGame);
+                    addResult('✅ Game and cascade system initialized', 'pass');
+                    
+                    // Monitor bubble destruction events
+                    let destructionCount = 0;
+                    game.gameManager.eventBus.on('bubbleDestroyed', (data) => {
+                        destructionCount++;
+                        console.log(`Bubble destroyed: ${data.bubble.id}, Total: ${destructionCount}`);
+                    });
+                }
+            }, 100);
+        });
+    </script>
+    
+    <!-- Load the game -->
+    <iframe src="index.html" style="display: none;"></iframe>
+</body>
+</html>
