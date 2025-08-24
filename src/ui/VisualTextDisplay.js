@@ -139,8 +139,6 @@ export class VisualTextDisplay {
 export class UIManager {
     constructor() {
         this.elements = {
-            scoreValue: document.getElementById('scoreValue'),
-            levelValue: document.getElementById('levelValue'),
             comboDisplay: document.getElementById('comboDisplay'),
             comboValue: document.getElementById('comboValue'),
             gameOver: document.getElementById('gameOver'),
