@@ -27,6 +27,12 @@ import {
 } from './powerups/index.js';
 import { BloomDebugger } from './utils/BloomDebugger.js';
 
+// Import new progressive game systems
+import { ProgressiveTimerSystem } from './systems/ProgressiveTimerSystem.js';
+import { DangerZoneSystem } from './systems/DangerZoneSystem.js';
+import { ColorClusteringSystem } from './systems/ColorClusteringSystem.js';
+import { LevelProgressionSystem } from './systems/LevelProgressionSystem.js';
+
 // Main game class
 class BubbleShooterGame {
     constructor() {
@@ -62,6 +68,12 @@ class BubbleShooterGame {
         // GameManager can emit events that GameLogic responds to
         this.effectsSystem = new BubbleEffectsSystem(this.scene);
         this.precisionAimIndicator = new PrecisionAimIndicator(this.scene);
+        
+        // Initialize progressive game systems
+        this.progressiveTimerSystem = new ProgressiveTimerSystem(this.gameState, this.gameManager.eventBus);
+        this.dangerZoneSystem = new DangerZoneSystem(this.gameState, this.scene, this.gameManager.eventBus);
+        this.colorClusteringSystem = new ColorClusteringSystem(this.gameState, this.gameManager.eventBus);
+        this.levelProgressionSystem = new LevelProgressionSystem(this.gameState, this.gameManager.eventBus);
         
         // Initialize instanced bubble renderer
         this.bubbleInstances = null; // Will be initialized after imports
@@ -186,6 +198,9 @@ class BubbleShooterGame {
         // Set up event listeners
         this.setupEventListeners();
         
+        // Set up progressive game event handlers
+        this.setupProgressiveGameEvents();
+        
         // Initialize game
         this.gameBoard.create();
         this.createInitialBubbles();
@@ -244,6 +259,61 @@ class BubbleShooterGame {
         
         // Start animation loop
         this.animate(0);
+    }
+    
+    setupProgressiveGameEvents() {
+        // Handle bubble creation from new rows
+        this.gameManager.eventBus.on('bubbleCreated', (data) => {
+            const bubble = data.bubble;
+            if (bubble && !bubble.useInstancedRendering) {
+                // Add bubble to scene
+                this.scene.add(bubble.mesh);
+                // Enable instanced rendering
+                bubble.useInstancedRendering = true;
+                this.bubbleInstances.addBubble(bubble);
+            }
+        });
+        
+        // Handle game over event
+        this.gameManager.eventBus.on('gameOver', (data) => {
+            console.log('Game Over:', data.reason);
+            this.gameState.setGameOver();
+            this.uiManager.showGameOver(this.gameState.score, this.gameState.level);
+            this.gameManager.playSound('gameOver');
+        });
+        
+        // Handle score updates
+        this.gameManager.eventBus.on('scoreUpdated', (data) => {
+            this.uiManager.updateScore(data.score);
+        });
+        
+        // Handle combo events for timer pausing
+        this.gameManager.eventBus.on('comboStart', () => {
+            // Timer will pause automatically
+        });
+        
+        this.gameManager.eventBus.on('comboEnd', () => {
+            // Timer will resume automatically
+        });
+        
+        // Handle bubble destruction for timer reset
+        this.gameManager.eventBus.on('bubblesDestroyed', (data) => {
+            // Timer system will check for big clears automatically
+        });
+        
+        // Handle zen moments
+        this.gameManager.eventBus.on('zenMoment', (data) => {
+            // Pause timer for zen moment duration
+            this.progressiveTimerSystem.config.isPaused = true;
+            setTimeout(() => {
+                this.progressiveTimerSystem.config.isPaused = false;
+            }, data.duration);
+        });
+        
+        // Handle level settings changes
+        this.gameManager.eventBus.on('levelSettingsChanged', (settings) => {
+            console.log('Level settings updated:', settings);
+        });
     }
     
     setupEventListeners() {
@@ -1450,6 +1520,10 @@ class BubbleShooterGame {
         this.lastTime = currentTime;
         
         if (!this.gameState.isGameOver && !this.gameState.isPaused) {
+            // Update progressive game systems
+            this.progressiveTimerSystem.update(deltaTime);
+            this.dangerZoneSystem.update(deltaTime, this.camera);
+            
             // Update precision aim
             if (this.gameState.updatePrecisionAim(deltaTime)) {
                 this.precisionTickTimer += deltaTime;

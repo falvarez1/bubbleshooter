@@ -20,6 +20,14 @@ export class GameState {
         this.isGameOver = false;
         this.isPaused = false;
         
+        // Progressive game mechanics
+        this.dangerZone = {
+            active: false,
+            level: 0,
+            timeSlowFactor: 1.0,
+            warningAnimationTime: 0
+        };
+        
         // Bubble management
         this.currentBubble = null;
         this.nextBubbleColor = null;
@@ -91,6 +99,10 @@ export class GameState {
         
         this.comboTimer = setTimeout(() => {
             this.combo = 0;
+            // Emit combo end event for progressive timer system
+            if (window.game && window.game.gameManager) {
+                window.game.gameManager.eventBus.emit('comboEnd');
+            }
         }, CONFIG.COMBO_TIMEOUT);
         
         return this.combo + 1; // Return display combo (1-based)

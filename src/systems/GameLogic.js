@@ -147,7 +147,20 @@ export class GameLogic {
         const pointsPerBubble = Math.floor(totalPoints / bubbles.length);
         
         this.gameState.addScore(totalPoints);
+        
+        // Emit combo start if this is the first in a combo chain
+        if (this.gameState.combo === 0) {
+            this.gameManager.eventBus.emit('comboStart');
+        }
+        
         this.gameState.incrementCombo();
+        
+        // Emit bubbles destroyed event for timer system
+        this.gameManager.eventBus.emit('bubblesDestroyed', { 
+            count: bubblesToRemove.length,
+            combo: this.gameState.combo
+        });
+        
         if (this.gameManager && this.gameManager.eventBus) {
             this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
         }
@@ -246,6 +259,8 @@ export class GameLogic {
                 setTimeout(() => this.checkVictory(), 500);
             }, matches.length * 50 + 100);
         } else {
+            // No match - emit miss event for timer speed up
+            this.gameManager.eventBus.emit('bubbleMiss');
             this.gameState.resetCombo();
         }
     }
