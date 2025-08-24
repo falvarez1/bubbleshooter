@@ -91,6 +91,13 @@ export class PowerUpSystem {
             powerUp.duration -= deltaTime;
             return powerUp.duration > 0;
         });
+        
+        // Update all registered power-ups (for particle pools, etc.)
+        for (const powerUp of this.powerUps.values()) {
+            if (powerUp.update) {
+                powerUp.update(deltaTime);
+            }
+        }
     }
     
     /**

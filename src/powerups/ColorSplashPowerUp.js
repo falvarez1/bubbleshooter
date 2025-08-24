@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG, PARTICLE_CONFIG } from '../core/Config.js';
 import { PowerUp } from './PowerUp.js';
-import { ParticleFactory } from '../entities/Particle.js';
+import { ParticleFactory, ParticlePool } from '../entities/Particle.js';
 
 /**
  * Color Splash Power-Up
@@ -17,15 +17,29 @@ export class ColorSplashPowerUp extends PowerUp {
             glowColor: 0xff66ff
         });
         this.clusterSize = 2; // Radius of 2 for cluster detection
+        // Create a dedicated CPU particle pool for color effects
+        // GPU particles don't support individual colors properly
+        this.colorParticlePool = null;
+    }
+    
+    initColorParticlePool(scene) {
+        if (!this.colorParticlePool) {
+            this.colorParticlePool = new ParticlePool(200); // Dedicated pool for color effects
+            this.colorParticlePool.addToScene(scene);
+        }
     }
     
     activate(powerUpBubble, gameState, gameManager) {
+        // Initialize color particle pool if needed
+        this.initColorParticlePool(gameManager.scene);
+        
         // Find all bubbles on the board
         const allBubbles = [];
         for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
             for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
                 const bubble = gameState.getBubbleAt(x, y);
-                if (bubble && !bubble.isPowerUp) {
+                // Exclude power-ups, destroyed bubbles, and the power-up bubble itself
+                if (bubble && !bubble.isPowerUp && !bubble.isDestroyed && bubble !== powerUpBubble) {
                     allBubbles.push(bubble);
                 }
             }
@@ -44,7 +58,9 @@ export class ColorSplashPowerUp extends PowerUp {
         for (let y = 0; y < CONFIG.GRID_HEIGHT && cluster.length < maxClusterSize; y++) {
             for (let x = 0; x < CONFIG.GRID_WIDTH && cluster.length < maxClusterSize; x++) {
                 const bubble = gameState.getBubbleAt(x, y);
-                if (bubble && bubble !== centerBubble && !bubble.isPowerUp) {
+                // Exclude power-up bubble and already destroyed bubbles
+                if (bubble && bubble !== centerBubble && !bubble.isPowerUp && 
+                    !bubble.isDestroyed && bubble !== powerUpBubble) {
                     const distance = centerBubble.position.distanceTo(bubble.position);
                     if (distance <= maxDistance) {
                         cluster.push(bubble);
@@ -81,33 +97,41 @@ export class ColorSplashPowerUp extends PowerUp {
                 }, i * 100); // Delay between batches
             }
             
-            // Check for matches after all transformations
+            // Check for matches after all transformations (if enabled)
             const totalTransformTime = Math.ceil(cluster.length / batchSize) * 100 + batchSize * PARTICLE_CONFIG.colorSplash.transformDelay;
-            setTimeout(() => {
-                // Find all matches in the transformed cluster
-                const allMatches = new Set();
-                cluster.forEach(bubble => {
-                    if (!allMatches.has(bubble)) {
-                        const matches = this.findConnectedBubbles(bubble, gameState);
-                        if (matches.length >= 3) {
-                            matches.forEach(m => allMatches.add(m));
+            
+            if (PARTICLE_CONFIG.colorSplash.checkForMatches) {
+                setTimeout(() => {
+                    // Find all matches in the transformed cluster
+                    const allMatches = new Set();
+                    cluster.forEach(bubble => {
+                        if (!allMatches.has(bubble)) {
+                            const matches = this.findConnectedBubbles(bubble, gameState);
+                            if (matches.length >= 3) {
+                                matches.forEach(m => allMatches.add(m));
+                            }
                         }
-                    }
-                });
-                
-                if (allMatches.size > 0) {
-                    // Emit event to handle matched bubbles
-                    gameManager.eventBus.emit('colorSplashDestroy', {
-                        bubbles: Array.from(allMatches),
-                        points: allMatches.size * 20
                     });
-                } else {
-                    // No matches, just check for floating bubbles
-                    setTimeout(() => {
-                        gameManager.eventBus.emit('checkFloatingBubbles');
-                    }, 500);
-                }
-            }, totalTransformTime + 200);
+                    
+                    if (allMatches.size > 0) {
+                        // Emit event to handle matched bubbles
+                        gameManager.eventBus.emit('colorSplashDestroy', {
+                            bubbles: Array.from(allMatches),
+                            points: allMatches.size * 20
+                        });
+                    } else {
+                        // No matches, just check for floating bubbles
+                        setTimeout(() => {
+                            gameManager.eventBus.emit('checkFloatingBubbles');
+                        }, 500);
+                    }
+                }, totalTransformTime + 200);
+            } else {
+                // When match checking is disabled, just check for floating bubbles after transformation
+                setTimeout(() => {
+                    gameManager.eventBus.emit('checkFloatingBubbles');
+                }, totalTransformTime + 700);
+            }
         }, 800);
         
         // Remove the power-up bubble itself
@@ -218,12 +242,12 @@ export class ColorSplashPowerUp extends PowerUp {
         };
         gameState.addAnimation(ringAnimation);
         
-        // Create color wave particles - OPTIMIZED
+        // Create color wave particles - Use dedicated color pool
         ParticleFactory.createColorWave(
             centerBubble.position,
             targetColor,
             PARTICLE_CONFIG.colorSplash.waveParticles,
-            gameState.particlePool
+            this.colorParticlePool  // Use dedicated pool for proper color support
         );
         
         // Add screen flash effect
@@ -264,34 +288,52 @@ export class ColorSplashPowerUp extends PowerUp {
     }
     
     createSpiralEffect(bubble, targetColor, gameState) {
-        // Create spiral particles around bubble - OPTIMIZED
+        // Create spiral particles around bubble - Use dedicated color pool
         ParticleFactory.createColorSpiral(
             bubble.position,
             targetColor,
             PARTICLE_CONFIG.colorSplash.spiralParticles,
-            gameState.particlePool
+            this.colorParticlePool  // Use dedicated pool for proper color support
         );
     }
     
     transformBubbleColor(bubble, newColor, gameState, gameManager) {
+        // Skip if bubble is destroyed
+        if (!bubble || bubble.isDestroyed) return;
+        
         // Store old color for transition effect
         const oldColor = bubble.color;
         
-        // Create transformation particles - OPTIMIZED
+        // Create transformation particles - Use dedicated color pool
         ParticleFactory.createColorTransform(
             bubble.position,
             oldColor,
             newColor,
             PARTICLE_CONFIG.colorSplash.transformParticles,
-            gameState.particlePool
+            this.colorParticlePool  // Use dedicated pool for proper color support
         );
         
-        // Update bubble color
+        // Update bubble color property
         bubble.color = newColor;
-        bubble.material.color.set(newColor);
-        bubble.material.emissive.set(newColor);
-        if (bubble.glowMesh) {
-            bubble.glowMesh.material.color.set(newColor);
+        
+        // Update visual representation based on rendering type
+        if (bubble.useInstancedRendering) {
+            // For instanced bubbles, update through the instance manager
+            if (gameManager.bubbleInstances) {
+                const success = gameManager.bubbleInstances.updateBubbleColor(bubble, newColor);
+                if (!success) {
+                    console.warn('Failed to update bubble color for instanced bubble:', bubble.id);
+                }
+            }
+        } else {
+            // For regular bubbles, update material directly
+            if (bubble.material) {
+                bubble.material.color.set(newColor);
+                bubble.material.emissive.set(newColor);
+            }
+            if (bubble.glowMesh && bubble.glowMesh.material) {
+                bubble.glowMesh.material.color.set(newColor);
+            }
         }
         
         // Add transformation pulse
@@ -304,7 +346,15 @@ export class ColorSplashPowerUp extends PowerUp {
         
         setTimeout(() => {
             if (gameManager.scene) gameManager.scene.remove(flash);
+            flash.dispose();
         }, 200);
+    }
+    
+    update(deltaTime) {
+        // Update the dedicated color particle pool
+        if (this.colorParticlePool) {
+            this.colorParticlePool.update(deltaTime);
+        }
     }
     
     createVisualEffect(bubble) {

@@ -27,13 +27,15 @@ export class GameManager {
      * @param {THREE.Scene} scene - Three.js scene for power-up effects
      * @param {BubbleEffectsSystem} effectsSystem - Independent effects system
      * @param {THREE.WebGLRenderer} renderer - Three.js renderer for blast wave effects
+     * @param {BubbleInstances} bubbleInstances - Instanced bubble renderer (optional)
      */
-    initialize(camera, scene, effectsSystem, renderer) {
+    initialize(camera, scene, effectsSystem, renderer, bubbleInstances = null) {
         // Store references for power-ups and effects
         this.scene = scene;
         this.effectsSystem = effectsSystem;
         this.camera = camera;
         this.renderer = renderer;
+        this.bubbleInstances = bubbleInstances;
         
         // Initialize visual text display
         this.visualTextDisplay = new VisualTextDisplay(camera);

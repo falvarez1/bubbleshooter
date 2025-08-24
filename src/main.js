@@ -173,8 +173,8 @@ class BubbleShooterGame {
         await this.audioSystem.initialize();
         this.audioSystem.startAmbientAudio();
         
-        // Initialize game manager with camera, scene, effects system, and renderer
-        this.gameManager.initialize(this.camera, this.scene, this.effectsSystem, this.renderer);
+        // Initialize game manager with camera, scene, effects system, renderer, and bubble instances
+        this.gameManager.initialize(this.camera, this.scene, this.effectsSystem, this.renderer, this.bubbleInstances);
         
         // Register power-ups
         this.gameManager.registerPowerUp(new RainbowPowerUp());

@@ -217,7 +217,8 @@ export const PARTICLE_CONFIG = {
         maxClusterSize: 15,     // Max bubbles affected
         spiralEveryNth: 2,      // Create spiral every N bubbles
         transformDelay: 80,     // Delay between transforms
-        batchSize: 5            // Transform batch size
+        batchSize: 5,           // Transform batch size
+        checkForMatches: false  // Enable/disable automatic match checking after transformation
     },
     
     // Regular bubble pop

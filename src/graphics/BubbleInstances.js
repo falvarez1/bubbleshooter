@@ -934,6 +934,57 @@ export class BubbleInstances {
         return false;
     }
     
+    updateBubbleColor(bubble, newColor) {
+        const mapping = this.bubbleMap.get(bubble.id);
+        if (!mapping) {
+            console.warn('updateBubbleColor: No mapping found for bubble:', bubble.id);
+            return false;
+        }
+        
+        const instanceIndex = mapping.index;
+        const color = new THREE.Color(newColor);
+        
+        // Ensure the bubble is visible (scale is not 0)
+        const scaleAttr = this.instancedMesh.geometry.getAttribute('instanceScale');
+        if (scaleAttr) {
+            const currentScale = scaleAttr.getX(instanceIndex);
+            if (currentScale === 0) {
+                console.warn('updateBubbleColor: Bubble is hidden (scale=0), setting to visible:', bubble.id);
+                scaleAttr.setX(instanceIndex, 1.0);
+                scaleAttr.needsUpdate = true;
+            }
+        }
+        
+        // Update instance color using attributes (not setColorAt which may not exist)
+        const colorAttr = this.instancedMesh.geometry.getAttribute('instanceColor');
+        if (colorAttr) {
+            colorAttr.setXYZ(instanceIndex, color.r, color.g, color.b);
+            colorAttr.needsUpdate = true;
+        }
+        
+        // Update glow color
+        if (this.glowMesh) {
+            const glowColorAttr = this.glowMesh.geometry.getAttribute('instanceColor');
+            if (glowColorAttr) {
+                glowColorAttr.setXYZ(instanceIndex, color.r, color.g, color.b);
+                glowColorAttr.needsUpdate = true;
+            }
+            
+            // Ensure glow is visible too
+            const glowScaleAttr = this.glowMesh.geometry.getAttribute('instanceScale');
+            if (glowScaleAttr) {
+                const currentGlowScale = glowScaleAttr.getX(instanceIndex);
+                if (currentGlowScale === 0) {
+                    glowScaleAttr.setX(instanceIndex, 1.0);
+                    glowScaleAttr.needsUpdate = true;
+                }
+            }
+        }
+        
+        console.log('updateBubbleColor: Updated bubble', bubble.id, 'at index', instanceIndex, 'to color', color.getHexString());
+        return true;
+    }
+    
     setJitterEffect(bubble, jitterAmount = 0.1) {
         const mapping = this.bubbleMap.get(bubble.id);
         if (!mapping) return;
