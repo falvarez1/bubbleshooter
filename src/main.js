@@ -1795,9 +1795,23 @@ class BubbleShooterGame {
 // Initialize and start the game
 const game = new BubbleShooterGame();
 
-// Make restart function globally available
+// Make restart functions globally available
 window.restartGame = function() {
     location.reload(); // Simple reload for now
+};
+
+// Retry the current level (keep progress)
+window.retryLevel = function() {
+    // Just reload - this will load from saved progress at current level
+    location.reload();
+};
+
+// Start a completely new game from level 1
+window.restartFromBeginning = function() {
+    // Clear all saved progress
+    localStorage.removeItem('bubbleShooterProgress');
+    // Then reload to start fresh
+    location.reload();
 };
 
 // Make bloom debug functions globally available

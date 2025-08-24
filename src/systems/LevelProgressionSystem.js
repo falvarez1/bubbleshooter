@@ -465,6 +465,12 @@ export class LevelProgressionSystem {
     }
     
     showLevelUpAnimation(level) {
+        // Check if UI elements exist
+        if (!this.levelUpAnimation || !this.newLevelNumber || !this.levelUpMessage) {
+            console.log(`Level up to ${level}!`);
+            return;
+        }
+        
         // Update animation content
         this.newLevelNumber.textContent = level;
         
@@ -484,7 +490,9 @@ export class LevelProgressionSystem {
         
         // Hide after animation
         setTimeout(() => {
-            this.levelUpAnimation.classList.add('hidden');
+            if (this.levelUpAnimation) {
+                this.levelUpAnimation.classList.add('hidden');
+            }
         }, 2000);
         
         // Update UI
@@ -494,18 +502,22 @@ export class LevelProgressionSystem {
     triggerZenMoment() {
         console.log('Zen moment activated!');
         
-        // Show zen moment UI
-        this.zenMoment.classList.remove('hidden');
+        // Show zen moment UI if element exists
+        if (this.zenMoment) {
+            this.zenMoment.classList.remove('hidden');
+            
+            // Hide after 3 seconds
+            setTimeout(() => {
+                if (this.zenMoment) {
+                    this.zenMoment.classList.add('hidden');
+                }
+            }, 3000);
+        }
         
         // Pause timer temporarily
         this.eventBus.emit('zenMoment', {
             duration: this.config.zenMomentDuration
         });
-        
-        // Hide after 3 seconds
-        setTimeout(() => {
-            this.zenMoment.classList.add('hidden');
-        }, 3000);
     }
     
     activateMercyMode() {
@@ -583,7 +595,11 @@ export class LevelProgressionSystem {
                 // Only load if save is less than 24 hours old
                 if (Date.now() - data.timestamp < 86400000) {
                     // Apply saved data
-                    if (data.level) this.gameState.level = data.level;
+                    if (data.level) {
+                        this.gameState.level = data.level;
+                        // Notify timer system about the loaded level
+                        this.eventBus.emit('levelUp', { level: data.level });
+                    }
                     if (data.score) this.gameState.score = data.score;
                     if (data.bestCombo) this.gameState.bestCombo = data.bestCombo;
                     if (data.stats) Object.assign(this.config.stats, data.stats);
