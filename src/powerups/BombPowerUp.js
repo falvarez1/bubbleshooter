@@ -17,7 +17,7 @@ export class BombPowerUp extends PowerUp {
             color: 0xff0000,
             glowColor: 0xff0000
         });
-        this.explosionRadius = 1.5; // Distance to check for 3x3 grid area
+        this.explosionRadius = 2.2; // Increased to properly cover 3x3 area including diagonals
     }
     
     activate(targetBubbleOrPosition, gameState, gameManager) {
@@ -63,6 +63,8 @@ export class BombPowerUp extends PowerUp {
     executeBombExplosion(impactBubble, gameState, gameManager) {
         const destroyed = [impactBubble];
         
+        console.log(`Bomb explosion at position:`, impactBubble.position, `Radius: ${this.explosionRadius * CONFIG.HEX_WIDTH}`);
+        
         // Find all bubbles within explosion radius (3x3 area)
         for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
             for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
@@ -85,6 +87,8 @@ export class BombPowerUp extends PowerUp {
                 }
             }
         }
+        
+        console.log(`Bomb destroyed ${destroyed.length} bubbles`);
         
         // Create explosion visual effects
         this.createExplosionEffects(impactBubble, gameState, gameManager);

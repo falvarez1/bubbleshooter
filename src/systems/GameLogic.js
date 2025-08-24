@@ -157,7 +157,7 @@ export class GameLogic {
         
         // Emit bubbles destroyed event for timer system
         this.gameManager.eventBus.emit('bubblesDestroyed', { 
-            count: bubblesToRemove.length,
+            count: bubbles.length,
             combo: this.gameState.combo
         });
         
