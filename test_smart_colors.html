@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Color Selection Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Orbitron', monospace;
+            background: #111;
+            color: #fff;
+        }
+        .info-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #00ffcc;
+            border-radius: 10px;
+            padding: 20px;
+            max-width: 400px;
+            z-index: 10000;
+        }
+        h2 {
+            color: #00ffcc;
+            margin-top: 0;
+        }
+        .feature {
+            margin: 15px 0;
+            padding: 10px;
+            background: rgba(0, 255, 200, 0.1);
+            border-left: 3px solid #00ffcc;
+            border-radius: 5px;
+        }
+        .level-info {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 5px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+        }
+        code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .instructions {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(155, 89, 182, 0.2);
+            border: 1px solid #9B59B6;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="info-panel">
+        <h2>🎯 Smart Color Selection System</h2>
+        
+        <div class="feature">
+            <h3>How It Works:</h3>
+            <p>The game now intelligently selects shooting bubble colors based on:</p>
+            <ul>
+                <li><strong>Accessibility Analysis:</strong> Bubbles on the edges and bottom rows are prioritized</li>
+                <li><strong>Cluster Detection:</strong> Colors that form larger groups get higher weight</li>
+                <li><strong>Direct Line of Sight:</strong> Bubbles you can hit directly are prioritized</li>
+                <li><strong>Difficulty Scaling:</strong> Helper probability decreases as you level up</li>
+            </ul>
+        </div>
+        
+        <div class="feature">
+            <h3>Difficulty Phases:</h3>
+            <div class="level-info">
+                <span><strong>Learning (L1-5):</strong></span>
+                <span style="color: #00ff88;">70% helpful colors</span>
+            </div>
+            <div class="level-info">
+                <span><strong>Mastery (L6-15):</strong></span>
+                <span style="color: #ffcc00;">40% helpful colors</span>
+            </div>
+            <div class="level-info">
+                <span><strong>Excellence (L16+):</strong></span>
+                <span style="color: #ff8844;">20% helpful colors</span>
+            </div>
+        </div>
+        
+        <div class="instructions">
+            <h3>🎮 Testing Instructions:</h3>
+            <ol>
+                <li>Press <code>C</code> to toggle the debug overlay (bottom-left)</li>
+                <li>The overlay shows which colors are most accessible</li>
+                <li>Watch how often you get helpful colors at Level 1</li>
+                <li>Use <code>colorStats()</code> in console for detailed stats</li>
+                <li>Progress to higher levels to see difficulty increase</li>
+            </ol>
+            
+            <p style="margin-top: 15px;">
+                <strong>Key Features:</strong><br>
+                • Early levels give you colors that match edge bubbles<br>
+                • System adapts when you're in danger zone<br>
+                • Mercy mode activates after multiple failures<br>
+                • Statistics track helpful vs random selections
+            </p>
+        </div>
+    </div>
+    
+    <iframe src="index.html" style="width: calc(100% - 450px); height: 100vh; border: none; position: fixed; left: 0; top: 0;"></iframe>
+    
+    <script>
+        // Auto-open smart color debug on load
+        setTimeout(() => {
+            const iframe = document.querySelector('iframe');
+            if (iframe && iframe.contentWindow && iframe.contentWindow.game) {
+                // Trigger the debug UI
+                const event = new KeyboardEvent('keydown', { key: 'C' });
+                iframe.contentWindow.dispatchEvent(event);
+                
+                console.log('%c Smart Color Selection Active! ', 'background: #00ffcc; color: #000; font-size: 16px; padding: 5px;');
+                console.log('The game is now using intelligent color selection.');
+                console.log('At Level 1, you have a 70% chance of getting helpful colors!');
+            }
+        }, 3000);
+    </script>
+</body>
+</html>

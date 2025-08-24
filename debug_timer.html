@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Timer Debug</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: monospace;
+            background: #222;
+            color: #0f0;
+        }
+        #debug {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #000;
+            border: 2px solid #0f0;
+            padding: 20px;
+            z-index: 10000;
+            min-width: 300px;
+        }
+        .status {
+            margin: 5px 0;
+        }
+        button {
+            margin: 5px;
+            padding: 5px 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="debug">
+        <h3>Timer Debug Console</h3>
+        <div id="status"></div>
+        <hr>
+        <button onclick="forceRowPush()">Force Row Push</button>
+        <button onclick="resetTimer()">Reset Timer</button>
+        <button onclick="pauseTimer()">Pause Timer</button>
+        <button onclick="resumeTimer()">Resume Timer</button>
+    </div>
+    
+    <iframe id="game" src="index.html" style="width: calc(100% - 400px); height: 100vh; border: none;"></iframe>
+    
+    <script>
+        let gameWindow;
+        let statusEl = document.getElementById('status');
+        
+        window.onload = () => {
+            gameWindow = document.getElementById('game').contentWindow;
+            
+            // Start monitoring
+            setInterval(updateStatus, 100);
+            
+            // Log initial state after 2 seconds
+            setTimeout(() => {
+                if (gameWindow.game) {
+                    console.log('Game loaded successfully');
+                    console.log('Timer system:', gameWindow.game.progressiveTimerSystem);
+                    console.log('Timer config:', gameWindow.game.progressiveTimerSystem?.config);
+                }
+            }, 2000);
+        };
+        
+        function updateStatus() {
+            if (!gameWindow || !gameWindow.game) {
+                statusEl.innerHTML = '<div class="status">Game not loaded...</div>';
+                return;
+            }
+            
+            const game = gameWindow.game;
+            const timer = game.progressiveTimerSystem?.config;
+            
+            if (!timer) {
+                statusEl.innerHTML = '<div class="status">Timer system not initialized</div>';
+                return;
+            }
+            
+            const html = `
+                <div class="status">Time Remaining: ${(timer.timeRemaining / 1000).toFixed(1)}s</div>
+                <div class="status">Current Time: ${(timer.currentTime / 1000).toFixed(1)}s</div>
+                <div class="status">Is Paused: ${timer.isPaused}</div>
+                <div class="status">Warning Shown: ${timer.warningShown}</div>
+                <div class="status">Level: ${game.gameState.level}</div>
+                <div class="status">Danger Level: ${game.gameState.dangerZone?.level || 0}</div>
+                <div class="status">Time Slow: ${game.gameState.dangerZone?.timeSlowFactor || 1.0}</div>
+            `;
+            
+            statusEl.innerHTML = html;
+        }
+        
+        function forceRowPush() {
+            if (gameWindow?.game?.progressiveTimerSystem) {
+                console.log('Forcing row push...');
+                gameWindow.game.progressiveTimerSystem.triggerRowPush();
+            }
+        }
+        
+        function resetTimer() {
+            if (gameWindow?.game?.progressiveTimerSystem) {
+                console.log('Resetting timer...');
+                gameWindow.game.progressiveTimerSystem.resetTimer();
+            }
+        }
+        
+        function pauseTimer() {
+            if (gameWindow?.game?.progressiveTimerSystem) {
+                console.log('Pausing timer...');
+                gameWindow.game.progressiveTimerSystem.config.isPaused = true;
+            }
+        }
+        
+        function resumeTimer() {
+            if (gameWindow?.game?.progressiveTimerSystem) {
+                console.log('Resuming timer...');
+                gameWindow.game.progressiveTimerSystem.config.isPaused = false;
+            }
+        }
+    </script>
+</body>
+</html>

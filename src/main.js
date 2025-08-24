@@ -1601,6 +1601,13 @@ class BubbleShooterGame {
                 }
             }
             
+            // Check for game over condition every frame
+            if (this.gameLogic.checkGameOver()) {
+                if (!this.gameState.isGameOver) {
+                    this.uiManager.showGameOver(this.gameState.score, this.gameState.level, this.gameState.bestCombo);
+                }
+            }
+            
             // Update all grid bubbles and count non-power-up bubbles in one pass
             let bubblesRemaining = 0;
             const seenPositions = new Map(); // Track bubbles by position to detect duplicates
