@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Splash Cleanup Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+        }
+        #canvas-container {
+            width: 800px;
+            height: 600px;
+            border: 2px solid #444;
+            margin: 20px auto;
+            position: relative;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #info {
+            margin: 20px;
+            padding: 10px;
+            background: #333;
+            border-radius: 5px;
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            margin: 5px;
+            border-radius: 3px;
+        }
+        .success { background: #4CAF50; }
+        .warning { background: #ff9800; }
+        .error { background: #f44336; }
+    </style>
+</head>
+<body>
+    <h1>Color Splash Power-Up Cleanup Test</h1>
+    
+    <div id="info">
+        <h3>Test Instructions:</h3>
+        <ol>
+            <li>Click "Trigger Color Splash" to activate the power-up</li>
+            <li>Watch for spiral particles around affected bubbles</li>
+            <li>Click "Destroy Bubbles" to remove bubbles</li>
+            <li>Verify that spiral particles are cleaned up (no orphaned effects)</li>
+            <li>Click "Check Cleanup" to verify particle pools are clean</li>
+        </ol>
+        <div id="status"></div>
+    </div>
+    
+    <div style="text-align: center;">
+        <button onclick="triggerColorSplash()">Trigger Color Splash</button>
+        <button onclick="destroyBubbles()">Destroy Bubbles</button>
+        <button onclick="checkCleanup()">Check Cleanup</button>
+        <button onclick="resetTest()">Reset Test</button>
+    </div>
+    
+    <div id="canvas-container"></div>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        import { ColorSplashPowerUp } from './src/powerups/ColorSplashPowerUp.js';
+        import { EventBus } from './src/core/EventBus.js';
+        import { CONFIG, PARTICLE_CONFIG } from './src/core/Config.js';
+        
+        // Create a minimal test environment
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, 800 / 600, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(800, 600);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+        
+        // Add lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight.position.set(0, 10, 5);
+        scene.add(directionalLight);
+        
+        camera.position.z = 10;
+        
+        // Test data
+        let testBubbles = [];
+        let colorSplashPowerUp = null;
+        let eventBus = new EventBus();
+        let gameState = {
+            particlePool: null,
+            addAnimation: (anim) => {},
+            getBubbleAt: (x, y) => testBubbles.find(b => b.gridX === x && b.gridY === y),
+            addScore: () => {}
+        };
+        let gameManager = {
+            scene: scene,
+            eventBus: eventBus,
+            showFloatingScore: () => {},
+            addScreenShake: () => {}
+        };
+        
+        // Create test bubbles
+        function createTestBubbles() {
+            testBubbles = [];
+            for (let i = 0; i < 5; i++) {
+                const bubble = {
+                    id: `bubble_${i}`,
+                    gridX: i,
+                    gridY: 0,
+                    position: new THREE.Vector3((i - 2) * 2, 0, 0),
+                    color: 0x00ff00,
+                    isDestroyed: false,
+                    destroy: function() {
+                        this.isDestroyed = true;
+                        updateStatus(`Bubble ${this.id} destroyed`, 'success');
+                    }
+                };
+                
+                // Create visual representation
+                const geometry = new THREE.SphereGeometry(0.5, 32, 32);
+                const material = new THREE.MeshPhongMaterial({ color: bubble.color });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.copy(bubble.position);
+                scene.add(mesh);
+                bubble.mesh = mesh;
+                
+                testBubbles.push(bubble);
+            }
+        }
+        
+        window.triggerColorSplash = function() {
+            colorSplashPowerUp = new ColorSplashPowerUp();
+            colorSplashPowerUp.initColorParticlePool(scene);
+            
+            // Create spiral effects on test bubbles
+            testBubbles.forEach((bubble, index) => {
+                if (index < 3) { // Only affect first 3 bubbles
+                    colorSplashPowerUp.createSpiralEffect(bubble, 0xff00ff, gameState);
+                }
+            });
+            
+            updateStatus('Color Splash activated - spiral particles created', 'success');
+            updateStatus(`Active particles: ${colorSplashPowerUp.colorParticlePool?.activeParticles?.length || 0}`, 'warning');
+            updateStatus(`Tracked bubbles: ${colorSplashPowerUp.bubbleSpiralParticles.size}`, 'warning');
+        };
+        
+        window.destroyBubbles = function() {
+            if (!colorSplashPowerUp) {
+                updateStatus('Please trigger Color Splash first', 'error');
+                return;
+            }
+            
+            // Destroy affected bubbles
+            testBubbles.forEach((bubble, index) => {
+                if (index < 3 && !bubble.isDestroyed) {
+                    // Emit destruction event
+                    eventBus.emit('bubbleDestroyed', { bubble: bubble });
+                    
+                    // Call destroy method
+                    bubble.destroy();
+                    
+                    // Remove mesh from scene
+                    if (bubble.mesh) {
+                        scene.remove(bubble.mesh);
+                    }
+                }
+            });
+            
+            updateStatus('Bubbles destroyed - checking particle cleanup...', 'warning');
+            
+            // Check cleanup after a short delay
+            setTimeout(() => {
+                checkCleanup();
+            }, 100);
+        };
+        
+        window.checkCleanup = function() {
+            if (!colorSplashPowerUp) {
+                updateStatus('No Color Splash power-up active', 'error');
+                return;
+            }
+            
+            const activeParticles = colorSplashPowerUp.colorParticlePool?.activeParticles?.length || 0;
+            const trackedBubbles = colorSplashPowerUp.bubbleSpiralParticles.size;
+            
+            updateStatus(`Active particles after cleanup: ${activeParticles}`, activeParticles > 0 ? 'error' : 'success');
+            updateStatus(`Tracked bubbles after cleanup: ${trackedBubbles}`, trackedBubbles > 0 ? 'error' : 'success');
+            
+            if (activeParticles === 0 && trackedBubbles === 0) {
+                updateStatus('✓ Cleanup successful! No orphaned particles.', 'success');
+            } else {
+                updateStatus('✗ Cleanup failed! Orphaned particles detected.', 'error');
+            }
+        };
+        
+        window.resetTest = function() {
+            // Clean up existing power-up
+            if (colorSplashPowerUp) {
+                colorSplashPowerUp.cleanup();
+                colorSplashPowerUp = null;
+            }
+            
+            // Remove old bubbles
+            testBubbles.forEach(bubble => {
+                if (bubble.mesh) {
+                    scene.remove(bubble.mesh);
+                }
+            });
+            
+            // Create new bubbles
+            createTestBubbles();
+            
+            document.getElementById('status').innerHTML = '';
+            updateStatus('Test reset - ready for new test', 'success');
+        };
+        
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            const statusElement = document.createElement('div');
+            statusElement.className = `status ${type}`;
+            statusElement.textContent = message;
+            statusDiv.appendChild(statusElement);
+            
+            // Auto-scroll to bottom
+            statusDiv.scrollTop = statusDiv.scrollHeight;
+        }
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Update particle pool
+            if (colorSplashPowerUp && colorSplashPowerUp.colorParticlePool) {
+                colorSplashPowerUp.update(0.016); // ~60fps
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Initialize
+        createTestBubbles();
+        animate();
+        updateStatus('Test initialized - ready to test Color Splash cleanup', 'success');
+    </script>
+</body>
+</html>

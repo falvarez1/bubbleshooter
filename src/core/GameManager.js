@@ -162,11 +162,19 @@ export class GameManager {
                 volume: 1.0,
                 rate: 0.95 + Math.random() * 0.1 // Slight pitch variation for variety
             });
+            // Clean up power-up effects
+            if (this.powerUpSystem && this.powerUpSystem.cleanup) {
+                this.powerUpSystem.cleanup();
+            }
         });
         
         // Game over
         this.eventBus.on('gameOver', () => {
             this.soundManager.play('gameOver');
+            // Clean up power-up effects
+            if (this.powerUpSystem && this.powerUpSystem.cleanup) {
+                this.powerUpSystem.cleanup();
+            }
         });
         
         // Game start

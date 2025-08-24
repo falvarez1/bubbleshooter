@@ -123,4 +123,19 @@ export class PowerUpSystem {
     clearActivePowerUps() {
         this.activePowerUps = [];
     }
+    
+    /**
+     * Clean up all power-up effects and resources
+     */
+    cleanup() {
+        // Clear active power-ups
+        this.clearActivePowerUps();
+        
+        // Call cleanup on all registered power-ups
+        for (const powerUp of this.powerUps.values()) {
+            if (powerUp.cleanup) {
+                powerUp.cleanup();
+            }
+        }
+    }
 }

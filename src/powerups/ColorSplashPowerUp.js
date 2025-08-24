@@ -20,6 +20,10 @@ export class ColorSplashPowerUp extends PowerUp {
         // Create a dedicated CPU particle pool for color effects
         // GPU particles don't support individual colors properly
         this.colorParticlePool = null;
+        // Track active spiral particles per bubble for cleanup
+        this.bubbleSpiralParticles = new Map();
+        // Track active ring effects for cleanup
+        this.activeRings = [];
     }
     
     initColorParticlePool(scene) {
@@ -32,6 +36,17 @@ export class ColorSplashPowerUp extends PowerUp {
     activate(powerUpBubble, gameState, gameManager) {
         // Initialize color particle pool if needed
         this.initColorParticlePool(gameManager.scene);
+        
+        // Listen for bubble destruction events to clean up particles
+        if (gameManager.eventBus && !this.cleanupListenerAttached) {
+            this.cleanupListenerAttached = true;
+            gameManager.eventBus.on('bubbleDestroyed', (data) => {
+                if (data.bubble) {
+                    const bubbleId = data.bubble.id || `${data.bubble.gridX}_${data.bubble.gridY}`;
+                    this.cleanupBubbleParticles(bubbleId);
+                }
+            });
+        }
         
         // Find all bubbles on the board
         const allBubbles = [];
@@ -91,7 +106,7 @@ export class ColorSplashPowerUp extends PowerUp {
                 setTimeout(() => {
                     batch.forEach((bubble, batchIndex) => {
                         setTimeout(() => {
-                            this.transformBubbleColor(bubble, selectedColor, gameState, gameManager);
+                            this.transformBubbleColor(bubble, selectedColor, gameManager);
                         }, batchIndex * PARTICLE_CONFIG.colorSplash.transformDelay);
                     });
                 }, i * 100); // Delay between batches
@@ -250,6 +265,12 @@ export class ColorSplashPowerUp extends PowerUp {
                 glowRing.position.z -= 0.05;
                 if (gameManager.scene) gameManager.scene.add(glowRing);
                 
+                // Track rings for cleanup
+                this.activeRings.push({ ring, glowRing, ringGeometry, ringMaterial, glowGeometry, glowMaterial });
+                
+                // Keep reference to ColorSplashPowerUp instance
+                const self = this;
+                
                 // Animate expanding rings with shimmer effect
                 const ringAnimation = {
                     scale: 1,
@@ -289,6 +310,13 @@ export class ColorSplashPowerUp extends PowerUp {
                             ringMaterial.dispose();
                             glowGeometry.dispose();
                             glowMaterial.dispose();
+                            
+                            // Remove from active rings list
+                            const index = self.activeRings.findIndex(r => r.ring === ring);
+                            if (index !== -1) {
+                                self.activeRings.splice(index, 1);
+                            }
+                            
                             return false; // Remove from animations
                         }
                         return true; // Keep animating
@@ -337,25 +365,56 @@ export class ColorSplashPowerUp extends PowerUp {
             // Only create spiral for every Nth bubble based on config
             if (index % PARTICLE_CONFIG.colorSplash.spiralEveryNth === 0) {
                 setTimeout(() => {
-                    this.createSpiralEffect(bubble, targetColor, gameState);
+                    // Check if bubble still exists and hasn't been destroyed
+                    if (!bubble.isDestroyed) {
+                        this.createSpiralEffect(bubble, targetColor);
+                    }
                 }, index * 50); // Increased delay
             }
         });
     }
     
-    createSpiralEffect(bubble, targetColor, gameState) {
+    createSpiralEffect(bubble, targetColor) {
         // Create spiral particles around bubble - Use dedicated color pool
-        ParticleFactory.createColorSpiral(
+        const particles = ParticleFactory.createColorSpiral(
             bubble.position,
             targetColor,
             PARTICLE_CONFIG.colorSplash.spiralParticles,
             this.colorParticlePool  // Use dedicated pool for proper color support
         );
+        
+        // Track particles for this bubble for cleanup
+        if (particles && particles.length > 0) {
+            const bubbleId = bubble.id || `${bubble.gridX}_${bubble.gridY}`;
+            if (!this.bubbleSpiralParticles.has(bubbleId)) {
+                this.bubbleSpiralParticles.set(bubbleId, []);
+            }
+            this.bubbleSpiralParticles.get(bubbleId).push(...particles);
+            
+            // Mark particles with bubble ID for additional tracking
+            particles.forEach(p => {
+                if (p) p.bubbleId = bubbleId;
+            });
+            
+            // Hook into bubble's destroy method for cleanup
+            if (!bubble._colorSplashCleanupAttached) {
+                bubble._colorSplashCleanupAttached = true;
+                const originalDestroy = bubble.destroy;
+                bubble.destroy = () => {
+                    this.cleanupBubbleParticles(bubbleId);
+                    if (originalDestroy) originalDestroy.call(bubble);
+                };
+            }
+        }
     }
     
-    transformBubbleColor(bubble, newColor, gameState, gameManager) {
+    transformBubbleColor(bubble, newColor, gameManager) {
         // Skip if bubble is destroyed
         if (!bubble || bubble.isDestroyed) return;
+        
+        // Clean up any existing spiral particles for this bubble before transformation
+        const bubbleId = bubble.id || `${bubble.gridX}_${bubble.gridY}`;
+        this.cleanupBubbleParticles(bubbleId);
         
         // Store old color for transition effect
         const oldColor = bubble.color;
@@ -404,6 +463,69 @@ export class ColorSplashPowerUp extends PowerUp {
             if (gameManager.scene) gameManager.scene.remove(flash);
             flash.dispose();
         }, 200);
+    }
+    
+    /**
+     * Clean up particles associated with a specific bubble
+     */
+    cleanupBubbleParticles(bubbleId) {
+        if (this.bubbleSpiralParticles.has(bubbleId)) {
+            const particles = this.bubbleSpiralParticles.get(bubbleId);
+            particles.forEach(particle => {
+                if (particle && this.colorParticlePool) {
+                    // Force particle to die immediately
+                    particle.life = 0;
+                    particle.decay = 1; // Maximum decay to ensure immediate removal
+                    if (particle.mesh) {
+                        particle.mesh.visible = false;
+                    }
+                    // Mark as inactive so it gets returned to pool on next update
+                    particle.active = false;
+                }
+            });
+            this.bubbleSpiralParticles.delete(bubbleId);
+        }
+        
+        // Also clean up any particles in the pool that have this bubble ID
+        if (this.colorParticlePool && this.colorParticlePool.activeParticles) {
+            this.colorParticlePool.activeParticles.forEach(particle => {
+                if (particle && particle.bubbleId === bubbleId) {
+                    particle.life = 0;
+                    particle.decay = 1;
+                    if (particle.mesh) {
+                        particle.mesh.visible = false;
+                    }
+                    particle.active = false;
+                }
+            });
+        }
+    }
+    
+    /**
+     * Clean up all active effects
+     */
+    cleanup() {
+        // Clean up all tracked spiral particles
+        for (const [bubbleId, particles] of this.bubbleSpiralParticles) {
+            this.cleanupBubbleParticles(bubbleId);
+        }
+        this.bubbleSpiralParticles.clear();
+        
+        // Clean up active rings
+        this.activeRings.forEach(({ ring, glowRing, ringGeometry, ringMaterial, glowGeometry, glowMaterial }) => {
+            if (ring.parent) ring.parent.remove(ring);
+            if (glowRing.parent) glowRing.parent.remove(glowRing);
+            ringGeometry.dispose();
+            ringMaterial.dispose();
+            glowGeometry.dispose();
+            glowMaterial.dispose();
+        });
+        this.activeRings = [];
+        
+        // Clear the entire color particle pool
+        if (this.colorParticlePool) {
+            this.colorParticlePool.clear();
+        }
     }
     
     update(deltaTime) {
