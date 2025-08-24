@@ -176,6 +176,30 @@ export class TrajectorySystem {
         this.impactRing.visible = false;
         this.scene.add(this.impactRing);
         
+        // Create electrical arc sprites for Chain Lightning effect
+        this.electricArcs = [];
+        for (let i = 0; i < 6; i++) {
+            const arcGeometry = new THREE.PlaneGeometry(0.2, 0.2);
+            const arcMaterial = new THREE.MeshBasicMaterial({
+                color: i % 2 === 0 ? 0xffffff : 0x00ddff,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                side: THREE.DoubleSide
+            });
+            const arc = new THREE.Mesh(arcGeometry, arcMaterial);
+            arc.visible = false;
+            arc.userData = {
+                offset: i / 6,  // Distribute along trajectory
+                speed: 2 + Math.random() * 3,
+                flickerPhase: Math.random() * Math.PI * 2,
+                baseColor: i % 2 === 0 ? 0xffffff : 0x00ddff
+            };
+            this.electricArcs.push(arc);
+            this.trajectoryGroup.add(arc);
+        }
+        
         // Target indicator with emissive material
         const targetGeometry = new THREE.CircleGeometry(0.5, 32);
         this.targetMaterial = new THREE.MeshStandardMaterial({
@@ -422,6 +446,56 @@ export class TrajectorySystem {
             this.coreShaderMaterial.uniforms.time.value = this.time;
         }
         
+        // Animate electrical arcs for Chain Lightning
+        if (gameState.currentBubble && gameState.currentBubble.isPowerUp && 
+            gameState.currentBubble.powerUpType === 'chainLightning' && 
+            this.points.length > 2) {
+            
+            // Create curve from trajectory points for arc animation
+            const curve = new THREE.CatmullRomCurve3(this.points);
+            
+            this.electricArcs.forEach((arc, index) => {
+                // Move arc along the trajectory
+                arc.userData.offset += arc.userData.speed * 0.005;
+                if (arc.userData.offset > 1) arc.userData.offset = 0;
+                
+                // Get position along curve
+                try {
+                    const point = curve.getPointAt(Math.min(0.99, arc.userData.offset));
+                    arc.position.copy(point);
+                    
+                    // Add electrical jitter
+                    arc.position.x += (Math.random() - 0.5) * 0.08;
+                    arc.position.y += (Math.random() - 0.5) * 0.08;
+                    arc.position.z = 0.15; // Slightly above trajectory
+                    
+                    // Flicker effect with more variation
+                    const flicker = Math.sin(this.time * 25 + arc.userData.flickerPhase) * 0.5 + 0.5;
+                    const randomFlicker = Math.random() > 0.8 ? 0 : 1;
+                    arc.material.opacity = (0.2 + flicker * 0.6) * randomFlicker;
+                    
+                    // Occasional bright flash
+                    if (Math.random() < 0.02) {
+                        arc.material.opacity = 1;
+                        arc.material.color.setHex(0xffffff);
+                    } else {
+                        arc.material.color.setHex(arc.userData.baseColor);
+                    }
+                    
+                    // Scale variation
+                    const scale = 0.8 + Math.sin(this.time * 10 + index) * 0.3;
+                    arc.scale.setScalar(scale);
+                    
+                    arc.visible = true;
+                } catch(e) {
+                    arc.visible = false;
+                }
+            });
+        } else {
+            // Hide arcs when not Chain Lightning
+            this.electricArcs.forEach(arc => arc.visible = false);
+        }
+        
         // Update colors every frame for rainbow cycling and other dynamic effects
         const color = this.getColor(gameState);
         const colorObj = new THREE.Color(color);
@@ -513,6 +587,12 @@ export class TrajectorySystem {
     getColor(gameState) {
         if (gameState.precisionAimActive) return 0x00ffff;
         if (!gameState.currentBubble) return 0xffffff;
+        
+        // Check for Chain Lightning power-up
+        if (gameState.currentBubble.isPowerUp && gameState.currentBubble.powerUpType === 'chainLightning') {
+            // Electric blue color for chain lightning
+            return 0x00ddff;
+        }
         
         if (gameState.currentBubble.isPowerUp && gameState.currentBubble.powerUpType === 'rainbow') {
             // Use global time for synchronization with bubble color

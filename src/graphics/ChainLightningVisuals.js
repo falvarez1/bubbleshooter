@@ -74,7 +74,24 @@ export class ChainLightningVisuals {
                 effects.field.position.copy(bubble.position);
                 effects.field.rotation.x += deltaTime * 2;
                 effects.field.rotation.y += deltaTime * 3;
-                effects.field.material.opacity = 0.2 + Math.sin(Date.now() * 0.005) * 0.1;
+                
+                // More dramatic opacity flicker
+                const baseOpacity = 0.15;
+                const flicker1 = Math.sin(Date.now() * 0.005) * 0.1;
+                const flicker2 = Math.sin(Date.now() * 0.02) * 0.05;
+                const randomFlicker = Math.random() > 0.95 ? 0.3 : 0;
+                effects.field.material.opacity = baseOpacity + flicker1 + flicker2 + randomFlicker;
+                
+                // Occasional bright flash
+                if (Math.random() < 0.01) {
+                    effects.field.material.opacity = 0.6;
+                    effects.field.material.color.setHex(0xffffff);
+                    setTimeout(() => {
+                        if (effects.field) {
+                            effects.field.material.color.setHex(0x00ddff);
+                        }
+                    }, 50);
+                }
             }
             
             // Update arcs
@@ -85,9 +102,26 @@ export class ChainLightningVisuals {
                 arc.position.set(x, y, bubble.position.z);
                 arc.rotation.z = arc.userData.angle + Math.PI / 2;
                 
-                // Flicker
-                arc.material.opacity = 0.4 + Math.sin(Date.now() * 0.01 + i) * 0.3;
-                arc.visible = Math.random() > 0.05;
+                // Enhanced flicker with more electrical behavior
+                const baseOpacity = 0.3;
+                const wave1 = Math.sin(Date.now() * 0.015 + i) * 0.2;
+                const wave2 = Math.sin(Date.now() * 0.04 + i * 2) * 0.15;
+                const erratic = Math.random() < 0.3 ? Math.random() * 0.4 : 0;
+                arc.material.opacity = Math.max(0, Math.min(1, baseOpacity + wave1 + wave2 + erratic));
+                
+                // More frequent visibility changes for electric effect
+                arc.visible = Math.random() > 0.15;
+                
+                // Occasional bright white flash
+                if (Math.random() < 0.02) {
+                    arc.material.color.setHex(0xffffff);
+                    arc.material.opacity = 0.9;
+                    setTimeout(() => {
+                        if (arc && arc.material) {
+                            arc.material.color.setHex(i % 2 === 0 ? 0xffffff : 0x00ddff);
+                        }
+                    }, 30);
+                }
             });
         };
         
