@@ -14,31 +14,31 @@ export class NotificationManager {
         // Define zones for different notification types
         // Each zone has a base position and can stack notifications vertically
         this.zones = {
-            // Primary zone - center top for major events (combos, level up, zen moment)
+            // Primary zone - center top for major events (combos, level up)
             primary: { 
                 x: '50%', 
-                y: '30%',
+                y: '25%',  // Moved up to avoid overlap with center
                 priority: 3,
                 maxStack: 2
             },
             // Secondary zone - left side for power-ups
             powerup: { 
-                x: '25%', 
+                x: '30%',  // Moved more inward to avoid edge cutoff
                 y: '35%',
                 priority: 2,
                 maxStack: 3
             },
-            // Tertiary zone - right side for scores and minor events
+            // Tertiary zone - right side for scores and minor events  
             score: { 
-                x: '75%', 
+                x: '70%',  // Moved more inward to avoid edge cutoff
                 y: '35%',
                 priority: 1,
                 maxStack: 4
             },
-            // Center zone - for critical announcements
+            // Center zone - for critical announcements (zen moment)
             center: {
                 x: '50%',
-                y: '50%',
+                y: '45%',  // Slightly higher to give more separation
                 priority: 4,
                 maxStack: 1
             }
@@ -214,13 +214,22 @@ export class NotificationManager {
     }
     
     calculatePosition(notification, zone, zoneName) {
-        // If specific position provided, use it
+        // If specific position provided, clamp it to screen bounds
         if (notification.position) {
-            return notification.position;
+            const padding = 100; // Minimum distance from edge
+            const x = Math.max(padding, Math.min(window.innerWidth - padding, notification.position.x));
+            const y = Math.max(padding, Math.min(window.innerHeight - padding, notification.position.y));
+            return {
+                x: x + 'px',
+                y: y + 'px'
+            };
         }
         
         // Get current stack count in this zone
         const stackCount = this.zoneOccupancy[zoneName].length;
+        
+        // Check for potential overlaps with other zones
+        const hasOverlapRisk = this.checkOverlapRisk(zoneName);
         
         // Calculate vertical offset for stacking
         let yOffset = 0;
@@ -233,6 +242,11 @@ export class NotificationManager {
             if (altZone) {
                 return this.calculatePosition(notification, this.zones[altZone], altZone);
             }
+        }
+        
+        // Add additional offset if there's overlap risk
+        if (hasOverlapRisk) {
+            yOffset += 100; // Add extra spacing to avoid overlap
         }
         
         // Parse base Y position and add offset
@@ -368,6 +382,30 @@ export class NotificationManager {
                 this.removeNotification(id);
             }
         });
+    }
+    
+    /**
+     * Check if there's a risk of overlap with adjacent zones
+     */
+    checkOverlapRisk(zoneName) {
+        // Define zones that are visually close to each other
+        const adjacentZones = {
+            'center': ['primary'],
+            'primary': ['center', 'powerup', 'score'],
+            'powerup': ['primary'],
+            'score': ['primary']
+        };
+        
+        const adjacent = adjacentZones[zoneName] || [];
+        
+        // Check if any adjacent zone has active notifications
+        for (const adjZone of adjacent) {
+            if (this.zoneOccupancy[adjZone] && this.zoneOccupancy[adjZone].length > 0) {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     /**
