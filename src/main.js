@@ -304,7 +304,7 @@ class BubbleShooterGame {
         
         // Handle game over event
         this.gameManager.eventBus.on('gameOver', (data) => {
-            console.log('Game Over:', data.reason);
+            console.log('Game Over:', data?.reason || 'No reason provided');
             this.gameState.setGameOver();
             this.uiManager.showGameOver(this.gameState.score, this.gameState.level);
             this.gameManager.playSound('gameOver');
@@ -526,7 +526,7 @@ class BubbleShooterGame {
     }
     
     createInitialBubbles() {
-        const rows = 5;
+        const rows = 9;
         for (let y = 0; y < rows; y++) {
             // All rows now have the same width
             const bubblesInRow = CONFIG.GRID_WIDTH;

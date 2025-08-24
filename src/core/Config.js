@@ -7,7 +7,7 @@ export const CONFIG = {
     // Bubble settings
     BUBBLE_RADIUS: 0.5,
     GRID_WIDTH: 11,
-    GRID_HEIGHT: 14,
+    GRID_HEIGHT: 18,
     HEX_WIDTH: 1.0, // Bubble diameter
     HEX_HEIGHT: 0.866, // sqrt(3)/2 * diameter for hexagonal packing
     
@@ -64,8 +64,8 @@ export const CONFIG = {
     
     // Position Configuration
     SHOOTER_Y: -8,    // Y position of shooting bubble (was -6)
-    GRID_TOP_Y: 6,    // Top position of bubble grid
-    CEILING_Y: 7,     // Ceiling position for collision
+    GRID_TOP_Y: 7.732,    // Top position of bubble grid (moved up by 2 * HEX_HEIGHT = 1.732)
+    CEILING_Y: 8.732,     // Ceiling position for collision
     
     // Wall boundaries - calculated from grid width
     // Wall position = (GRID_WIDTH * HEX_WIDTH) / 2 + small margin

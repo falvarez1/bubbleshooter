@@ -908,7 +908,7 @@ export class GameLogic {
             for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
                 if (this.gameState.getBubbleAt(x, y)) {
                     this.gameState.setGameOver();
-                    this.gameManager.eventBus.emit('gameOver');
+                    this.gameManager.eventBus.emit('gameOver', { reason: 'Bubbles reached danger line' });
                     return true;
                 }
             }
