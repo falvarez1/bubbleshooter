@@ -632,7 +632,7 @@ export class ChainLightningPowerUp extends PowerUp {
         }
     }
 
-    createElectricCoursingEffect(bubble) {
+    createElectricCoursingEffect(bubble, gameState, gameManager) {
         this.createBubbleElectricFlash(bubble.position, gameManager);
         this.createBubbleFlickerEffect(bubble);
 
