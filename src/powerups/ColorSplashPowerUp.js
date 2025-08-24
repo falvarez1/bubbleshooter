@@ -206,41 +206,97 @@ export class ColorSplashPowerUp extends PowerUp {
     }
     
     createSplashEffect(centerBubble, cluster, targetColor, gameState, gameManager) {
-        // Create expanding ring effect from center
-        const ringGeometry = new THREE.TorusGeometry(0.1, 0.05, 8, 32);
-        const ringMaterial = new THREE.MeshStandardMaterial({
-            color: targetColor,
-            transparent: true,
-            opacity: 1,
-            emissive: targetColor,
-            emissiveIntensity: 2
-        });
-        
-        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-        ring.position.copy(centerBubble.position);
-        ring.position.z = 1;
-        if (gameManager.scene) gameManager.scene.add(ring);
-        
-        // Animate expanding ring - OPTIMIZED
-        const ringAnimation = {
-            scale: 1,
-            opacity: 1,
-            update: function(deltaTime) {
-                this.scale += 30 * deltaTime; // 30 units per second
-                this.opacity -= 1.2 * deltaTime; // Fade in ~0.8 seconds
-                ring.scale.set(this.scale, this.scale, 1);
-                ringMaterial.opacity = Math.max(0, this.opacity);
+        // Create multiple expanding rings for a more magical effect
+        const numRings = 3;
+        for (let i = 0; i < numRings; i++) {
+            setTimeout(() => {
+                // Use a flat ring geometry for better transparency
+                const innerRadius = 0.3 + i * 0.1;
+                const outerRadius = innerRadius + 0.4;
+                const ringGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 64, 1);
                 
-                if (this.opacity <= 0) {
-                    if (gameManager.scene) gameManager.scene.remove(ring);
-                    ringGeometry.dispose();
-                    ringMaterial.dispose();
-                    return false; // Remove from animations
-                }
-                return true; // Keep animating
-            }
-        };
-        gameState.addAnimation(ringAnimation);
+                // Use MeshBasicMaterial with additive blending for magical glow effect
+                const ringMaterial = new THREE.MeshBasicMaterial({
+                    color: targetColor,
+                    transparent: true,
+                    opacity: 0.6,
+                    side: THREE.DoubleSide,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false // Prevent z-fighting and ensure transparency
+                });
+                
+                const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+                ring.position.copy(centerBubble.position);
+                ring.position.z = 1 + i * 0.1; // Slight z-offset for each ring
+                
+                // Add slight random rotation for variety
+                ring.rotation.z = Math.random() * Math.PI;
+                
+                if (gameManager.scene) gameManager.scene.add(ring);
+                
+                // Create inner glow ring for enhanced effect
+                const glowGeometry = new THREE.RingGeometry(innerRadius * 0.8, outerRadius * 1.2, 64, 1);
+                const glowMaterial = new THREE.MeshBasicMaterial({
+                    color: targetColor,
+                    transparent: true,
+                    opacity: 0.3,
+                    side: THREE.DoubleSide,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+                
+                const glowRing = new THREE.Mesh(glowGeometry, glowMaterial);
+                glowRing.position.copy(ring.position);
+                glowRing.position.z -= 0.05;
+                if (gameManager.scene) gameManager.scene.add(glowRing);
+                
+                // Animate expanding rings with shimmer effect
+                const ringAnimation = {
+                    scale: 1,
+                    opacity: 0.6,
+                    rotation: 0,
+                    time: 0,
+                    update: function(deltaTime) {
+                        this.time += deltaTime;
+                        this.scale += 25 * deltaTime; // Expand at 25 units per second
+                        this.opacity -= 0.8 * deltaTime; // Fade out over ~0.75 seconds
+                        this.rotation += deltaTime * 0.5; // Gentle rotation
+                        
+                        // Apply transformations
+                        ring.scale.set(this.scale, this.scale, 1);
+                        glowRing.scale.set(this.scale * 1.1, this.scale * 1.1, 1);
+                        ring.rotation.z += deltaTime * 0.3;
+                        glowRing.rotation.z -= deltaTime * 0.2;
+                        
+                        // Shimmer effect - oscillate opacity slightly
+                        const shimmer = Math.sin(this.time * 10) * 0.1;
+                        ringMaterial.opacity = Math.max(0, this.opacity + shimmer);
+                        glowMaterial.opacity = Math.max(0, this.opacity * 0.5);
+                        
+                        // Pulse the color intensity
+                        const pulse = 0.5 + Math.sin(this.time * 8) * 0.5;
+                        const r = ((targetColor >> 16) & 255) / 255;
+                        const g = ((targetColor >> 8) & 255) / 255;
+                        const b = (targetColor & 255) / 255;
+                        ringMaterial.color.setRGB(r * (1 + pulse * 0.3), g * (1 + pulse * 0.3), b * (1 + pulse * 0.3));
+                        
+                        if (this.opacity <= 0) {
+                            if (gameManager.scene) {
+                                gameManager.scene.remove(ring);
+                                gameManager.scene.remove(glowRing);
+                            }
+                            ringGeometry.dispose();
+                            ringMaterial.dispose();
+                            glowGeometry.dispose();
+                            glowMaterial.dispose();
+                            return false; // Remove from animations
+                        }
+                        return true; // Keep animating
+                    }
+                };
+                gameState.addAnimation(ringAnimation);
+            }, i * 150); // Stagger each ring by 150ms
+        }
         
         // Create color wave particles - Use dedicated color pool
         ParticleFactory.createColorWave(
