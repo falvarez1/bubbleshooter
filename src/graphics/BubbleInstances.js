@@ -131,6 +131,9 @@ export class BubbleInstances {
                 attribute vec3 instanceColor;
                 attribute float instanceScale;
                 attribute float instanceGlow;
+                attribute vec3 instanceVibration; // Sympathy vibration offset
+                attribute float instanceSympathyGlow; // Sympathy glow intensity
+                attribute float instanceSympathyScale; // Sympathy scale multiplier
                 
                 uniform float time;
                 uniform float enableWobble;
@@ -141,6 +144,7 @@ export class BubbleInstances {
                 varying vec3 vWorldPosition;
                 varying vec3 vViewPosition;
                 varying float vGlow;
+                varying float vSympathyGlow;
                 varying vec3 vReflect;
                 varying vec3 vRefract;
                 varying vec2 vUv;
@@ -150,6 +154,7 @@ export class BubbleInstances {
                 void main() {
                     vColor = instanceColor;
                     vGlow = instanceGlow;
+                    vSympathyGlow = instanceSympathyGlow;
                     vUv = uv;
                     
                     // Early exit for hidden instances - move them far away and cull
@@ -171,10 +176,17 @@ export class BubbleInstances {
                         pulseScale = 1.0 + sin(time * 3.0 + float(gl_InstanceID) * 0.5) * 0.03;
                     }
                     
-                    // Transform vertex position
+                    // Apply sympathy scale
+                    float sympathyScale = max(1.0, instanceSympathyScale);
+                    
+                    // Transform vertex position with sympathy effects
                     // CRITICAL: Apply instanceScale AFTER matrix transformation to ensure proper hiding
-                    vec3 baseTransformed = (position + wobbleOffset) * pulseScale;
+                    vec3 baseTransformed = (position + wobbleOffset) * pulseScale * sympathyScale;
                     vec4 worldPosition = instanceMatrix * vec4(baseTransformed, 1.0);
+                    
+                    // Add sympathy vibration offset
+                    worldPosition.xyz += instanceVibration;
+                    
                     worldPosition.xyz *= instanceScale; // Apply scale to final world position
                     vWorldPosition = worldPosition.xyz;
                     
@@ -237,6 +249,7 @@ export class BubbleInstances {
                 varying vec3 vWorldPosition;
                 varying vec3 vViewPosition;
                 varying float vGlow;
+                varying float vSympathyGlow;
                 varying vec3 vReflect;
                 varying vec3 vRefract;
                 varying vec2 vUv;
@@ -442,7 +455,15 @@ export class BubbleInstances {
                     }
                     
                     // Emissive glow
-                    vec3 emissive = baseColor * 0.2 * (1.0 + vGlow);
+                    // Add sympathy glow to emissive
+                    float totalGlow = vGlow + vSympathyGlow * 2.0; // Sympathy glow is more intense
+                    vec3 emissive = baseColor * 0.2 * (1.0 + totalGlow);
+                    
+                    // Add white hot core for high sympathy glow
+                    if (vSympathyGlow > 0.5) {
+                        vec3 hotCore = vec3(1.0) * pow(vSympathyGlow, 2.0);
+                        emissive = mix(emissive, hotCore, vSympathyGlow);
+                    }
                     
                     // Power-up glow effect
                     vec3 powerUpGlow = baseColor * vGlow * (0.5 + 0.3 * sin(time * 3.0));
@@ -565,6 +586,20 @@ export class BubbleInstances {
         const glows = new Float32Array(this.maxBubbles);
         this.instancedMesh.geometry.setAttribute('instanceGlow', 
             new THREE.InstancedBufferAttribute(glows, 1));
+        
+        // Sympathy effect attributes
+        const vibrations = new Float32Array(this.maxBubbles * 3);
+        this.instancedMesh.geometry.setAttribute('instanceVibration',
+            new THREE.InstancedBufferAttribute(vibrations, 3));
+        
+        const sympathyGlows = new Float32Array(this.maxBubbles);
+        this.instancedMesh.geometry.setAttribute('instanceSympathyGlow',
+            new THREE.InstancedBufferAttribute(sympathyGlows, 1));
+        
+        const sympathyScales = new Float32Array(this.maxBubbles);
+        sympathyScales.fill(1.0); // Default to normal scale
+        this.instancedMesh.geometry.setAttribute('instanceSympathyScale',
+            new THREE.InstancedBufferAttribute(sympathyScales, 1));
         
         // Set up attributes for glow mesh (create separate arrays, not shared)
         const glowColors = new Float32Array(this.maxBubbles * 3);
@@ -718,10 +753,15 @@ export class BubbleInstances {
         
         // Update transform
         const matrix = new THREE.Matrix4();
-        matrix.setPosition(bubble.position);
+        // Apply wave offset to position if Mexican wave is active
+        const position = bubble.position.clone();
+        if (bubble.waveOffset) {
+            position.y += bubble.waveOffset;
+        }
+        matrix.setPosition(position);
         if (bubble.mesh) {
             matrix.makeRotationFromEuler(bubble.mesh.rotation);
-            matrix.setPosition(bubble.position);
+            matrix.setPosition(position);
         }
         this.instancedMesh.setMatrixAt(instanceIndex, matrix);
         if (this.glowMesh) {
@@ -762,6 +802,30 @@ export class BubbleInstances {
             }
             scaleAttr.setX(instanceIndex, scale);
             scaleAttr.needsUpdate = true;
+        }
+        
+        // Update sympathy effect attributes
+        const vibrationAttr = this.instancedMesh.geometry.getAttribute('instanceVibration');
+        if (vibrationAttr && bubble.vibrationOffset) {
+            vibrationAttr.setXYZ(instanceIndex, 
+                bubble.vibrationOffset.x, 
+                bubble.vibrationOffset.y, 
+                bubble.vibrationOffset.z);
+            vibrationAttr.needsUpdate = true;
+        }
+        
+        const sympathyGlowAttr = this.instancedMesh.geometry.getAttribute('instanceSympathyGlow');
+        if (sympathyGlowAttr) {
+            const glowValue = bubble.sympathyGlowIntensity || 0.0;
+            sympathyGlowAttr.setX(instanceIndex, glowValue);
+            sympathyGlowAttr.needsUpdate = true;
+        }
+        
+        const sympathyScaleAttr = this.instancedMesh.geometry.getAttribute('instanceSympathyScale');
+        if (sympathyScaleAttr) {
+            const scaleValue = bubble.sympathyScale || 1.0;
+            sympathyScaleAttr.setX(instanceIndex, scaleValue);
+            sympathyScaleAttr.needsUpdate = true;
         }
         
         if (this.glowMesh) {
@@ -1076,6 +1140,30 @@ export class BubbleInstances {
         if (this.glowMesh.material.uniforms && this.glowMesh.material.uniforms.time) {
             this.glowMesh.material.uniforms.time.value += deltaTime;
         }
+        
+        // Update bubbles with sympathy effects
+        this.updateSympathyEffects();
+    }
+    
+    /**
+     * Update sympathy effects for all bubbles that have them
+     */
+    updateSympathyEffects() {
+        let needsUpdate = false;
+        
+        for (const [bubbleId, data] of this.bubbleMap) {
+            const { bubble } = data;
+            
+            // Check if bubble has any sympathy effects
+            if (bubble.vibrationOffset || 
+                bubble.sympathyGlowIntensity > 0 || 
+                bubble.sympathyScale !== undefined && bubble.sympathyScale !== 1.0) {
+                this.updateBubble(bubble);
+                needsUpdate = true;
+            }
+        }
+        
+        return needsUpdate;
     }
     
     /**

@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { CONFIG } from '../core/Config.js';
 import { SIMDUtils } from '../math/SIMDUtils.js';
 import { SpatialGrid } from '../math/SpatialGrid.js';
+import { MagneticFieldEffect } from '../effects/MagneticFieldEffect.js';
+import { ImpactResonanceEffect } from '../effects/ImpactResonanceEffect.js';
+import { ThreadTheNeedleEffect } from '../effects/ThreadTheNeedleEffect.js';
 
 /**
  * Collision System
@@ -29,6 +32,39 @@ export class CollisionSystem {
         this.bufferSize = 0;
         this.lastCacheUpdate = 0;
         this.cacheUpdateInterval = 100; // Update cache every 100ms
+        
+        // Magnetic field effect - will be initialized when scene is available
+        this.magneticFieldEffect = null;
+        
+        // Impact Resonance effect for enhanced collision feedback
+        this.impactResonanceEffect = null;
+        
+        // Thread the Needle effect for precision shots
+        this.threadTheNeedleEffect = null;
+    }
+    
+    /**
+     * Initialize magnetic field effect with scene reference
+     * @param {THREE.Scene} scene - The Three.js scene
+     * @param {THREE.Camera} camera - The Three.js camera
+     */
+    initializeMagneticEffect(scene, camera = null) {
+        if (!this.magneticFieldEffect && scene) {
+            this.magneticFieldEffect = new MagneticFieldEffect(scene, this.gameManager.eventBus, camera);
+            this.magneticFieldEffect.setGameState(this.gameState);
+        }
+        
+        // Also initialize Impact Resonance effect
+        if (!this.impactResonanceEffect && scene && this.gameManager) {
+            this.impactResonanceEffect = new ImpactResonanceEffect(scene, this.gameManager);
+            // Share reference for near-miss detection
+            this.gameManager.collisionSystem = this;
+        }
+        
+        // Initialize Thread the Needle effect
+        if (!this.threadTheNeedleEffect && scene && this.gameManager && this.gameManager.camera) {
+            this.threadTheNeedleEffect = new ThreadTheNeedleEffect(scene, this.gameManager.camera, this.gameManager);
+        }
     }
     
     /**
@@ -122,6 +158,16 @@ export class CollisionSystem {
         
         const current = this.gameState.currentBubble;
         
+        // Check for magnetic attraction effects (visual only, doesn't affect physics)
+        if (this.magneticFieldEffect) {
+            this.gameManager.eventBus.emit('bubbleMoving', { bubble: current });
+        }
+        
+        // Check for near-miss friction sparks with Impact Resonance
+        if (this.impactResonanceEffect) {
+            this.gameManager.eventBus.emit('bubbleMoving', { bubble: current });
+        }
+        
         // Update grid bubble cache if needed
         this.updateGridBubbleCache();
         
@@ -155,6 +201,19 @@ export class CollisionSystem {
                     }
                     
                     const bubble = closestCollision.bubble2;
+                    
+                    // Calculate impact point for resonance effect
+                    const impactPoint = new THREE.Vector3()
+                        .addVectors(current.position, bubble.position)
+                        .multiplyScalar(0.5);
+                    
+                    // Emit collision event for Impact Resonance
+                    this.gameManager.eventBus.emit('bubbleCollision', {
+                        bubble1: current,
+                        bubble2: bubble,
+                        impactPoint: impactPoint,
+                        impactVelocity: current.velocity.length()
+                    });
                     
                     // Apply impact force to the hit bubble before attachment
                     const impactDirection = new THREE.Vector3()
@@ -523,5 +582,26 @@ export class CollisionSystem {
                 });
             }
         }, depth * CONFIG.IMPACT_PHYSICS.PROPAGATION_DELAY);
+    }
+    
+    /**
+     * Update collision system (mainly for visual effects)
+     * @param {number} deltaTime - Time since last update
+     */
+    update(deltaTime) {
+        // Update magnetic field effect animations
+        if (this.magneticFieldEffect) {
+            this.magneticFieldEffect.update(deltaTime);
+        }
+        
+        // Update Impact Resonance effects
+        if (this.impactResonanceEffect) {
+            this.impactResonanceEffect.update(deltaTime);
+        }
+        
+        // Update Thread the Needle effect
+        if (this.threadTheNeedleEffect) {
+            this.threadTheNeedleEffect.update(deltaTime);
+        }
     }
 }

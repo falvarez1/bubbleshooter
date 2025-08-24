@@ -94,6 +94,9 @@ class BubbleShooterGame {
         // Initialize
         this.initialize();
         
+        // Expose gameManager globally for bubble wall collision events
+        window.gameManager = this.gameManager;
+        
         // Add debug console commands for sound system
         if (this.DEBUG_MODE) {
             window.soundStatus = () => {
@@ -191,6 +194,12 @@ class BubbleShooterGame {
         // Initialize game manager with camera, scene, effects system, renderer, and bubble instances
         this.gameManager.initialize(this.camera, this.scene, this.effectsSystem, this.renderer, this.bubbleInstances);
         
+        // Pass gameState to gameManager for Impact Resonance effect
+        this.gameManager.setGameState(this.gameState);
+        
+        // Initialize magnetic field effect in collision system
+        this.collisionSystem.initializeMagneticEffect(this.scene, this.camera);
+        
         // Register power-ups
         this.gameManager.registerPowerUp(new RainbowPowerUp());
         this.gameManager.registerPowerUp(new BombPowerUp());
@@ -270,6 +279,36 @@ class BubbleShooterGame {
             console.log(`  Current Helper Chance: ${stats.currentHelperChance}%`);
             console.log(`  Average Accessibility: ${(stats.averageAccessibility * 100).toFixed(1)}%`);
             return stats;
+        };
+        
+        // Debug command to test magnetic field effect
+        window.testMagneticField = () => {
+            console.log('Testing Magnetic Field Effect...');
+            if (this.collisionSystem.magneticFieldEffect) {
+                console.log('✓ Magnetic Field Effect is active');
+                // Create a bubble with a specific color to test attraction
+                if (this.gameState.currentBubble) {
+                    // Find a matching color in the grid
+                    const currentColor = this.gameState.currentBubble.color;
+                    let matchFound = false;
+                    for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
+                        for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
+                            const bubble = this.gameState.bubbleGrid[y][x];
+                            if (bubble && bubble.color === currentColor) {
+                                matchFound = true;
+                                break;
+                            }
+                        }
+                        if (matchFound) break;
+                    }
+                    console.log(`Current bubble color: 0x${currentColor.toString(16)}`);
+                    console.log(`Matching bubbles in grid: ${matchFound ? 'Yes' : 'No'}`);
+                    return { active: true, matchingBubbles: matchFound, currentColor };
+                }
+            } else {
+                console.log('✗ Magnetic Field Effect not initialized');
+                return { active: false };
+            }
         };
         
         // Start game
@@ -1556,12 +1595,15 @@ class BubbleShooterGame {
         // Clamp deltaTime to prevent issues with large gaps
         const clampedDeltaTime = Math.min(deltaTime, 0.1); // Max 100ms per frame
         
+        // Apply time scale for slow motion effects
+        const effectiveDeltaTime = clampedDeltaTime * this.gameState.timeScale;
+        
         if (!this.gameState.isGameOver && !this.gameState.isPaused) {
-            // Update progressive game systems
+            // Update progressive game systems (use real time, not affected by slow motion)
             this.progressiveTimerSystem.update(clampedDeltaTime);
             this.dangerZoneSystem.update(clampedDeltaTime, this.camera);
             
-            // Update precision aim
+            // Update precision aim (use real time for UI)
             if (this.gameState.updatePrecisionAim(clampedDeltaTime)) {
                 this.precisionTickTimer += clampedDeltaTime;
                 if (this.precisionTickTimer >= 1.0) {
@@ -1579,11 +1621,11 @@ class BubbleShooterGame {
             }
             
             // Update precision aim indicator
-            this.precisionAimIndicator.update(clampedDeltaTime);
+            this.precisionAimIndicator.update(effectiveDeltaTime);
             
             // Update current bubble
             if (this.gameState.currentBubble) {
-                this.gameState.currentBubble.update(clampedDeltaTime);
+                this.gameState.currentBubble.update(effectiveDeltaTime);
                 
                 // Update instanced renderer for moving bubble
                 if (this.gameState.currentBubble.useInstancedRendering) {
@@ -1600,6 +1642,9 @@ class BubbleShooterGame {
                     // Collision handled
                 }
             }
+            
+            // Update collision system visual effects
+            this.collisionSystem.update(effectiveDeltaTime);
             
             // Check for game over condition every frame
             if (this.gameLogic.checkGameOver()) {
@@ -1655,13 +1700,17 @@ class BubbleShooterGame {
                             this.bubbleInstances.addBubble(bubble, 'grid');
                         }
                         
-                        bubble.update(clampedDeltaTime);
+                        bubble.update(effectiveDeltaTime);
                         
-                        // Only update instanced renderer if bubble is animating or has impact physics
+                        // Only update instanced renderer if bubble is animating or has impact physics or sympathy effects
                         if (bubble.useInstancedRendering && 
                             (bubble.connectionAnimating || 
                              bubble.impactVelocity.lengthSq() > 0.001 ||
-                             bubble.powerUpAnimation)) {
+                             bubble.powerUpAnimation ||
+                             bubble.sympathyVibration ||
+                             bubble.sympathyGlowIntensity > 0 ||
+                             bubble.sympathyScale !== 1.0 ||
+                             bubble.waveOffset !== 0)) {
                             this.bubbleInstances.updateBubble(bubble);
                         }
                         
@@ -1674,7 +1723,7 @@ class BubbleShooterGame {
             
             // Update instanced renderer uniforms (time-based animations)
             if (this.bubbleInstances) {
-                this.bubbleInstances.update(clampedDeltaTime, this.camera);
+                this.bubbleInstances.update(effectiveDeltaTime, this.camera);
             }
             
             // Periodic victory check (as a safety net)
@@ -1711,11 +1760,11 @@ class BubbleShooterGame {
             }
             
             // Update particles
-            this.gameState.updateParticles(clampedDeltaTime);
+            this.gameState.updateParticles(effectiveDeltaTime);
             
             // Update animations
             const animationsBefore = this.gameState.animations.length;
-            this.gameState.updateAnimations(clampedDeltaTime);
+            this.gameState.updateAnimations(effectiveDeltaTime);
             const animationsAfter = this.gameState.animations.length;
             
             // If animations finished, recalculate trajectory
@@ -1732,17 +1781,17 @@ class BubbleShooterGame {
             }
             
             // Update game manager
-            this.gameManager.update(clampedDeltaTime, this.camera);
+            this.gameManager.update(effectiveDeltaTime, this.camera);
             
             // Update Chain Lightning visual effects if present
             if (this.chainLightningVisuals) {
-                this.chainLightningVisuals.update(clampedDeltaTime);
+                this.chainLightningVisuals.update(effectiveDeltaTime);
             }
             
             // Update power meter
             if (this.gameState.isCharging) {
                 // Reduced from 2 to 1 to double the charge time (from 0.5s to 1s for full charge)
-                this.gameState.shootingPower = Math.min(this.gameState.shootingPower + clampedDeltaTime * 1, 1);
+                this.gameState.shootingPower = Math.min(this.gameState.shootingPower + effectiveDeltaTime * 1, 1);
                 this.uiManager.updatePowerMeter(this.gameState.shootingPower);
                 
                 if (this.gameState.currentBubble) {
@@ -1778,7 +1827,7 @@ class BubbleShooterGame {
             this.trajectorySystem.renderTrajectory(this.gameState);
         }
         
-        // Update game board (starfield, etc.)
+        // Update game board (starfield, etc.) - use real time for background
         this.gameBoard.update(clampedDeltaTime, currentTime, this.gameState.mousePosition);
         
         // Animate lights
@@ -1787,7 +1836,7 @@ class BubbleShooterGame {
         // Render blast wave effect if active, otherwise render normally
         if (!this.gameManager.render()) {
             // Pass deltaTime to scene manager for post-processing
-            this.sceneManager.render(clampedDeltaTime);
+            this.sceneManager.render(effectiveDeltaTime);
         }
     }
 }

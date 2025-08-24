@@ -257,6 +257,80 @@
     }
 }
 
+/* Thread the Needle effect styles */
+.notification-type-precision_thread {
+    background: linear-gradient(45deg, #FFD700, #FFA500, #FFD700);
+    color: white;
+    text-shadow: 
+        0 0 10px rgba(255, 215, 0, 0.8),
+        0 0 20px rgba(255, 215, 0, 0.6),
+        0 0 30px rgba(255, 165, 0, 0.4);
+    font-size: 48px !important;
+    padding: 20px 40px;
+    border: 2px solid rgba(255, 215, 0, 0.5);
+    box-shadow: 
+        0 0 20px rgba(255, 215, 0, 0.5),
+        inset 0 0 20px rgba(255, 255, 255, 0.2);
+    animation: threadNeedleEntrance 0.5s ease-out, metallicShine 2s linear infinite;
+}
+
+.thread-needle-text {
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.metallic-shine {
+    background: linear-gradient(
+        90deg,
+        #FFD700 0%,
+        #FFED4E 10%,
+        #FFF8DC 20%,
+        #FFD700 30%,
+        #B8860B 40%,
+        #FFD700 50%,
+        #FFF8DC 60%,
+        #FFED4E 70%,
+        #FFD700 80%,
+        #B8860B 90%,
+        #FFD700 100%
+    );
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Animations for Thread the Needle */
+@keyframes threadNeedleEntrance {
+    0% {
+        transform: translate(-50%, -50%) scale(0.3) rotateY(90deg);
+        opacity: 0;
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.2) rotateY(0deg);
+    }
+    100% {
+        transform: translate(-50%, -50%) scale(1) rotateY(0deg);
+        opacity: 1;
+    }
+}
+
+@keyframes metallicShine {
+    0% {
+        background-position: 200% center;
+        filter: brightness(1) contrast(1);
+    }
+    50% {
+        background-position: 0% center;
+        filter: brightness(1.2) contrast(1.1);
+    }
+    100% {
+        background-position: -200% center;
+        filter: brightness(1) contrast(1);
+    }
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .notification-priority-3 {
@@ -273,6 +347,11 @@
     }
     
     .notification-type-victory {
+        font-size: 36px !important;
+        padding: 16px 32px;
+    }
+    
+    .notification-type-precision_thread {
         font-size: 36px !important;
         padding: 16px 32px;
     }

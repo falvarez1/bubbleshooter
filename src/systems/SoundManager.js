@@ -52,11 +52,16 @@ export class SoundManager {
             trajectoryWoosh: { category: 'effects', volume: 0.2, file: 'sounds/trajectory-woosh.wav' },
             
             // Combo/Scoring
+            combo1: { category: 'effects', volume: 0.7, file: 'sounds/combo-1.wav' },
+            combo2: { category: 'effects', volume: 0.8, file: 'sounds/combo-2.wav' },
+            combo3: { category: 'effects', volume: 0.9, file: 'sounds/combo-3.wav' },
             combo2x: { category: 'effects', volume: 0.8, file: 'sounds/combo-2x.wav' },
             combo3x: { category: 'effects', volume: 0.9, file: 'sounds/combo-3x.wav' },
             combo4x: { category: 'effects', volume: 1.0, file: 'sounds/combo-4x.wav' },
+            transcendence: { category: 'effects', volume: 0.8, file: 'sounds/transcendence.wav' },
             scoreTick: { category: 'ui', volume: 0.4, file: 'sounds/score-tick.wav' },
             bonusPoints: { category: 'effects', volume: 0.9, file: 'sounds/bonus-points.wav' },
+            precision_shot: { category: 'effects', volume: 0.9, file: 'sounds/precision-shot.wav' },
             
             // Game State
             gameStart: { category: 'ui', volume: 0.8, file: 'sounds/game-start.wav' },
@@ -203,6 +208,13 @@ export class SoundManager {
             audio.playbackRate = options.rate;
         }
         
+        // Apply loop if specified
+        if (options.loop !== undefined) {
+            audio.loop = options.loop;
+        } else {
+            audio.loop = false;
+        }
+        
         // Reset and play
         audio.currentTime = 0;
         audio.play().catch(err => {
@@ -226,6 +238,16 @@ export class SoundManager {
             this.play('combo3x');
         } else if (comboLevel >= 4) {
             this.play('combo4x', { rate: 1 + (comboLevel - 4) * 0.1 });
+        }
+    }
+    
+    stop(soundName) {
+        const soundData = this.sounds.get(soundName);
+        if (!soundData) return;
+        
+        for (const audio of soundData.pool) {
+            audio.pause();
+            audio.currentTime = 0;
         }
     }
     

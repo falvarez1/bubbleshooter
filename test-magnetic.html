@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magnetic Field Effect Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: Arial, sans-serif;
+        }
+        #gameCanvas {
+            display: block;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="info">
+        <h3>Magnetic Field Effect Test</h3>
+        <p>Click to shoot bubbles</p>
+        <p>Watch for energy tendrils between same-colored bubbles!</p>
+    </div>
+
+    <!-- Import map for ES modules -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <!-- Main game module -->
+    <script type="module">
+        // Import the main game
+        import('./src/main.js').then(() => {
+            console.log('Game loaded successfully!');
+            console.log('Magnetic Field Effect is integrated and active.');
+            
+            // Add debug info
+            setTimeout(() => {
+                const info = document.getElementById('info');
+                info.innerHTML += '<p style="color: #00ff00;">✓ Magnetic Field Effect loaded</p>';
+            }, 1000);
+        }).catch(error => {
+            console.error('Failed to load game:', error);
+            document.getElementById('info').innerHTML += '<p style="color: #ff0000;">Error loading game: ' + error.message + '</p>';
+        });
+    </script>
+</body>
+</html>

@@ -62,19 +62,30 @@ export class GameLogic {
     }
     
     handleChainLightningDestroy(bubbles, points) {
-        // Calculate points per individual bubble
-        const pointsPerBubble = Math.floor(points / bubbles.length);
+        // Emit event for sympathy effect
+        if (bubbles.length > 0) {
+            this.gameManager.eventBus.emit('lightningActivating', {
+                bubbles: bubbles,
+                isRow: false // Chain lightning doesn't follow strict row/column
+            });
+        }
         
-        // Add score
-        this.gameState.addScore(points);
-        this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
-        
-        // Show individual floating score for each destroyed bubble
-        bubbles.forEach((bubble, index) => {
-            setTimeout(() => {
-                this.gameManager.showFloatingScore(bubble.position, pointsPerBubble);
-            }, index * 25); // Quick succession for lightning effect
-        });
+        // Delay for sympathy buildup
+        setTimeout(() => {
+            // Calculate points per individual bubble
+            const pointsPerBubble = Math.floor(points / bubbles.length);
+            
+            // Add score
+            this.gameState.addScore(points);
+            this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
+            
+            // Show individual floating score for each destroyed bubble
+            bubbles.forEach((bubble, index) => {
+                setTimeout(() => {
+                    this.gameManager.showFloatingScore(bubble.position, pointsPerBubble);
+                }, index * 25); // Quick succession for lightning effect
+            });
+        }, 150); // Shorter delay for lightning (it's faster)
         
         // Bubbles have already been removed from grid and instanced renderer by the power-up
         // Clean up any remaining effects and dispose resources
@@ -139,47 +150,65 @@ export class GameLogic {
     }
     
     handleBombDestroy(bubbles, points) {
-        // Add score with combo multiplier
-        const comboMultiplier = Math.min(this.gameState.combo + 1, 5);
-        const totalPoints = points * comboMultiplier;
-        
-        // Calculate points per individual bubble
-        const pointsPerBubble = Math.floor(totalPoints / bubbles.length);
-        
-        this.gameState.addScore(totalPoints);
-        
-        // Emit combo start if this is the first in a combo chain
-        if (this.gameState.combo === 0) {
-            this.gameManager.eventBus.emit('comboStart');
+        // Emit event for sympathy effect
+        if (bubbles.length > 0) {
+            this.gameManager.eventBus.emit('bombActivating', {
+                center: bubbles[0], // Assume first bubble is the bomb center
+                radius: 1.5,
+                affected: bubbles
+            });
         }
         
-        this.gameState.incrementCombo();
-        
-        // Emit bubbles destroyed event for timer system
-        this.gameManager.eventBus.emit('bubblesDestroyed', { 
-            count: bubbles.length,
-            combo: this.gameState.combo
-        });
-        
-        if (this.gameManager && this.gameManager.eventBus) {
-            this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
-        }
-        
-        // Remove bubbles with enhanced explosion effects and individual point displays
-        bubbles.forEach((bubble, index) => {
-            setTimeout(() => {
-                // Skip if already destroyed
-                if (bubble.isDestroyed) return;
-                
-                // Show individual points for this bubble
-                if (this.gameManager && this.gameManager.showFloatingScore) {
-                    this.gameManager.showFloatingScore(bubble.position, pointsPerBubble);
-                }
-                
-                this.createExplosionEffect(bubble, true); // Enhanced explosion for bomb
-                this.removeBubble(bubble);
-            }, index * 20); // Faster destruction for bomb
-        });
+        // Delay for sympathy buildup
+        setTimeout(() => {
+            // Add score with combo multiplier
+            const comboMultiplier = Math.min(this.gameState.combo + 1, 5);
+            const totalPoints = points * comboMultiplier;
+            
+            // Calculate points per individual bubble
+            const pointsPerBubble = Math.floor(totalPoints / bubbles.length);
+            
+            this.gameState.addScore(totalPoints);
+            
+            // Emit combo start if this is the first in a combo chain
+            if (this.gameState.combo === 0) {
+                this.gameManager.eventBus.emit('comboStart');
+            }
+            
+            this.gameState.incrementCombo();
+            
+            // Emit bubbles destroyed event for timer system
+            this.gameManager.eventBus.emit('bubblesDestroyed', { 
+                count: bubbles.length,
+                combo: this.gameState.combo
+            });
+            
+            // Trigger Cascade Amplification System for bomb
+            if (this.gameManager.cascadeSystem && bubbles.length > 0) {
+                const epicenter = bubbles[0].position.clone();
+                this.gameManager.cascadeSystem.updateCombo(this.gameState.combo, bubbles, epicenter);
+            }
+            
+            if (this.gameManager && this.gameManager.eventBus) {
+                this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
+            }
+            
+            // Remove bubbles with enhanced explosion effects and individual point displays
+            bubbles.forEach((bubble, index) => {
+                setTimeout(() => {
+                    // Skip if already destroyed
+                    if (bubble.isDestroyed) return;
+                    
+                    // Show individual points for this bubble
+                    if (this.gameManager && this.gameManager.showFloatingScore) {
+                        this.gameManager.showFloatingScore(bubble.position, pointsPerBubble);
+                    }
+                    
+                    this.createExplosionEffect(bubble, true); // Enhanced explosion for bomb
+                    this.removeBubble(bubble);
+                }, index * 20); // Faster destruction for bomb
+            });
+        }, 200); // 200ms delay for bomb sympathy effect
         
         // Check for floating bubbles after destruction
         setTimeout(() => {
@@ -206,62 +235,82 @@ export class GameLogic {
         const minMatches = isRainbowMatch ? 1 : 3;
         
         if (matches.length >= minMatches) {
-            // Calculate base points and modifiers
-            let basePoints = matches.length * 10;
-            
-            // Bonus points for rainbow bubble matches
-            const hasRainbow = matches.some(b => b.isPowerUp && b.powerUpType === 'rainbow');
-            if (hasRainbow) {
-                basePoints *= 2; // Double points for rainbow matches
-                this.gameManager.eventBus.emit('rainbowActivated', { position: bubble.position });
-            }
-            
-            const comboMultiplier = Math.min(this.gameState.combo + 1, 5);
-            const totalPoints = basePoints * comboMultiplier;
-            
-            // Calculate points per individual bubble
-            const pointsPerBubble = Math.floor(totalPoints / matches.length);
-            
-            this.gameState.addScore(totalPoints);
-            this.gameState.incrementCombo();
-            this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
-            
-            // Update UI - combo size should be the current combo value
-            this.gameManager.eventBus.emit('comboAchieved', { comboSize: this.gameState.combo });
-            
-            // Show mega clear text for large matches
-            if (matches.length >= 7) {
-                this.gameManager.showEffectText('megaClear');
-            }
-            
-            // Remove bubbles with animation and individual point displays
-            matches.forEach((matchedBubble, index) => {
-                setTimeout(() => {
-                    // Skip if already destroyed
-                    if (matchedBubble.isDestroyed) return;
-                    
-                    // Show individual points for this bubble
-                    if (this.gameManager && this.gameManager.showFloatingScore) {
-                        this.gameManager.showFloatingScore(matchedBubble.position, pointsPerBubble);
-                    }
-                    
-                    this.removeBubble(matchedBubble);
-                    // Use enhanced explosion for large matches
-                    this.createExplosionEffect(matchedBubble, matches.length >= 5);
-                }, index * 50);
+            // Emit event for sympathy effect BEFORE destruction
+            this.gameManager.eventBus.emit('matchesFound', {
+                matches: matches,
+                source: bubble
             });
             
-            // Check for floating bubbles
+            // Small delay to let sympathy effects build up
             setTimeout(() => {
-                this.removeFloatingBubbles();
+                // Calculate base points and modifiers
+                let basePoints = matches.length * 10;
                 
-                // Check victory condition
-                setTimeout(() => this.checkVictory(), 500);
-            }, matches.length * 50 + 100);
+                // Bonus points for rainbow bubble matches
+                const hasRainbow = matches.some(b => b.isPowerUp && b.powerUpType === 'rainbow');
+                if (hasRainbow) {
+                    basePoints *= 2; // Double points for rainbow matches
+                    this.gameManager.eventBus.emit('rainbowActivated', { position: bubble.position });
+                }
+                
+                const comboMultiplier = Math.min(this.gameState.combo + 1, 5);
+                const totalPoints = basePoints * comboMultiplier;
+                
+                // Calculate points per individual bubble
+                const pointsPerBubble = Math.floor(totalPoints / matches.length);
+                
+                this.gameState.addScore(totalPoints);
+                this.gameState.incrementCombo();
+                this.gameManager.eventBus.emit('scoreUpdated', { score: this.gameState.score });
+                
+                // Update UI - combo size should be the current combo value
+                this.gameManager.eventBus.emit('comboAchieved', { comboSize: this.gameState.combo });
+                
+                // Trigger Cascade Amplification System
+                if (this.gameManager.cascadeSystem) {
+                    const epicenter = bubble.position.clone();
+                    this.gameManager.cascadeSystem.updateCombo(this.gameState.combo, matches, epicenter);
+                }
+                
+                // Show mega clear text for large matches
+                if (matches.length >= 7) {
+                    this.gameManager.showEffectText('megaClear');
+                }
+                
+                // Remove bubbles with animation and individual point displays
+                matches.forEach((matchedBubble, index) => {
+                    setTimeout(() => {
+                        // Skip if already destroyed
+                        if (matchedBubble.isDestroyed) return;
+                        
+                        // Show individual points for this bubble
+                        if (this.gameManager && this.gameManager.showFloatingScore) {
+                            this.gameManager.showFloatingScore(matchedBubble.position, pointsPerBubble);
+                        }
+                        
+                        this.removeBubble(matchedBubble);
+                        // Use enhanced explosion for large matches
+                        this.createExplosionEffect(matchedBubble, matches.length >= 5);
+                    }, index * 50);
+                });
+                
+                // Check for floating bubbles
+                setTimeout(() => {
+                    this.removeFloatingBubbles();
+                    
+                    // Check victory condition
+                    setTimeout(() => this.checkVictory(), 500);
+                }, matches.length * 50 + 100);
+            }, 300); // 300ms delay for sympathy effect buildup
         } else {
             // No match - emit miss event for timer speed up
             this.gameManager.eventBus.emit('bubbleMiss');
             this.gameState.resetCombo();
+            
+            // Reset cascade system combo
+            if (this.gameManager.cascadeSystem) {
+                this.gameManager.cascadeSystem.resetCombo();
+            }
         }
     }
     
@@ -614,6 +663,9 @@ export class GameLogic {
     removeBubble(bubble, animationSpeed = 3) {
         if (!bubble || bubble.isDestroyed) return;
         
+        // Emit bubble destroyed event for sympathy cleanup
+        this.gameManager.eventBus.emit('bubbleDestroyed', { bubble: bubble });
+        
         // For instanced bubbles, use atomic destruction immediately
         if (bubble.useInstancedRendering) {
             this.destroyBubbleImmediately(bubble, true);
@@ -820,11 +872,21 @@ export class GameLogic {
             }, 200);
         }
         
+        // Store old positions for effect updates
+        const bubbleMovements = new Map();
+        const allBubbles = this.gameState.getAllBubbles();
+        allBubbles.forEach(bubble => {
+            bubbleMovements.set(bubble.id, {
+                bubble: bubble,
+                oldPosition: bubble.position.clone(),
+                oldGridY: bubble.gridY
+            });
+        });
+        
         // Shift all bubbles down (much simpler now!)
         this.gameState.shiftRowsDown();
         
         // Update bubble positions after shift
-        const allBubbles = this.gameState.getAllBubbles();
         allBubbles.forEach(bubble => {
             // The bubble's gridX and gridY have been updated by shiftRowsDown
             // Update its visual position to match
@@ -838,6 +900,14 @@ export class GameLogic {
             // Add drop-in effect
             bubble.applyImpact(new THREE.Vector3(0, -CONFIG.IMPACT_PHYSICS.NEW_ROW_DROP_FORCE, 0));
         });
+        
+        // Notify effect systems about bubble movements
+        if (this.gameManager && this.gameManager.eventBus) {
+            this.gameManager.eventBus.emit('bubblesRepositioned', {
+                movements: bubbleMovements,
+                reason: 'rowAdded'
+            });
+        }
         
         // Add new row at top (row 0 should be empty after shift)
         // All rows now have the same width

@@ -3,6 +3,8 @@ import { SoundManager } from '../systems/SoundManager.js';
 import { PowerUpSystem } from '../powerups/PowerUpSystem.js';
 import { VisualTextDisplay } from '../ui/VisualTextDisplay.js';
 import { SimpleShockwaveEffect } from '../graphics/SimpleShockwave.js';
+import { SympathyPopEffect } from '../effects/SympathyPopEffect.js';
+import { CascadeAmplificationSystem } from '../effects/CascadeAmplificationSystem.js';
 
 /**
  * Game Manager
@@ -16,6 +18,8 @@ export class GameManager {
         this.visualTextDisplay = null; // Initialized with camera
         this.screenShake = { intensity: 0, duration: 0 };
         this.shockwaveEffect = null; // Initialized with scene
+        this.sympathyPopEffect = null; // Initialized with scene
+        this.cascadeSystem = null; // Initialized with scene
         
         // Initialize sound manager
         this.soundManager.init();
@@ -36,6 +40,7 @@ export class GameManager {
         this.camera = camera;
         this.renderer = renderer;
         this.bubbleInstances = bubbleInstances;
+        this.gameState = null; // Will be set via setGameState
         
         // Initialize visual text display with eventBus for notification management
         this.visualTextDisplay = new VisualTextDisplay(camera, this.eventBus);
@@ -46,8 +51,33 @@ export class GameManager {
         // Initialize enhanced shockwave effect
         this.shockwaveEffect = new SimpleShockwaveEffect(scene, renderer, camera);
         
+        // Initialize sympathy pop effect
+        this.sympathyPopEffect = new SympathyPopEffect(this, scene);
+        
+        // Initialize cascade amplification system (needs particlePool from gameState)
+        // Will be initialized after gameState is set
+        
         // Set up event listeners
         this.setupEventListeners();
+    }
+    
+    /**
+     * Set game state reference
+     * @param {GameState} gameState - The game state instance
+     */
+    setGameState(gameState) {
+        this.gameState = gameState;
+        
+        // Initialize cascade amplification system now that we have gameState
+        if (this.scene && this.camera && this.renderer && gameState.particlePool) {
+            this.cascadeSystem = new CascadeAmplificationSystem(
+                this.scene, 
+                this.camera, 
+                this.renderer, 
+                gameState.particlePool,
+                this.soundManager
+            );
+        }
     }
     
     setupEventListeners() {
@@ -117,6 +147,13 @@ export class GameManager {
             }
         });
         
+        // Combo end handler - reset cascade effects
+        this.eventBus.on('comboEnd', () => {
+            if (this.cascadeSystem) {
+                this.cascadeSystem.resetCombo();
+            }
+        });
+        
         // Level complete
         this.eventBus.on('levelComplete', () => {
             this.visualTextDisplay.showEffectText('victory');
@@ -141,6 +178,59 @@ export class GameManager {
         this.eventBus.on('showNotification', (options) => {
             if (this.visualTextDisplay && this.visualTextDisplay.notificationManager) {
                 this.visualTextDisplay.notificationManager.show(options);
+            }
+        });
+        
+        // Magnetic snap effect handler
+        this.eventBus.on('magneticSnap', (data) => {
+            // Play snap sound with intensity-based variation
+            const intensity = Math.min(1.0, 0.3 + data.intensity * 0.1);
+            this.soundManager.playWithVariation('bubbleAttach', {
+                volume: intensity,
+                rate: 0.9 + data.intensity * 0.05
+            });
+            
+            // Add subtle screen shake for strong attractions
+            if (data.intensity >= 5) {
+                this.addScreenShake(0.2, data.intensity * 0.5);
+            }
+        });
+        
+        // Thread the Needle effect handler
+        this.eventBus.on('threadTheNeedle', (data) => {
+            // Apply score multiplier
+            const baseScore = 50; // Base score for threading the needle
+            const totalScore = Math.round(baseScore * data.multiplier);
+            
+            // Add score with position
+            if (this.gameState) {
+                this.gameState.addScore(totalScore);
+                this.showFloatingScore(data.gapInfo.gapCenter, totalScore);
+            }
+            
+            // Achievement for consecutive threads
+            if (data.consecutive >= 3) {
+                this.visualTextDisplay.showEffectText('combo', data.consecutive);
+            }
+            
+            // Wall bounce achievement
+            if (data.wallBounces > 0) {
+                this.eventBus.emit('achievementProgress', {
+                    id: 'trickshot',
+                    progress: data.wallBounces
+                });
+            }
+        });
+        
+        // Wall bounce event for tracking
+        this.eventBus.on('wallBounce', (data) => {
+            // Track wall bounces for Thread the Needle
+            if (data.bubble) {
+                // Play subtle bounce sound
+                this.soundManager.play('bubbleBounce', {
+                    volume: 0.4,
+                    rate: 1.1
+                });
             }
         });
     }
@@ -199,6 +289,11 @@ export class GameManager {
         if (this.shockwaveEffect) {
             this.shockwaveEffect.update(deltaTime);
         }
+        
+        // Update sympathy pop effect
+        if (this.sympathyPopEffect) {
+            this.sympathyPopEffect.update(deltaTime);
+        }
     }
     
     render() {
@@ -234,5 +329,17 @@ export class GameManager {
     
     activatePowerUp(bubble, gameState) {
         return this.powerUpSystem.activatePowerUp(bubble, gameState, this);
+    }
+    
+    /**
+     * Update all game manager systems
+     * @param {number} deltaTime - Time since last update
+     */
+    update(deltaTime) {
+        // Update cascade amplification system
+        if (this.cascadeSystem) {
+            this.cascadeSystem.update(deltaTime);
+        }
+        
     }
 }

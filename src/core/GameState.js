@@ -44,6 +44,9 @@ export class GameState {
         this.particlePool = null; // Will be initialized by game manager
         this.animations = [];
         
+        // Time scale for slow motion effects
+        this.timeScale = 1.0;
+        
         // Power-up states
         this.precisionAimActive = false;
         this.precisionAimTime = 0;

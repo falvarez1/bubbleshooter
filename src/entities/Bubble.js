@@ -106,6 +106,15 @@ export class Bubble {
         this.powerUpType = null;
         this.powerUpAnimation = null;
         
+        // Enhanced deformation properties for Impact Resonance
+        this.squashAmount = 1.0;
+        this.squashDirection = new THREE.Vector3(0, 0, 0);
+        this.deformationTime = 0;
+        this.deformationDuration = 0;
+        this.deformationMatrix = new THREE.Matrix4();
+        this.rotationalImpact = new THREE.Vector3(0, 0, 0);
+        this.rotationalDamping = 0.95;
+        
         // Destruction state - used to prevent collision with bubbles being destroyed
         this.isDestroyed = false;
         
@@ -114,6 +123,15 @@ export class Bubble {
         
         // Movement timeout - prevent bubbles from being stuck in moving state
         this.movementStartTime = 0;
+        
+        // Sympathy Pop Effect properties
+        this.sympathyVibration = null; // { amplitude, frequency, phase, targetAmplitude }
+        this.sympathyGlow = false;
+        this.sympathyGlowIntensity = 0;
+        this.sympathyScale = 1.0;
+        this.vibrationOffset = new THREE.Vector3(0, 0, 0);
+        this.mexicanWave = null; // { active, phase, amplitude, originalY }
+        this.waveOffset = 0;
     }
     
     startMoving() {
@@ -189,12 +207,61 @@ export class Bubble {
             this.mesh.position.z = this.position.z;
         }
         
-        // Rotation
+        // Apply enhanced deformation for Impact Resonance
+        if (this.deformationTime < this.deformationDuration && this.deformationDuration > 0) {
+            this.deformationTime += deltaTime;
+            const progress = this.deformationTime / this.deformationDuration;
+            
+            // Elastic ease-out for natural bounce
+            const elasticProgress = 1 - Math.pow(1 - progress, 3) * Math.cos(progress * Math.PI * 3);
+            
+            // Calculate current squash amount
+            const currentSquash = 1.0 + (this.squashAmount - 1.0) * (1 - elasticProgress);
+            const stretch = 1.0 / Math.sqrt(currentSquash); // Volume preservation
+            
+            // Apply directional squash/stretch
+            if (this.squashDirection.length() > 0.01) {
+                const dir = this.squashDirection;
+                const perpX = new THREE.Vector3(1, 0, 0).sub(dir.clone().multiplyScalar(dir.x));
+                const perpY = new THREE.Vector3(0, 1, 0).sub(dir.clone().multiplyScalar(dir.y));
+                
+                // Create squash matrix
+                this.mesh.scale.set(
+                    currentSquash + (stretch - currentSquash) * Math.abs(dir.x),
+                    currentSquash + (stretch - currentSquash) * Math.abs(dir.y),
+                    stretch
+                );
+            }
+            
+            // Reset when done
+            if (progress >= 1.0) {
+                this.deformationTime = 0;
+                this.deformationDuration = 0;
+                this.squashAmount = 1.0;
+                this.mesh.scale.setScalar(1.0);
+            }
+        }
+        
+        // Enhanced rotation with impact
+        if (this.rotationalImpact.length() > 0.001) {
+            this.mesh.rotation.x += this.rotationalImpact.x;
+            this.mesh.rotation.y += this.rotationalImpact.y;
+            this.mesh.rotation.z += this.rotationalImpact.z;
+            
+            // Dampen rotational impact
+            this.rotationalImpact.multiplyScalar(this.rotationalDamping);
+            
+            if (this.rotationalImpact.length() < 0.001) {
+                this.rotationalImpact.set(0, 0, 0);
+            }
+        }
+        
+        // Regular rotation
         this.mesh.rotation.x += this.rotationSpeed;
         this.mesh.rotation.y += this.rotationSpeed * 0.7;
         
-        // Connection bounce animation
-        if (this.connectionAnimating) {
+        // Connection bounce animation (only if not deforming)
+        if (this.connectionAnimating && this.deformationDuration <= 0) {
             this.connectionScale = 1.0 + Math.sin(Date.now() * 0.01) * 0.1 * this.connectionAnimating;
             this.mesh.scale.setScalar(this.connectionScale);
             this.connectionAnimating *= 0.85; // Faster decay (was 0.95)
@@ -222,21 +289,44 @@ export class Bubble {
             this.position.add(impactMovement);
             Vector3Pool.release(impactMovement);
             
-            this.mesh.position.copy(this.position);
+            // Apply wave offset if Mexican wave is active
+            if (this.mexicanWave && this.mexicanWave.active && this.waveOffset) {
+                this.mesh.position.set(
+                    this.position.x,
+                    this.position.y + this.waveOffset,
+                    this.position.z
+                );
+            } else {
+                this.mesh.position.copy(this.position);
+            }
             
-            // Add subtle scale pulse
-            const impactScale = 1.0 + this.impactVelocity.length() * CONFIG.IMPACT_PHYSICS.SCALE_RESPONSE;
-            this.mesh.scale.setScalar(impactScale);
-            
-            // Store the impact scale for instanced rendering
-            this.impactScale = impactScale;
+            // Add subtle scale pulse (only if not deforming)
+            if (this.deformationDuration <= 0) {
+                const impactScale = 1.0 + this.impactVelocity.length() * CONFIG.IMPACT_PHYSICS.SCALE_RESPONSE;
+                this.mesh.scale.setScalar(impactScale);
+                
+                // Store the impact scale for instanced rendering
+                this.impactScale = impactScale;
+            }
             
             // Reset if velocity is very small
             if (this.impactVelocity.length() < 0.001) {
                 this.impactVelocity.set(0, 0, 0);
                 this.position.copy(this.basePosition);
-                this.mesh.position.copy(this.position);
-                this.mesh.scale.setScalar(1.0);
+                // Apply wave offset if Mexican wave is active  
+                if (this.mexicanWave && this.mexicanWave.active && this.waveOffset) {
+                    this.mesh.position.set(
+                        this.position.x,
+                        this.position.y + this.waveOffset,
+                        this.position.z
+                    );
+                } else {
+                    this.mesh.position.copy(this.position);
+                }
+                // Only reset scale if not deforming
+                if (this.deformationDuration <= 0) {
+                    this.mesh.scale.setScalar(1.0);
+                }
                 this.impactScale = 1.0; // Reset impact scale
             }
         }
@@ -255,6 +345,20 @@ export class Bubble {
     
     onWallBounce() {
         // Override in main game to play sound and create particles
+        // Emit wall collision event for Impact Resonance
+        if (window.gameManager && window.gameManager.eventBus) {
+            window.gameManager.eventBus.emit('wallCollision', {
+                bubble: this,
+                impactPoint: this.position.clone(),
+                velocity: Math.abs(this.velocity.x)
+            });
+            
+            // Also emit wall bounce event for Thread the Needle tracking
+            window.gameManager.eventBus.emit('wallBounce', {
+                bubble: this,
+                position: this.position.clone()
+            });
+        }
     }
     
     createWallImpactParticles() {

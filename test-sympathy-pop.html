@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sympathy Pop Effect Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .controls {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: #45a049;
+            transform: scale(1.05);
+        }
+        button.danger {
+            background: #f44336;
+        }
+        button.danger:hover {
+            background: #da190b;
+        }
+        button.special {
+            background: #ff9800;
+        }
+        button.special:hover {
+            background: #e68900;
+        }
+        .info {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        .info h2 {
+            margin-top: 0;
+            color: #ffd700;
+        }
+        .info ul {
+            line-height: 1.8;
+        }
+        .status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            min-width: 200px;
+        }
+        .status-item {
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        .status-value {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Sympathy Pop Effect Test 🎯</h1>
+        
+        <div class="controls">
+            <h2>Trigger Effects</h2>
+            <button onclick="triggerMatchEffect()">🎲 Trigger Match Chain</button>
+            <button onclick="triggerBombEffect()" class="danger">💣 Trigger Bomb Effect</button>
+            <button onclick="triggerLightningEffect()" class="special">⚡ Trigger Lightning Effect</button>
+            <button onclick="createTestGrid()">🔄 Reset Test Grid</button>
+            <button onclick="clearAllEffects()">🧹 Clear All Effects</button>
+        </div>
+        
+        <div class="info">
+            <h2>Sympathy Pop Effect Features</h2>
+            <ul>
+                <li><strong>Vibration:</strong> Bubbles vibrate with increasing intensity as destruction approaches</li>
+                <li><strong>Glow Buildup:</strong> Internal glow pulses and intensifies before popping</li>
+                <li><strong>Mexican Wave:</strong> Wave propagation through the grid creates a ripple effect</li>
+                <li><strong>Scale Pulsing:</strong> Bubbles pulse in size to show anticipation</li>
+                <li><strong>Anticipation Particles:</strong> Sparkles emit from bubbles about to pop</li>
+                <li><strong>Wave Propagation:</strong> Effects spread outward from the epicenter in waves</li>
+            </ul>
+        </div>
+        
+        <div class="info">
+            <h2>How to Test</h2>
+            <ul>
+                <li>Click <strong>"Reset Test Grid"</strong> to create a test bubble grid</li>
+                <li>Click <strong>"Trigger Match Chain"</strong> to see a match-3 sympathy effect</li>
+                <li>Click <strong>"Trigger Bomb Effect"</strong> to see a bomb explosion with shockwave</li>
+                <li>Click <strong>"Trigger Lightning Effect"</strong> to see a lightning chain reaction</li>
+                <li>Watch how effects propagate through connected bubbles</li>
+                <li>Notice the Mexican wave effect and increasing vibration intensity</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="status">
+        <h3>Effect Status</h3>
+        <div class="status-item">
+            <span>Active Bubbles:</span>
+            <span class="status-value" id="activeBubbles">0</span>
+        </div>
+        <div class="status-item">
+            <span>Affected Bubbles:</span>
+            <span class="status-value" id="affectedBubbles">0</span>
+        </div>
+        <div class="status-item">
+            <span>Active Waves:</span>
+            <span class="status-value" id="activeWaves">0</span>
+        </div>
+        <div class="status-item">
+            <span>Particles:</span>
+            <span class="status-value" id="particles">0</span>
+        </div>
+    </div>
+    
+    <script>
+        // Test functions that interact with the main game
+        function triggerMatchEffect() {
+            if (window.game && window.game.gameManager) {
+                console.log("Triggering match sympathy effect...");
+                
+                // Find some connected bubbles
+                const bubbles = [];
+                for (let y = 0; y < 3; y++) {
+                    for (let x = 0; x < 3; x++) {
+                        const bubble = window.game.gameState.getBubbleAt(x, y);
+                        if (bubble && !bubble.isDestroyed) {
+                            bubbles.push(bubble);
+                        }
+                    }
+                }
+                
+                if (bubbles.length > 0) {
+                    // Emit the matchesFound event to trigger sympathy effect
+                    window.game.gameManager.eventBus.emit('matchesFound', {
+                        matches: bubbles,
+                        source: bubbles[0]
+                    });
+                    
+                    console.log(`Triggered sympathy effect for ${bubbles.length} bubbles`);
+                    updateStatus();
+                } else {
+                    alert("No bubbles found! Click 'Reset Test Grid' first.");
+                }
+            }
+        }
+        
+        function triggerBombEffect() {
+            if (window.game && window.game.gameManager) {
+                console.log("Triggering bomb sympathy effect...");
+                
+                // Find center bubble and surrounding bubbles
+                const center = window.game.gameState.getBubbleAt(3, 3);
+                if (!center) {
+                    alert("No center bubble found! Click 'Reset Test Grid' first.");
+                    return;
+                }
+                
+                const affected = [];
+                for (let y = 2; y <= 4; y++) {
+                    for (let x = 2; x <= 4; x++) {
+                        const bubble = window.game.gameState.getBubbleAt(x, y);
+                        if (bubble && !bubble.isDestroyed) {
+                            affected.push(bubble);
+                        }
+                    }
+                }
+                
+                // Emit the bombActivating event
+                window.game.gameManager.eventBus.emit('bombActivating', {
+                    center: center,
+                    radius: 1.5,
+                    affected: affected
+                });
+                
+                console.log(`Triggered bomb effect affecting ${affected.length} bubbles`);
+                updateStatus();
+            }
+        }
+        
+        function triggerLightningEffect() {
+            if (window.game && window.game.gameManager) {
+                console.log("Triggering lightning sympathy effect...");
+                
+                // Get a row of bubbles
+                const bubbles = [];
+                const row = 2;
+                for (let x = 0; x < 7; x++) {
+                    const bubble = window.game.gameState.getBubbleAt(x, row);
+                    if (bubble && !bubble.isDestroyed) {
+                        bubbles.push(bubble);
+                    }
+                }
+                
+                if (bubbles.length > 0) {
+                    // Emit the lightningActivating event
+                    window.game.gameManager.eventBus.emit('lightningActivating', {
+                        bubbles: bubbles,
+                        isRow: true
+                    });
+                    
+                    console.log(`Triggered lightning effect for ${bubbles.length} bubbles`);
+                    updateStatus();
+                } else {
+                    alert("No bubbles found in row! Click 'Reset Test Grid' first.");
+                }
+            }
+        }
+        
+        function createTestGrid() {
+            if (window.game && window.game.gameState) {
+                console.log("Creating test bubble grid...");
+                
+                // Clear existing bubbles
+                for (let y = 0; y < 20; y++) {
+                    for (let x = 0; x < 8; x++) {
+                        const bubble = window.game.gameState.getBubbleAt(x, y);
+                        if (bubble) {
+                            if (window.game.gameLogic) {
+                                window.game.gameLogic.destroyBubbleImmediately(bubble, true);
+                            }
+                        }
+                    }
+                }
+                
+                // Create a test pattern of bubbles
+                const colors = [0xff0000, 0x00ff00, 0x0000ff, 0xffff00, 0xff00ff];
+                for (let y = 0; y < 6; y++) {
+                    for (let x = 0; x < 7; x++) {
+                        const color = colors[(x + y) % colors.length];
+                        const bubble = new window.Bubble(0, 0, color);
+                        bubble.useInstancedRendering = true;
+                        bubble.setGridPosition(x, y);
+                        
+                        window.game.gameState.setBubbleAt(x, y, bubble);
+                        
+                        if (window.game.bubbleInstances) {
+                            window.game.bubbleInstances.addBubble(bubble, 'grid');
+                        }
+                    }
+                }
+                
+                console.log("Test grid created!");
+                updateStatus();
+            }
+        }
+        
+        function clearAllEffects() {
+            if (window.game && window.game.gameManager && window.game.gameManager.sympathyPopEffect) {
+                window.game.gameManager.sympathyPopEffect.cleanup();
+                console.log("All effects cleared!");
+                updateStatus();
+            }
+        }
+        
+        function updateStatus() {
+            if (window.game) {
+                // Update active bubbles count
+                const activeBubbles = window.game.gameState.getAllBubbles().length;
+                document.getElementById('activeBubbles').textContent = activeBubbles;
+                
+                // Update affected bubbles count
+                if (window.game.gameManager && window.game.gameManager.sympathyPopEffect) {
+                    const affected = window.game.gameManager.sympathyPopEffect.affectedBubbles.size;
+                    document.getElementById('affectedBubbles').textContent = affected;
+                    
+                    const waves = window.game.gameManager.sympathyPopEffect.destructionWaves.length;
+                    document.getElementById('activeWaves').textContent = waves;
+                }
+                
+                // Update particle count
+                if (window.game.gameState.particlePool) {
+                    const particles = window.game.gameState.particlePool.activeCount;
+                    document.getElementById('particles').textContent = particles;
+                }
+            }
+        }
+        
+        // Update status every 100ms
+        setInterval(updateStatus, 100);
+        
+        // Wait for game to load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (window.game) {
+                    console.log("Game loaded! Sympathy Pop Effect system is ready.");
+                    createTestGrid();
+                } else {
+                    console.log("Waiting for game to initialize...");
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

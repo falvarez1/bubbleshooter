@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Impact Resonance Effect Test</title>
+    <style>
+        body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+        #canvas-container { width: 800px; height: 600px; border: 2px solid #333; margin: 20px auto; }
+        #status { text-align: center; margin: 10px; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Impact Resonance Effect Test</h1>
+    <div id="status">Loading...</div>
+    <div id="canvas-container"></div>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        import { ImpactResonanceEffect } from './src/effects/ImpactResonanceEffect.js';
+        import { ParticlePool } from './src/entities/Particle.js';
+        
+        const status = document.getElementById('status');
+        const container = document.getElementById('canvas-container');
+        
+        try {
+            // Setup basic Three.js scene
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, 800/600, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer();
+            renderer.setSize(800, 600);
+            container.appendChild(renderer.domElement);
+            
+            // Add some lights
+            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+            scene.add(new THREE.DirectionalLight(0xffffff, 0.5));
+            
+            // Position camera
+            camera.position.z = 10;
+            
+            // Create particle pool
+            const particlePool = new ParticlePool(100);
+            
+            // Mock game manager
+            const mockGameManager = {
+                scene: scene,
+                eventBus: {
+                    on: () => {},
+                    emit: () => {}
+                },
+                gameState: {
+                    particlePool: particlePool
+                },
+                collisionSystem: null,
+                soundManager: null
+            };
+            
+            // Create impact resonance effect
+            const impactEffect = new ImpactResonanceEffect(scene, mockGameManager);
+            
+            // Test 1: Create friction sparks with valid bubbles
+            const bubble1 = {
+                position: new THREE.Vector3(0, 0, 0),
+                velocity: new THREE.Vector3(5, 0, 0),
+                color: 0xff0000,
+                isMoving: true,
+                id: 'bubble1'
+            };
+            
+            const bubble2 = {
+                position: new THREE.Vector3(2, 0, 0),
+                velocity: new THREE.Vector3(-5, 0, 0),
+                color: 0x0000ff,
+                id: 'bubble2'
+            };
+            
+            // This should not crash anymore
+            impactEffect.createFrictionSparks(bubble1, bubble2, 2.1);
+            status.innerHTML = '<span class="success">✓ Test 1 Passed: Friction sparks created without error</span><br>';
+            
+            // Test 2: Handle undefined bubble gracefully
+            impactEffect.createFrictionSparks(undefined, bubble2, 2.1);
+            status.innerHTML += '<span class="success">✓ Test 2 Passed: Handled undefined bubble1 gracefully</span><br>';
+            
+            // Test 3: Handle bubble without position
+            const invalidBubble = { color: 0xff0000 };
+            impactEffect.createFrictionSparks(invalidBubble, bubble2, 2.1);
+            status.innerHTML += '<span class="success">✓ Test 3 Passed: Handled bubble without position gracefully</span><br>';
+            
+            // Test 4: Handle bubble collision
+            impactEffect.handleBubbleCollision({
+                bubble1: bubble1,
+                bubble2: bubble2,
+                impactPoint: new THREE.Vector3(1, 0, 0),
+                impactVelocity: 10
+            });
+            status.innerHTML += '<span class="success">✓ Test 4 Passed: Bubble collision handled successfully</span><br>';
+            
+            // Test 5: Handle wall collision
+            impactEffect.handleWallCollision({
+                bubble: bubble1,
+                impactPoint: new THREE.Vector3(8, 0, 0),
+                velocity: 15
+            });
+            status.innerHTML += '<span class="success">✓ Test 5 Passed: Wall collision handled successfully</span><br>';
+            
+            // Animate
+            function animate() {
+                requestAnimationFrame(animate);
+                impactEffect.update(0.016); // 60 FPS
+                renderer.render(scene, camera);
+            }
+            animate();
+            
+            status.innerHTML += '<br><span class="success">All tests passed! No errors detected.</span>';
+            
+        } catch (error) {
+            status.innerHTML = `<span class="error">Error: ${error.message}</span>`;
+            console.error('Test failed:', error);
+        }
+    </script>
+</body>
+</html>
