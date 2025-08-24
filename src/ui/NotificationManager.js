@@ -99,11 +99,14 @@ export class NotificationManager {
                 width: 100%;
                 height: 100%;
                 pointer-events: none;
-                z-index: 1500;
+                z-index: 2000;
             `;
             document.body.appendChild(container);
         }
         this.container = document.getElementById('notification-container');
+        
+        // Initialize overlay element (hidden by default)
+        this.overlay = null;
     }
     
     /**
@@ -173,12 +176,18 @@ export class NotificationManager {
         // Check if this is a blocking notification
         const isBlocking = this.blockingTypes.has(notification.type);
         
-        // If blocking, pause the game timer
+        // If blocking, pause the game completely
         if (isBlocking && this.eventBus) {
             this.blockingNotificationCount++;
             if (this.blockingNotificationCount === 1) {
-                // First blocking notification, pause the timer
-                this.eventBus.emit('pauseTimer', { reason: 'notification' });
+                // First blocking notification, pause everything
+                this.eventBus.emit('pauseAll', { 
+                    reason: 'notification',
+                    notificationType: notification.type 
+                });
+                
+                // Show overlay for better visibility
+                this.showBlockingOverlay();
             }
         }
         
@@ -316,8 +325,13 @@ export class NotificationManager {
         if (isBlocking && this.eventBus) {
             this.blockingNotificationCount--;
             if (this.blockingNotificationCount === 0) {
-                // No more blocking notifications, resume timer
-                this.eventBus.emit('resumeTimer', { reason: 'notification' });
+                // No more blocking notifications, resume everything
+                this.eventBus.emit('resumeAll', { 
+                    reason: 'notification' 
+                });
+                
+                // Hide overlay
+                this.hideBlockingOverlay();
             }
         }
         
@@ -428,5 +442,39 @@ export class NotificationManager {
      */
     getNotification(id) {
         return this.activeNotifications.get(id);
+    }
+    
+    /**
+     * Show overlay for blocking notifications
+     */
+    showBlockingOverlay() {
+        if (!this.overlay) {
+            this.overlay = document.createElement('div');
+            this.overlay.className = 'notification-overlay';
+            // Insert overlay BEFORE the notification container so notifications appear on top
+            document.body.insertBefore(this.overlay, this.container);
+        }
+        
+        // Force reflow before adding active class for animation
+        this.overlay.offsetHeight;
+        requestAnimationFrame(() => {
+            this.overlay.classList.add('active');
+        });
+    }
+    
+    /**
+     * Hide overlay for blocking notifications
+     */
+    hideBlockingOverlay() {
+        if (this.overlay) {
+            this.overlay.classList.remove('active');
+            // Remove overlay after transition completes
+            setTimeout(() => {
+                if (this.overlay && this.overlay.parentNode) {
+                    this.overlay.remove();
+                    this.overlay = null;
+                }
+            }, 300);
+        }
     }
 }

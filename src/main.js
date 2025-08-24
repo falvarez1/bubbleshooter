@@ -338,6 +338,55 @@ class BubbleShooterGame {
             }, data.duration);
         });
         
+        // Handle comprehensive pause events from notifications
+        this.gameManager.eventBus.on('pauseAll', (data) => {
+            if (data.reason === 'notification') {
+                // Store current game state for resuming
+                this.pausedByNotification = true;
+                this.gameState.isPaused = true;
+                
+                // Pause timer system
+                this.progressiveTimerSystem.config.isPaused = true;
+                
+                // Store bubble velocities if any are moving
+                this.pausedBubbleStates = new Map();
+                if (this.gameState.currentBubble && this.gameState.currentBubble.isMoving) {
+                    this.pausedBubbleStates.set('current', {
+                        velocity: this.gameState.currentBubble.velocity.clone(),
+                        isMoving: true
+                    });
+                    // Zero out velocity
+                    this.gameState.currentBubble.velocity.set(0, 0, 0);
+                    this.gameState.currentBubble.isMoving = false;
+                }
+                
+                console.log(`Game paused for ${data.notificationType} notification`);
+            }
+        });
+        
+        // Handle resume events from notifications
+        this.gameManager.eventBus.on('resumeAll', (data) => {
+            if (data.reason === 'notification' && this.pausedByNotification) {
+                this.pausedByNotification = false;
+                this.gameState.isPaused = false;
+                
+                // Resume timer system
+                this.progressiveTimerSystem.config.isPaused = false;
+                
+                // Restore bubble velocities
+                if (this.pausedBubbleStates && this.pausedBubbleStates.has('current')) {
+                    const state = this.pausedBubbleStates.get('current');
+                    if (this.gameState.currentBubble) {
+                        this.gameState.currentBubble.velocity = state.velocity;
+                        this.gameState.currentBubble.isMoving = state.isMoving;
+                    }
+                }
+                this.pausedBubbleStates = null;
+                
+                console.log('Game resumed after notification');
+            }
+        });
+        
         // Handle level settings changes
         this.gameManager.eventBus.on('levelSettingsChanged', (settings) => {
             console.log('Level settings updated:', settings);
@@ -1556,7 +1605,11 @@ class BubbleShooterGame {
         // Clamp deltaTime to prevent issues with large gaps
         const clampedDeltaTime = Math.min(deltaTime, 0.1); // Max 100ms per frame
         
-        if (!this.gameState.isGameOver && !this.gameState.isPaused) {
+        // Check if game should be paused due to blocking notifications
+        const shouldPause = this.pausedByNotification || 
+            (this.gameManager.visualTextDisplay?.notificationManager?.blockingNotificationCount > 0);
+        
+        if (!this.gameState.isGameOver && !this.gameState.isPaused && !shouldPause) {
             // Update progressive game systems
             this.progressiveTimerSystem.update(clampedDeltaTime);
             this.dangerZoneSystem.update(clampedDeltaTime, this.camera);
@@ -1581,8 +1634,8 @@ class BubbleShooterGame {
             // Update precision aim indicator
             this.precisionAimIndicator.update(clampedDeltaTime);
             
-            // Update current bubble
-            if (this.gameState.currentBubble) {
+            // Update current bubble only if not paused
+            if (this.gameState.currentBubble && !shouldPause) {
                 this.gameState.currentBubble.update(clampedDeltaTime);
                 
                 // Update instanced renderer for moving bubble
@@ -1655,7 +1708,10 @@ class BubbleShooterGame {
                             this.bubbleInstances.addBubble(bubble, 'grid');
                         }
                         
-                        bubble.update(clampedDeltaTime);
+                        // Only update bubbles if not paused by notification
+                        if (!shouldPause) {
+                            bubble.update(clampedDeltaTime);
+                        }
                         
                         // Only update instanced renderer if bubble is animating or has impact physics
                         if (bubble.useInstancedRendering && 
