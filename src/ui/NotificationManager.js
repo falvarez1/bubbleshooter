@@ -158,7 +158,7 @@ export class NotificationManager {
     async processQueue() {
         this.processing = true;
         
-        while (this.queue.length > 0) {
+        while (this.queue.length > 0 && !this.isPaused) {
             const notification = this.queue.shift();
             
             // Skip if notification is too old (> 3 seconds)
@@ -171,12 +171,28 @@ export class NotificationManager {
             
             // Small delay between notifications for cascade effect
             await this.delay(150);
+            
+            // Check if paused during delay
+            if (this.isPaused) {
+                // Put the remaining notifications back
+                if (notification) {
+                    this.queue.unshift(notification);
+                }
+                break;
+            }
         }
         
         this.processing = false;
     }
     
     async displayNotification(notification) {
+        // Don't display new notifications while paused
+        if (this.isPaused) {
+            // Queue it for later
+            this.queue.push(notification);
+            return;
+        }
+        
         // Determine zone
         const zoneName = this.typeToZone[notification.type] || 'primary';
         const zone = this.zones[zoneName];
@@ -503,13 +519,20 @@ export class NotificationManager {
         // Pause all active notification animations
         this.activeNotifications.forEach((notification, id) => {
             if (notification.element) {
-                // Pause CSS animations
+                // Pause CSS animations - including floating score animations
                 const element = notification.element;
-                const computedStyle = window.getComputedStyle(element);
                 
-                // Store current animation state
-                element.dataset.animationPlayState = computedStyle.animationPlayState;
+                // Force immediate pause of all animations on this element
                 element.style.animationPlayState = 'paused';
+                
+                // Also check for any child elements that might have animations
+                const allAnimatedElements = element.querySelectorAll('*');
+                allAnimatedElements.forEach(child => {
+                    child.style.animationPlayState = 'paused';
+                });
+                
+                // Store animation state for resume
+                element.dataset.wasPaused = 'true';
                 
                 // If there's a removal timeout, clear it and store remaining time
                 if (notification.timeoutId) {
@@ -518,8 +541,11 @@ export class NotificationManager {
                     const remaining = notification.duration - elapsed;
                     this.pausedTimeouts.set(id, {
                         remaining: Math.max(0, remaining),
-                        notification: notification
+                        notification: notification,
+                        startTime: notification.startTime
                     });
+                    // Clear the timeout ID so it won't fire while paused
+                    notification.timeoutId = null;
                 }
             }
         });
@@ -541,9 +567,17 @@ export class NotificationManager {
             if (notification.element) {
                 const element = notification.element;
                 
-                // Resume CSS animations
-                element.style.animationPlayState = element.dataset.animationPlayState || 'running';
-                delete element.dataset.animationPlayState;
+                // Resume CSS animations for element and all children
+                if (element.dataset.wasPaused === 'true') {
+                    element.style.animationPlayState = 'running';
+                    delete element.dataset.wasPaused;
+                    
+                    // Also resume any child element animations
+                    const allAnimatedElements = element.querySelectorAll('*');
+                    allAnimatedElements.forEach(child => {
+                        child.style.animationPlayState = 'running';
+                    });
+                }
             }
         });
         
@@ -551,7 +585,11 @@ export class NotificationManager {
         this.pausedTimeouts.forEach((pausedData, id) => {
             const notification = this.activeNotifications.get(id);
             if (notification) {
+                // Update start time and duration for accurate tracking
                 notification.startTime = Date.now();
+                notification.duration = pausedData.remaining;
+                
+                // Create new timeout with remaining duration
                 notification.timeoutId = setTimeout(() => {
                     this.removeNotification(id);
                 }, pausedData.remaining);
