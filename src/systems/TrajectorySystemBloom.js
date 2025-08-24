@@ -44,6 +44,10 @@ export class TrajectorySystem {
         // Track if we've registered for bloom
         this.bloomRegistered = false;
         
+        // Store fixed segment counts for consistency
+        this.FIXED_SEGMENTS = 128;
+        this.RADIAL_SEGMENTS = 12;
+        
         // Register for bloom immediately
         // This ensures bloom effects are available from the start
         this.registerForBloom();
@@ -56,34 +60,42 @@ export class TrajectorySystem {
             new THREE.Vector3(0, 1, 0)
         ]);
         
+        // Use fixed high segment count to prevent UV discontinuities
+        // Higher segment count = smoother bloom distribution
+        const FIXED_SEGMENTS = 128; // Consistent high segment count
+        const RADIAL_SEGMENTS = 12; // More radial segments for smoother tube
+        
         // Main laser beam geometry
-        const beamGeometry = new THREE.TubeGeometry(curve, 32, 0.02, 8, false);
+        const beamGeometry = new THREE.TubeGeometry(curve, FIXED_SEGMENTS, 0.025, RADIAL_SEGMENTS, false);
         
         // Use MeshStandardMaterial with strong emissive for bloom
+        // Adjusted for better blue rendering
         this.beamMaterial = new THREE.MeshStandardMaterial({
             color: 0x00ffff,
             emissive: 0x00ffff, // Emissive color for bloom
-            emissiveIntensity: 3.0, // Very strong emission for visible bloom
-            roughness: 0.1,
-            metalness: 0.9,
+            emissiveIntensity: 2.5, // Reduced slightly to prevent oversaturation
+            roughness: 0.2, // Slightly increased for softer glow
+            metalness: 0.7, // Reduced metalness for more consistent bloom
             transparent: true,
-            opacity: 1.0, // Full opacity for maximum bloom
-            toneMapped: false // Prevent tone mapping from dimming the glow
+            opacity: 0.9, // Slight transparency to blend better
+            toneMapped: false, // Prevent tone mapping from dimming the glow
+            depthWrite: false // Prevent depth conflicts between layers
         });
         
         this.laserBeam = new THREE.Mesh(beamGeometry, this.beamMaterial);
         this.laserBeam.visible = false;
+        this.laserBeam.renderOrder = 1; // Render order to control layer ordering
         this.trajectoryGroup.add(this.laserBeam);
         
-        // Energy core with animated shader
+        // Energy core with animated shader - optimized for smooth bloom
         this.coreShaderMaterial = new THREE.ShaderMaterial({
             uniforms: {
                 color: { value: new THREE.Color(0x00ffff) },
                 glowColor: { value: new THREE.Color(0x00ffff) },
                 time: { value: 0 },
-                opacity: { value: 0.9 },
+                opacity: { value: 0.7 }, // Reduced opacity to prevent stacking
                 power: { value: 0 },
-                intensity: { value: 2.0 }
+                intensity: { value: 1.5 } // Reduced intensity
             },
             vertexShader: `
                 varying vec2 vUv;
@@ -105,56 +117,46 @@ export class TrajectorySystem {
                 varying vec3 vPosition;
                 
                 void main() {
-                    // Energy flow along the beam
-                    float flow = vUv.x * 20.0 - time * 5.0;
-                    float energy = sin(flow) * 0.5 + 0.5;
+                    // Smoother energy flow with less variation
+                    float flow = vUv.x * 10.0 - time * 3.0;
+                    float energy = sin(flow) * 0.3 + 0.7; // Less variation for consistency
                     
-                    // Pulse effect
-                    float pulse = sin(time * 4.0) * 0.2 + 0.8;
+                    // Gentler pulse effect
+                    float pulse = sin(time * 3.0) * 0.1 + 0.9;
                     
                     // Power boost
-                    float boost = 1.0 + power * 1.5;
+                    float boost = 1.0 + power * 0.8;
                     
-                    // Create bright core with falloff
-                    float coreBrightness = 1.0 - smoothstep(0.0, 1.0, abs(vUv.y - 0.5) * 2.0);
+                    // Smoother core brightness falloff
+                    float coreBrightness = pow(1.0 - abs(vUv.y - 0.5) * 2.0, 2.0);
                     
-                    // Mix colors for variety - increased brightness
-                    vec3 finalColor = mix(color, glowColor, energy) * pulse * boost * intensity * 2.0;
-                    finalColor += vec3(coreBrightness * 0.8); // Brighter white core
+                    // Mix colors with less intensity variation
+                    vec3 finalColor = mix(color, glowColor, energy * 0.5) * pulse * boost * intensity;
+                    finalColor += vec3(coreBrightness * 0.4); // Softer white core
                     
-                    float finalOpacity = opacity * (0.7 + energy * 0.3) * coreBrightness;
+                    // Smoother opacity gradient
+                    float finalOpacity = opacity * coreBrightness * (0.8 + energy * 0.2);
                     
                     gl_FragColor = vec4(finalColor, finalOpacity);
                 }
             `,
             transparent: true,
             depthWrite: false,
+            depthTest: false, // Disable depth testing to prevent conflicts
             blending: THREE.AdditiveBlending, // Additive blending for glow
             toneMapped: false // Prevent tone mapping
         });
         
-        // Create energy core (slightly thinner)
-        const coreGeometry = new THREE.TubeGeometry(curve, 32, 0.015, 6, false);
+        // Create energy core with consistent segment count
+        const coreGeometry = new THREE.TubeGeometry(curve, FIXED_SEGMENTS, 0.012, RADIAL_SEGMENTS, false);
         this.energyCore = new THREE.Mesh(coreGeometry, this.coreShaderMaterial);
         this.energyCore.visible = false;
+        this.energyCore.renderOrder = 2; // Render after main beam
         this.trajectoryGroup.add(this.energyCore);
         
-        // Add outer glow layer for enhanced bloom
-        const glowGeometry = new THREE.TubeGeometry(curve, 16, 0.04, 4, false);
-        this.glowMaterial = new THREE.MeshStandardMaterial({
-            color: 0x00ffff,
-            emissive: 0x00ffff,
-            emissiveIntensity: 2.0, // Increased for more bloom
-            transparent: true,
-            opacity: 0.6, // Increased opacity
-            roughness: 0,
-            metalness: 0,
-            toneMapped: false
-        });
-        
-        this.glowLayer = new THREE.Mesh(glowGeometry, this.glowMaterial);
-        this.glowLayer.visible = false;
-        this.trajectoryGroup.add(this.glowLayer);
+        // Remove the outer glow layer - it causes too much overlap
+        // Instead, we'll use a single optimized bloom layer
+        this.glowLayer = null; // Placeholder for compatibility
     }
     
     createImpactIndicator() {
@@ -224,10 +226,10 @@ export class TrajectorySystem {
     registerForBloom() {
         if (this.postProcessing && !this.bloomRegistered) {
             console.log('Registering trajectory components for bloom');
-            // Add all trajectory components to bloom
+            // Add trajectory components to bloom (excluding removed glow layer)
             this.postProcessing.addBloomObject(this.laserBeam, 'trajectoryLine');
             this.postProcessing.addBloomObject(this.energyCore, 'trajectoryLine');
-            this.postProcessing.addBloomObject(this.glowLayer, 'trajectoryGlow');
+            // Glow layer removed - no longer register it
             this.postProcessing.addBloomObject(this.impactRing, 'impactRing');
             this.postProcessing.addBloomObject(this.targetIndicator, 'impactIndicator');
             this.bloomRegistered = true;
@@ -242,7 +244,7 @@ export class TrajectorySystem {
         if (this.postProcessing && this.bloomRegistered) {
             this.postProcessing.removeBloomObject(this.laserBeam, 'trajectoryLine');
             this.postProcessing.removeBloomObject(this.energyCore, 'trajectoryLine');
-            this.postProcessing.removeBloomObject(this.glowLayer, 'trajectoryGlow');
+            // Glow layer removed - no longer unregister it
             this.postProcessing.removeBloomObject(this.impactRing, 'impactRing');
             this.postProcessing.removeBloomObject(this.targetIndicator, 'impactIndicator');
             this.bloomRegistered = false;
@@ -360,58 +362,55 @@ export class TrajectorySystem {
             return;
         }
         
-        // Create smooth curve from points
+        // Create smooth curve from points with tension adjustment
         const curve = new THREE.CatmullRomCurve3(this.points);
+        curve.tension = 0.5; // Smoother curve interpolation
         
         // Store old geometries
         const oldLaserGeometry = this.laserBeam.geometry;
         const oldCoreGeometry = this.energyCore.geometry;
-        const oldGlowGeometry = this.glowLayer.geometry;
         
-        // Update main laser beam geometry
-        const newGeometry = new THREE.TubeGeometry(curve, Math.min(64, this.pointCount), 0.02, 8, false);
+        // Use fixed segment count for consistency - prevents UV discontinuities
+        const FIXED_SEGMENTS = 128;
+        const RADIAL_SEGMENTS = 12;
+        
+        // Update main laser beam geometry with consistent parameters
+        const newGeometry = new THREE.TubeGeometry(curve, FIXED_SEGMENTS, 0.025, RADIAL_SEGMENTS, false);
         this.laserBeam.geometry = newGeometry;
         this.laserBeam.visible = true;
         
-        // Update energy core
-        const coreGeometry = new THREE.TubeGeometry(curve, Math.min(32, this.pointCount), 0.015, 6, false);
+        // Update energy core with same segment count
+        const coreGeometry = new THREE.TubeGeometry(curve, FIXED_SEGMENTS, 0.012, RADIAL_SEGMENTS, false);
         this.energyCore.geometry = coreGeometry;
         this.energyCore.visible = true;
         
-        // Update glow layer
-        const glowGeometry = new THREE.TubeGeometry(curve, Math.min(16, this.pointCount), 0.04, 4, false);
-        this.glowLayer.geometry = glowGeometry;
-        this.glowLayer.visible = true;
-        
         // Dispose old geometries AFTER setting new ones
-        oldLaserGeometry.dispose();
-        oldCoreGeometry.dispose();
-        oldGlowGeometry.dispose();
+        if (oldLaserGeometry) oldLaserGeometry.dispose();
+        if (oldCoreGeometry) oldCoreGeometry.dispose();
         
         // Update colors based on state
         const color = this.getColor(gameState);
         const colorObj = new THREE.Color(color);
         
-        // Update main beam material
+        // Adjust intensity based on color luminance for consistent bloom
+        const luminance = colorObj.r * 0.299 + colorObj.g * 0.587 + colorObj.b * 0.114;
+        const intensityBoost = luminance < 0.5 ? 1.3 : 1.0; // Boost for darker colors like blue
+        
+        // Update main beam material with luminance compensation
         this.beamMaterial.color = colorObj;
         this.beamMaterial.emissive = colorObj;
-        this.beamMaterial.emissiveIntensity = gameState.precisionAimActive ? 4.0 : 3.0; // Increased intensity
-        
-        // Update glow material
-        this.glowMaterial.color = colorObj;
-        this.glowMaterial.emissive = colorObj;
-        this.glowMaterial.emissiveIntensity = gameState.precisionAimActive ? 2.5 : 2.0; // Increased intensity
+        this.beamMaterial.emissiveIntensity = (gameState.precisionAimActive ? 3.0 : 2.5) * intensityBoost;
         
         // Smooth the power value for visual effects
         const targetPower = gameState.shootingPower || 0;
         this.smoothPower += (targetPower - this.smoothPower) * this.powerSmoothingFactor;
         
-        // Update shader uniforms
+        // Update shader uniforms with luminance compensation
         this.coreShaderMaterial.uniforms.color.value = colorObj;
         this.coreShaderMaterial.uniforms.glowColor.value = colorObj;
         // Use smoothed power for visual effects to eliminate jarring changes
-        this.coreShaderMaterial.uniforms.power.value = this.smoothPower * 0.3;
-        this.coreShaderMaterial.uniforms.intensity.value = gameState.precisionAimActive ? 3.0 : 2.5; // Increased intensity
+        this.coreShaderMaterial.uniforms.power.value = this.smoothPower * 0.2; // Reduced power influence
+        this.coreShaderMaterial.uniforms.intensity.value = (gameState.precisionAimActive ? 2.0 : 1.5) * intensityBoost;
         
         // Update impact indicator
         if (gameState.trajectoryEndPosition) {
@@ -500,25 +499,25 @@ export class TrajectorySystem {
         const color = this.getColor(gameState);
         const colorObj = new THREE.Color(color);
         
-        // Update main beam material color
+        // Calculate luminance for intensity compensation
+        const luminance = colorObj.r * 0.299 + colorObj.g * 0.587 + colorObj.b * 0.114;
+        const intensityBoost = luminance < 0.5 ? 1.3 : 1.0;
+        
+        // Update main beam material color with compensation
         this.beamMaterial.color = colorObj;
         this.beamMaterial.emissive = colorObj;
-        this.beamMaterial.emissiveIntensity = gameState.precisionAimActive ? 4.0 : 3.0;
-        
-        // Update glow material color
-        this.glowMaterial.color = colorObj;
-        this.glowMaterial.emissive = colorObj;
-        this.glowMaterial.emissiveIntensity = gameState.precisionAimActive ? 2.5 : 2.0;
+        this.beamMaterial.emissiveIntensity = (gameState.precisionAimActive ? 3.0 : 2.5) * intensityBoost;
         
         // Smooth the power value for visual effects
         const targetPower = gameState.shootingPower || 0;
         this.smoothPower += (targetPower - this.smoothPower) * this.powerSmoothingFactor;
         
-        // Update core shader color and power
+        // Update core shader color and power with luminance compensation
         if (this.coreShaderMaterial) {
             this.coreShaderMaterial.uniforms.glowColor.value = colorObj;
             // Use smoothed power for consistent visuals
-            this.coreShaderMaterial.uniforms.power.value = this.smoothPower * 0.3;
+            this.coreShaderMaterial.uniforms.power.value = this.smoothPower * 0.2;
+            this.coreShaderMaterial.uniforms.intensity.value = 1.5 * intensityBoost;
         }
         
         // Update impact ring color
@@ -554,20 +553,18 @@ export class TrajectorySystem {
         
         // Update material properties based on precision aim
         if (gameState.precisionAimActive) {
-            this.beamMaterial.opacity = 0.95;
-            this.coreShaderMaterial.uniforms.opacity.value = 0.95;
-            this.glowMaterial.opacity = 0.4;
+            this.beamMaterial.opacity = 0.9;
+            this.coreShaderMaterial.uniforms.opacity.value = 0.7;
         } else {
             this.beamMaterial.opacity = 0.85;
-            this.coreShaderMaterial.uniforms.opacity.value = 0.85;
-            this.glowMaterial.opacity = 0.3;
+            this.coreShaderMaterial.uniforms.opacity.value = 0.6;
         }
     }
     
     hideTrajectory() {
         this.laserBeam.visible = false;
         this.energyCore.visible = false;
-        this.glowLayer.visible = false;
+        if (this.glowLayer) this.glowLayer.visible = false;
         this.impactRing.visible = false;
         this.targetIndicator.visible = false;
         this.points = [];
@@ -619,10 +616,7 @@ export class TrajectorySystem {
             this.coreShaderMaterial.dispose();
         }
         
-        if (this.glowLayer) {
-            this.glowLayer.geometry.dispose();
-            this.glowMaterial.dispose();
-        }
+        // Glow layer removed - no disposal needed
         
         if (this.impactRing) {
             this.impactRing.geometry.dispose();

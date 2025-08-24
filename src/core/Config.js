@@ -23,9 +23,9 @@ export const CONFIG = {
     // Bloom Post-Processing
     BLOOM: {
         ENABLED: true,
-        STRENGTH: 1.2,
-        RADIUS: 0.85,
-        THRESHOLD: 0.25,
+        STRENGTH: 1.0,  // Reduced for more controlled bloom
+        RADIUS: 1.0,    // Increased for smoother falloff
+        THRESHOLD: 0.15, // Lower threshold for better blue response
         // Selective bloom categories - more specific
         CATEGORIES: {
             trajectoryLine: true,        // The main trajectory line
