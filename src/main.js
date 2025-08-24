@@ -11,6 +11,7 @@ import { PrecisionAimIndicator } from './systems/PrecisionAimIndicator.js';
 import { GameLogic } from './systems/GameLogic.js';
 import { UIManager } from './ui/VisualTextDisplay.js';
 import { PerformanceManager } from './core/PerformanceManager.js';
+import { SmartColorDebugUI } from './ui/SmartColorDebugUI.js';
 import { BubbleEffectsSystem } from './graphics/BubbleEffectsSystem.js';
 import { developerPanel } from './ui/DeveloperPanel.js';
 import { bubbleEffectsController } from './graphics/BubbleEffectsController.js';
@@ -32,6 +33,7 @@ import { ProgressiveTimerSystem } from './systems/ProgressiveTimerSystem.js';
 import { DangerZoneSystem } from './systems/DangerZoneSystem.js';
 import { ColorClusteringSystem } from './systems/ColorClusteringSystem.js';
 import { LevelProgressionSystem } from './systems/LevelProgressionSystem.js';
+import { SmartColorSelectionSystem } from './systems/SmartColorSelectionSystem.js';
 
 // Main game class
 class BubbleShooterGame {
@@ -74,6 +76,7 @@ class BubbleShooterGame {
         this.dangerZoneSystem = new DangerZoneSystem(this.gameState, this.scene, this.gameManager.eventBus);
         this.colorClusteringSystem = new ColorClusteringSystem(this.gameState, this.gameManager.eventBus);
         this.levelProgressionSystem = new LevelProgressionSystem(this.gameState, this.gameManager.eventBus);
+        this.smartColorSelectionSystem = new SmartColorSelectionSystem(this.gameState, this.gameManager.eventBus);
         
         // Initialize instanced bubble renderer
         this.bubbleInstances = null; // Will be initialized after imports
@@ -215,6 +218,11 @@ class BubbleShooterGame {
         // Initialize bubble effects controller with game manager's event bus
         await bubbleEffectsController.initialize(this.gameManager.eventBus);
         
+        // Initialize smart color debug UI (if in debug mode)
+        if (this.DEBUG_MODE) {
+            this.smartColorDebugUI = new SmartColorDebugUI(this.smartColorSelectionSystem);
+        }
+        
         // Make game instance globally accessible for developer panel
         window.game = this;
         
@@ -251,6 +259,19 @@ class BubbleShooterGame {
             }
         };
         
+        // Debug command for smart color selection stats
+        window.colorStats = () => {
+            const stats = this.smartColorSelectionSystem.getStatistics();
+            console.log('Smart Color Selection Statistics:');
+            console.log(`  Mode: ${stats.mode}`);
+            console.log(`  Total Selections: ${stats.totalSelections}`);
+            console.log(`  Helpful Selections: ${stats.helpfulSelections} (${stats.helpfulPercentage}%)`);
+            console.log(`  Random Selections: ${stats.randomSelections}`);
+            console.log(`  Current Helper Chance: ${stats.currentHelperChance}%`);
+            console.log(`  Average Accessibility: ${(stats.averageAccessibility * 100).toFixed(1)}%`);
+            return stats;
+        };
+        
         // Start game
         this.gameManager.eventBus.emit('gameStart');
         
@@ -262,6 +283,13 @@ class BubbleShooterGame {
     }
     
     setupProgressiveGameEvents() {
+        // Handle addNewRow event from timer system
+        this.gameManager.eventBus.on('addNewRow', () => {
+            if (this.gameLogic) {
+                this.gameLogic.addNewRow();
+            }
+        });
+        
         // Handle bubble creation from new rows
         this.gameManager.eventBus.on('bubbleCreated', (data) => {
             const bubble = data.bubble;
@@ -633,8 +661,8 @@ class BubbleShooterGame {
                 color = CONFIG.BUBBLE_COLORS[0];
             }
         } else {
-            color = this.gameState.nextBubbleColor ||
-                CONFIG.BUBBLE_COLORS[Math.floor(Math.random() * CONFIG.BUBBLE_COLORS.length)];
+            // Use smart color selection system for regular bubbles
+            color = this.gameState.nextBubbleColor || this.smartColorSelectionSystem.getNextBubbleColor();
         }
         
         const bubble = new Bubble(0, CONFIG.SHOOTER_Y, color);
@@ -828,8 +856,8 @@ class BubbleShooterGame {
             this.uiManager.hidePowerUpIndicator();
         }
         
-        // Set next bubble color
-        this.gameState.nextBubbleColor = CONFIG.BUBBLE_COLORS[Math.floor(Math.random() * CONFIG.BUBBLE_COLORS.length)];
+        // Set next bubble color using smart selection
+        this.gameState.nextBubbleColor = this.smartColorSelectionSystem.getNextBubbleColor();
         this.uiManager.updateNextBubble(this.gameState.nextBubbleColor);
         
         // Debug: Shooting bubble created
@@ -1516,17 +1544,26 @@ class BubbleShooterGame {
     animate(currentTime) {
         requestAnimationFrame((time) => this.animate(time));
         
+        // Handle first frame
+        if (this.lastTime === 0) {
+            this.lastTime = currentTime;
+            return;
+        }
+        
         const deltaTime = (currentTime - this.lastTime) / 1000;
         this.lastTime = currentTime;
         
+        // Clamp deltaTime to prevent issues with large gaps
+        const clampedDeltaTime = Math.min(deltaTime, 0.1); // Max 100ms per frame
+        
         if (!this.gameState.isGameOver && !this.gameState.isPaused) {
             // Update progressive game systems
-            this.progressiveTimerSystem.update(deltaTime);
-            this.dangerZoneSystem.update(deltaTime, this.camera);
+            this.progressiveTimerSystem.update(clampedDeltaTime);
+            this.dangerZoneSystem.update(clampedDeltaTime, this.camera);
             
             // Update precision aim
-            if (this.gameState.updatePrecisionAim(deltaTime)) {
-                this.precisionTickTimer += deltaTime;
+            if (this.gameState.updatePrecisionAim(clampedDeltaTime)) {
+                this.precisionTickTimer += clampedDeltaTime;
                 if (this.precisionTickTimer >= 1.0) {
                     this.gameManager.playSound('precisionTick');
                     this.precisionTickTimer = 0;
@@ -1542,11 +1579,11 @@ class BubbleShooterGame {
             }
             
             // Update precision aim indicator
-            this.precisionAimIndicator.update(deltaTime);
+            this.precisionAimIndicator.update(clampedDeltaTime);
             
             // Update current bubble
             if (this.gameState.currentBubble) {
-                this.gameState.currentBubble.update(deltaTime);
+                this.gameState.currentBubble.update(clampedDeltaTime);
                 
                 // Update instanced renderer for moving bubble
                 if (this.gameState.currentBubble.useInstancedRendering) {
@@ -1611,7 +1648,7 @@ class BubbleShooterGame {
                             this.bubbleInstances.addBubble(bubble, 'grid');
                         }
                         
-                        bubble.update(deltaTime);
+                        bubble.update(clampedDeltaTime);
                         
                         // Only update instanced renderer if bubble is animating or has impact physics
                         if (bubble.useInstancedRendering && 
@@ -1630,12 +1667,12 @@ class BubbleShooterGame {
             
             // Update instanced renderer uniforms (time-based animations)
             if (this.bubbleInstances) {
-                this.bubbleInstances.update(deltaTime, this.camera);
+                this.bubbleInstances.update(clampedDeltaTime, this.camera);
             }
             
             // Periodic victory check (as a safety net)
             if (!this.victoryCheckTimer) this.victoryCheckTimer = 0;
-            this.victoryCheckTimer += deltaTime;
+            this.victoryCheckTimer += clampedDeltaTime;
             if (this.victoryCheckTimer > 1.0) { // Check every second
                 this.victoryCheckTimer = 0;
                 if (bubblesRemaining === 0 && !this.gameState.isGameOver) {
@@ -1645,7 +1682,7 @@ class BubbleShooterGame {
             }
             
             // Update ambient audio based on game state (throttled to 30fps)
-            this.audioUpdateTimer += deltaTime;
+            this.audioUpdateTimer += clampedDeltaTime;
             if (this.audioUpdateTimer >= 0.033 && this.audioSystem.isInitialized && !this.gameState.isGameOver) {
                 this.audioUpdateTimer = 0;
                 
@@ -1667,11 +1704,11 @@ class BubbleShooterGame {
             }
             
             // Update particles
-            this.gameState.updateParticles(deltaTime);
+            this.gameState.updateParticles(clampedDeltaTime);
             
             // Update animations
             const animationsBefore = this.gameState.animations.length;
-            this.gameState.updateAnimations(deltaTime);
+            this.gameState.updateAnimations(clampedDeltaTime);
             const animationsAfter = this.gameState.animations.length;
             
             // If animations finished, recalculate trajectory
@@ -1688,17 +1725,17 @@ class BubbleShooterGame {
             }
             
             // Update game manager
-            this.gameManager.update(deltaTime, this.camera);
+            this.gameManager.update(clampedDeltaTime, this.camera);
             
             // Update Chain Lightning visual effects if present
             if (this.chainLightningVisuals) {
-                this.chainLightningVisuals.update(deltaTime);
+                this.chainLightningVisuals.update(clampedDeltaTime);
             }
             
             // Update power meter
             if (this.gameState.isCharging) {
                 // Reduced from 2 to 1 to double the charge time (from 0.5s to 1s for full charge)
-                this.gameState.shootingPower = Math.min(this.gameState.shootingPower + deltaTime * 1, 1);
+                this.gameState.shootingPower = Math.min(this.gameState.shootingPower + clampedDeltaTime * 1, 1);
                 this.uiManager.updatePowerMeter(this.gameState.shootingPower);
                 
                 if (this.gameState.currentBubble) {
@@ -1723,7 +1760,7 @@ class BubbleShooterGame {
             }
             
             // Update UI scores (throttled to 20fps)
-            this.uiUpdateTimer += deltaTime;
+            this.uiUpdateTimer += clampedDeltaTime;
             if (this.uiUpdateTimer >= 0.05) {
                 this.uiUpdateTimer = 0;
                 this.uiManager.updateScore(this.gameState.score);
@@ -1735,7 +1772,7 @@ class BubbleShooterGame {
         }
         
         // Update game board (starfield, etc.)
-        this.gameBoard.update(deltaTime, currentTime, this.gameState.mousePosition);
+        this.gameBoard.update(clampedDeltaTime, currentTime, this.gameState.mousePosition);
         
         // Animate lights
         this.sceneManager.animateLights(currentTime * 0.001);
@@ -1743,7 +1780,7 @@ class BubbleShooterGame {
         // Render blast wave effect if active, otherwise render normally
         if (!this.gameManager.render()) {
             // Pass deltaTime to scene manager for post-processing
-            this.sceneManager.render(deltaTime);
+            this.sceneManager.render(clampedDeltaTime);
         }
     }
 }

@@ -168,9 +168,12 @@ export class ProgressiveTimerSystem {
         // Skip if paused or game over
         if (this.config.isPaused || this.gameState.isGameOver) return;
         
+        // Convert deltaTime from seconds to milliseconds
+        const deltaMs = deltaTime * 1000;
+        
         // Apply time slow factor if in danger zone
         const timeSlowFactor = this.gameState.dangerZone?.timeSlowFactor || 1.0;
-        const adjustedDelta = deltaTime * timeSlowFactor;
+        const adjustedDelta = deltaMs * timeSlowFactor;
         
         // Update timer
         this.config.timeRemaining -= adjustedDelta;
@@ -197,36 +200,20 @@ export class ProgressiveTimerSystem {
             duration: 500
         });
         
-        // Schedule the actual push
-        setTimeout(() => {
-            // Shift existing rows down
-            this.gameState.shiftRowsDown();
-            
-            // Update all bubble positions visually
-            const bubbles = this.gameState.getAllBubbles();
-            bubbles.forEach(bubble => {
-                if (bubble && bubble.mesh) {
-                    const newPos = this.calculateGridPosition(bubble.gridX, bubble.gridY);
-                    bubble.mesh.position.x = newPos.x;
-                    bubble.mesh.position.y = newPos.y;
-                }
-            });
-            
-            // Generate new top row
-            this.eventBus.emit('generateNewRow', { row: 0 });
-            
-            // Emit row push complete event
-            this.eventBus.emit('rowPushComplete', {
-                timestamp: Date.now()
-            });
-            
-            // Check for danger zone
-            this.eventBus.emit('checkDangerZone');
-            
-            // Check for game over
-            this.checkGameOver();
-            
-        }, this.config.pushAnimationTime);
+        // Use the existing addNewRow method from GameLogic
+        // This properly handles shifting rows, updating positions, and adding new bubbles
+        this.eventBus.emit('addNewRow');
+        
+        // Emit row push complete event
+        this.eventBus.emit('rowPushComplete', {
+            timestamp: Date.now()
+        });
+        
+        // Check for danger zone
+        this.eventBus.emit('checkDangerZone');
+        
+        // Check for game over
+        this.checkGameOver();
     }
     
     calculateGridPosition(x, y) {

@@ -44,11 +44,6 @@ export class ColorClusteringSystem {
             this.updateDifficultyForLevel(data.level);
         });
         
-        // Generate new row when needed
-        this.eventBus.on('generateNewRow', (data) => {
-            this.generateNewRow(data.row || 0);
-        });
-        
         // Activate mercy mode after failures
         this.eventBus.on('gameOver', () => {
             this.activateMercyMode();
@@ -280,17 +275,16 @@ export class ColorClusteringSystem {
             for (let x = 0; x < colors.length && x < CONFIG.GRID_WIDTH; x++) {
                 const color = colors[x];
                 
-                // Create new bubble
-                const bubble = new Bubble(color);
+                // Calculate world position
+                const offsetX = (rowIndex % 2 === 0) ? 0 : CONFIG.HEX_WIDTH / 2;
+                const xPos = x * CONFIG.HEX_WIDTH - CONFIG.GRID_WIDTH * CONFIG.HEX_WIDTH / 2 + CONFIG.HEX_WIDTH / 2 + offsetX;
+                const yPos = CONFIG.GRID_TOP_Y - rowIndex * CONFIG.HEX_HEIGHT;
+                
+                // Create new bubble with position
+                const bubble = new Bubble(xPos, yPos, color);
                 
                 // Set grid position
                 bubble.setGridPosition(x, rowIndex);
-                
-                // Calculate world position
-                const offsetX = (rowIndex % 2 === 0) ? 0 : CONFIG.HEX_WIDTH / 2;
-                bubble.mesh.position.x = x * CONFIG.HEX_WIDTH - CONFIG.GRID_WIDTH * CONFIG.HEX_WIDTH / 2 + CONFIG.HEX_WIDTH / 2 + offsetX;
-                bubble.mesh.position.y = CONFIG.GRID_TOP_Y - rowIndex * CONFIG.HEX_HEIGHT;
-                bubble.mesh.position.z = 0;
                 
                 // Add to grid
                 this.gameState.setBubbleAt(x, rowIndex, bubble);
