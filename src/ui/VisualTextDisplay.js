@@ -1,19 +1,18 @@
 import * as THREE from 'three';
+import { NotificationManager } from './NotificationManager.js';
 
 /**
  * Visual Text Display System
  * Shows animated text effects for power-ups, combos, and other game events
  */
 export class VisualTextDisplay {
-    constructor(camera) {
+    constructor(camera, eventBus = null) {
         this.camera = camera;
         this.activeDisplays = [];
+        this.notificationManager = new NotificationManager(eventBus);
     }
     
     showPowerUpText(powerUpType, position) {
-        const textElement = document.createElement('div');
-        textElement.className = 'powerup-text-display';
-        
         let text = '';
         let className = '';
         
@@ -43,82 +42,71 @@ export class VisualTextDisplay {
                 className = '';
         }
         
-        textElement.textContent = text;
-        textElement.classList.add(className);
-        
-        // Position the text based on the bubble position if provided
-        if (position) {
-            const screenPos = this.worldToScreen(position);
-            textElement.style.left = `${screenPos.x}px`;
-            textElement.style.top = `${screenPos.y}px`;
-            textElement.style.transform = 'translate(-50%, -50%)';
-        }
-        
-        document.body.appendChild(textElement);
-        
-        // Remove after animation completes
-        setTimeout(() => {
-            textElement.remove();
-        }, 2000);
+        // Use NotificationManager for proper queueing and positioning
+        this.notificationManager.show({
+            text: text,
+            type: powerUpType === 'chainLightning' ? 'lightning' : powerUpType,
+            className: `powerup-text-display ${className}`,
+            priority: 2,
+            duration: 2000,
+            position: position ? this.worldToScreen(position) : null
+        });
     }
     
     showEffectText(effectType, value) {
-        const textElement = document.createElement('div');
-        textElement.className = 'effect-text-display';
-        
         let text = '';
         let className = '';
+        let priority = 2;
         
         switch(effectType) {
             case 'combo':
                 text = `COMBO x${value}!`;
                 className = 'effect-text-combo';
+                priority = 3;
                 break;
             case 'megaClear':
                 text = 'MEGA CLEAR!';
                 className = 'effect-text-megaclear';
+                priority = 3;
                 break;
             case 'victory':
                 text = 'LEVEL CLEAR!';
                 className = 'effect-text-victory';
+                priority = 4;
                 break;
             case 'floatingClear':
                 text = `${value} FLOATING CLEARED!`;
                 className = 'effect-text-megaclear';
+                priority = 2;
                 break;
             default:
                 text = effectType;
                 className = '';
         }
         
-        textElement.textContent = text;
-        textElement.classList.add(className);
-        
-        document.body.appendChild(textElement);
-        
-        // Remove after animation completes
-        setTimeout(() => {
-            textElement.remove();
-        }, 1500);
+        // Use NotificationManager for proper queueing and positioning
+        this.notificationManager.show({
+            text: text,
+            type: effectType,
+            className: `effect-text-display ${className}`,
+            priority: priority,
+            duration: effectType === 'victory' ? 3000 : 1500
+        });
     }
     
     showFloatingScore(position, points) {
-        const scoreElement = document.createElement('div');
-        scoreElement.className = 'floating-score';
-        scoreElement.textContent = '+' + points;
-        
         // Convert 3D position to screen coordinates
         const screenPos = this.worldToScreen(position);
         
-        scoreElement.style.left = screenPos.x + 'px';
-        scoreElement.style.top = screenPos.y + 'px';
-        
-        document.body.appendChild(scoreElement);
-        
-        // Remove after animation
-        setTimeout(() => {
-            scoreElement.remove();
-        }, 1500);
+        // Use NotificationManager for proper queueing and positioning
+        this.notificationManager.show({
+            text: '+' + points,
+            type: 'score',
+            className: 'floating-score',
+            priority: 1,
+            duration: 1500,
+            position: screenPos
+        });
     }
     
     worldToScreen(position) {

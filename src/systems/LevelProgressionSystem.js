@@ -502,7 +502,17 @@ export class LevelProgressionSystem {
     triggerZenMoment() {
         console.log('Zen moment activated!');
         
-        // Show zen moment UI if element exists
+        // Use the notification manager through the event bus
+        this.eventBus.emit('showNotification', {
+            text: '✨ ZEN MOMENT ✨\nTake a breather - No timer for 30 seconds!',
+            type: 'zenMoment',
+            className: 'zen-moment-notification',
+            priority: 4,
+            duration: 3000,
+            immediate: true
+        });
+        
+        // Also show the original UI element if it exists (as backup)
         if (this.zenMoment) {
             this.zenMoment.classList.remove('hidden');
             

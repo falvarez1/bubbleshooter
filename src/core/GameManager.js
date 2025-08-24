@@ -37,8 +37,8 @@ export class GameManager {
         this.renderer = renderer;
         this.bubbleInstances = bubbleInstances;
         
-        // Initialize visual text display
-        this.visualTextDisplay = new VisualTextDisplay(camera);
+        // Initialize visual text display with eventBus for notification management
+        this.visualTextDisplay = new VisualTextDisplay(camera, this.eventBus);
         
         // Initialize power-up system
         this.powerUpSystem = new PowerUpSystem(this.eventBus, this.soundManager);
@@ -135,6 +135,13 @@ export class GameManager {
         // Game start
         this.eventBus.on('gameStart', () => {
             this.soundManager.play('gameStart');
+        });
+        
+        // Handle generic notification requests
+        this.eventBus.on('showNotification', (options) => {
+            if (this.visualTextDisplay && this.visualTextDisplay.notificationManager) {
+                this.visualTextDisplay.notificationManager.show(options);
+            }
         });
     }
     

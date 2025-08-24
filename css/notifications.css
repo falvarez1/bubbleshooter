@@ -1,0 +1,279 @@
+/* Notification System Styles */
+
+/* Base notification styles */
+.game-notification {
+    font-family: 'Orbitron', monospace;
+    font-weight: bold;
+    padding: 12px 24px;
+    border-radius: 12px;
+    pointer-events: none;
+    z-index: 2000;
+    white-space: pre-line;
+    text-align: center;
+}
+
+/* Entrance animation */
+.game-notification.notification-enter {
+    transform: translate(-50%, -50%) scale(1) !important;
+    opacity: 1 !important;
+}
+
+/* Exit animation */
+.game-notification.notification-exit {
+    transform: translate(-50%, -50%) scale(0.8) !important;
+    opacity: 0 !important;
+    transition: all 0.3s ease-in !important;
+}
+
+/* Priority-based styles */
+.notification-priority-1 {
+    font-size: 18px;
+}
+
+.notification-priority-2 {
+    font-size: 24px;
+}
+
+.notification-priority-3 {
+    font-size: 32px;
+}
+
+.notification-priority-4 {
+    font-size: 42px;
+}
+
+/* Type-specific styles */
+.notification-type-combo {
+    background: linear-gradient(135deg, #FF6B6B, #FF3333);
+    color: white;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    animation: pulse 0.5s ease-out;
+}
+
+.notification-type-megaClear {
+    background: linear-gradient(135deg, #FFD93D, #FF6B6B);
+    color: white;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    animation: megaClearPulse 1s ease-out;
+}
+
+.notification-type-zenMoment {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    text-shadow: 0 0 20px rgba(255,255,255,0.5);
+    font-size: 36px !important;
+    padding: 20px 40px;
+    border: 3px solid rgba(255,255,255,0.3);
+    box-shadow: 0 0 50px rgba(102, 126, 234, 0.5);
+    animation: zenFloat 3s ease-in-out;
+}
+
+.notification-type-victory {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    text-shadow: 0 0 20px rgba(255,255,255,0.8);
+    font-size: 48px !important;
+    padding: 20px 40px;
+    border: 3px solid rgba(255,255,255,0.5);
+    animation: victoryBounce 1s ease-out;
+}
+
+.notification-type-levelUp {
+    background: linear-gradient(135deg, #00d4ff, #0099cc);
+    color: white;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    animation: levelUpSlide 0.8s ease-out;
+}
+
+.notification-type-rainbow,
+.notification-type-powerup {
+    background: linear-gradient(135deg, #f093fb, #f5576c);
+    color: white;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+
+.notification-type-bomb {
+    background: linear-gradient(135deg, #FF6B6B, #8B0000);
+    color: white;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.7);
+    animation: bombShake 0.5s ease-out;
+}
+
+.notification-type-lightning {
+    background: linear-gradient(135deg, #00d4ff, #0044ff);
+    color: white;
+    text-shadow: 0 0 10px rgba(0,212,255,0.8);
+}
+
+.notification-type-precision {
+    background: linear-gradient(135deg, #00ffcc, #00aa88);
+    color: white;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+
+.notification-type-colorSplash {
+    background: linear-gradient(135deg, 
+        #ff0000 0%, #ff8800 14%, 
+        #ffff00 28%, #00ff00 42%, 
+        #0088ff 56%, #0000ff 70%, 
+        #8800ff 84%, #ff00ff 100%);
+    color: white;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.7);
+    animation: rainbow 2s linear infinite;
+}
+
+.notification-type-score,
+.notification-type-floatingClear {
+    background: rgba(255, 255, 255, 0.95);
+    color: #333;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    font-size: 20px;
+}
+
+/* Keep existing powerup and effect text styles for backward compatibility */
+.powerup-text-display.powerup-text-rainbow {
+    background: linear-gradient(135deg, 
+        #ff0000, #ff8800, #ffff00, 
+        #00ff00, #0088ff, #8800ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: rainbow 2s linear infinite;
+}
+
+.powerup-text-display.powerup-text-bomb {
+    color: #FF4444;
+    text-shadow: 0 0 20px #FF0000, 0 0 40px #880000;
+}
+
+.powerup-text-display.powerup-text-lightning {
+    color: #00DDFF;
+    text-shadow: 0 0 20px #00BBFF, 0 0 40px #0088FF;
+}
+
+.powerup-text-display.powerup-text-precision {
+    color: #00FFCC;
+    text-shadow: 0 0 20px #00DDAA, 0 0 40px #00AA88;
+}
+
+.powerup-text-display.powerup-text-colorsplash {
+    background: linear-gradient(90deg, 
+        #ff0000, #ff8800, #ffff00, 
+        #00ff00, #0088ff, #8800ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: rainbow 1s linear infinite;
+}
+
+.effect-text-display.effect-text-combo {
+    color: #FFD700;
+    text-shadow: 0 0 20px #FFD700, 0 0 40px #FFA500;
+}
+
+.effect-text-display.effect-text-megaclear {
+    color: #FF00FF;
+    text-shadow: 0 0 20px #FF00FF, 0 0 40px #8800FF;
+}
+
+.effect-text-display.effect-text-victory {
+    color: #00FF00;
+    text-shadow: 0 0 30px #00FF00, 0 0 60px #00AA00;
+}
+
+/* Animations */
+@keyframes pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.1); }
+}
+
+@keyframes megaClearPulse {
+    0% { transform: translate(-50%, -50%) scale(0.8); }
+    50% { transform: translate(-50%, -50%) scale(1.2); }
+    100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes zenFloat {
+    0%, 100% { 
+        transform: translate(-50%, -50%) translateY(0) scale(1);
+    }
+    25% { 
+        transform: translate(-50%, -50%) translateY(-10px) scale(1.02);
+    }
+    75% { 
+        transform: translate(-50%, -50%) translateY(10px) scale(0.98);
+    }
+}
+
+@keyframes victoryBounce {
+    0% { 
+        transform: translate(-50%, -50%) translateY(-50px) scale(0.5);
+        opacity: 0;
+    }
+    50% { 
+        transform: translate(-50%, -50%) translateY(10px) scale(1.1);
+    }
+    100% { 
+        transform: translate(-50%, -50%) translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes levelUpSlide {
+    0% { 
+        transform: translate(-50%, -50%) translateX(-100px);
+        opacity: 0;
+    }
+    100% { 
+        transform: translate(-50%, -50%) translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes bombShake {
+    0%, 100% { transform: translate(-50%, -50%) translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translate(-50%, -50%) translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translate(-50%, -50%) translateX(5px); }
+}
+
+@keyframes rainbow {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 100% 50%; }
+}
+
+/* Floating score specific animation */
+.floating-score {
+    animation: floatUp 1.5s ease-out forwards;
+}
+
+@keyframes floatUp {
+    0% {
+        transform: translate(-50%, -50%) translateY(0) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-50%, -50%) translateY(-60px) scale(0.8);
+        opacity: 0;
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .notification-priority-3 {
+        font-size: 24px;
+    }
+    
+    .notification-priority-4 {
+        font-size: 32px;
+    }
+    
+    .notification-type-zenMoment {
+        font-size: 28px !important;
+        padding: 16px 32px;
+    }
+    
+    .notification-type-victory {
+        font-size: 36px !important;
+        padding: 16px 32px;
+    }
+}

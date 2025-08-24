@@ -148,6 +148,19 @@ export class ProgressiveTimerSystem {
         this.eventBus.on('comboStart', () => this.pauseForCombo());
         this.eventBus.on('comboEnd', () => this.resumeAfterCombo());
         
+        // Pause/resume timer for blocking notifications
+        this.eventBus.on('pauseTimer', (data) => {
+            if (data.reason === 'notification') {
+                this.pauseForNotification();
+            }
+        });
+        
+        this.eventBus.on('resumeTimer', (data) => {
+            if (data.reason === 'notification') {
+                this.resumeAfterNotification();
+            }
+        });
+        
         // Reset timer on big clears
         this.eventBus.on('bubblesDestroyed', (data) => {
             if (data.count >= 7) {
@@ -259,6 +272,24 @@ export class ProgressiveTimerSystem {
             this.config.timeRemaining += Math.min(comboDuration * 0.5, 2000); // Max 2 seconds bonus
         }
         console.log('Timer resumed after combo');
+    }
+    
+    pauseForNotification() {
+        this.config.isPaused = true;
+        console.log('Timer paused for blocking notification');
+        // Add visual indicator
+        if (this.timerDisplay) {
+            this.timerDisplay.style.opacity = '0.5';
+        }
+    }
+    
+    resumeAfterNotification() {
+        this.config.isPaused = false;
+        console.log('Timer resumed after notification');
+        // Remove visual indicator
+        if (this.timerDisplay) {
+            this.timerDisplay.style.opacity = '1';
+        }
     }
     
     resetOnBigClear(bubbleCount) {

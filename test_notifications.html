@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notification System Test</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/notifications.css">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            font-family: 'Orbitron', monospace;
+        }
+        
+        .test-controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border-radius: 10px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            max-width: 90%;
+            justify-content: center;
+        }
+        
+        button {
+            padding: 10px 20px;
+            background: #00ffcc;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        button:hover {
+            background: #00ff88;
+            transform: scale(1.05);
+        }
+        
+        h1 {
+            text-align: center;
+            color: white;
+            text-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+    <h1>Notification System Test</h1>
+    
+    <div class="test-controls">
+        <button onclick="testCombo()">Combo Notification</button>
+        <button onclick="testZenMoment()">Zen Moment</button>
+        <button onclick="testPowerUp()">Power-Up</button>
+        <button onclick="testScore()">Score Points</button>
+        <button onclick="testMegaClear()">Mega Clear</button>
+        <button onclick="testVictory()">Victory</button>
+        <button onclick="testMultiple()">Multiple at Once</button>
+        <button onclick="testRapidFire()">Rapid Fire</button>
+        <button onclick="clearAll()">Clear All</button>
+    </div>
+
+    <script type="module">
+        import { NotificationManager } from './src/ui/NotificationManager.js';
+        import { EventBus } from './src/core/EventBus.js';
+        
+        // Create instances
+        const eventBus = new EventBus();
+        const notificationManager = new NotificationManager(eventBus);
+        
+        // Make them global for button access
+        window.notificationManager = notificationManager;
+        
+        // Test functions
+        window.testCombo = function() {
+            notificationManager.show({
+                text: 'COMBO x5!',
+                type: 'combo',
+                className: 'effect-text-display effect-text-combo',
+                priority: 3,
+                duration: 1500
+            });
+        };
+        
+        window.testZenMoment = function() {
+            notificationManager.show({
+                text: '✨ ZEN MOMENT ✨\nTake a breather - No timer for 30 seconds!',
+                type: 'zenMoment',
+                className: 'zen-moment-notification',
+                priority: 4,
+                duration: 3000,
+                immediate: true
+            });
+        };
+        
+        window.testPowerUp = function() {
+            const powerUps = ['rainbow', 'bomb', 'lightning', 'precision', 'colorSplash'];
+            const names = ['RAINBOW POWER!', 'BOMB BLAST!', 'CHAIN LIGHTNING!', 'PRECISION AIM!', 'COLOR SPLASH!'];
+            const index = Math.floor(Math.random() * powerUps.length);
+            
+            notificationManager.show({
+                text: names[index],
+                type: powerUps[index],
+                className: `powerup-text-display powerup-text-${powerUps[index]}`,
+                priority: 2,
+                duration: 2000
+            });
+        };
+        
+        window.testScore = function() {
+            const points = [10, 25, 50, 100, 250];
+            const randomPoints = points[Math.floor(Math.random() * points.length)];
+            
+            notificationManager.show({
+                text: '+' + randomPoints,
+                type: 'score',
+                className: 'floating-score',
+                priority: 1,
+                duration: 1500
+            });
+        };
+        
+        window.testMegaClear = function() {
+            notificationManager.show({
+                text: 'MEGA CLEAR!',
+                type: 'megaClear',
+                className: 'effect-text-display effect-text-megaclear',
+                priority: 3,
+                duration: 1500
+            });
+        };
+        
+        window.testVictory = function() {
+            notificationManager.show({
+                text: 'LEVEL CLEAR!',
+                type: 'victory',
+                className: 'effect-text-display effect-text-victory',
+                priority: 4,
+                duration: 3000
+            });
+        };
+        
+        window.testMultiple = function() {
+            // Simulate multiple notifications at once
+            testCombo();
+            setTimeout(() => testPowerUp(), 50);
+            setTimeout(() => testScore(), 100);
+            setTimeout(() => testScore(), 150);
+            setTimeout(() => testScore(), 200);
+        };
+        
+        window.testRapidFire = function() {
+            // Test rapid notifications
+            let count = 0;
+            const interval = setInterval(() => {
+                testScore();
+                count++;
+                if (count >= 10) {
+                    clearInterval(interval);
+                }
+            }, 200);
+        };
+        
+        window.clearAll = function() {
+            notificationManager.clearAll();
+        };
+        
+        // Listen for timer events (for testing)
+        eventBus.on('pauseTimer', (data) => {
+            console.log('Timer paused:', data);
+        });
+        
+        eventBus.on('resumeTimer', (data) => {
+            console.log('Timer resumed:', data);
+        });
+    </script>
+</body>
+</html>
