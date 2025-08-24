@@ -35,8 +35,9 @@ export class SoundManager {
             
             // Power-Up Sounds
             rainbowActivate: { category: 'effects', volume: 1.0, file: 'sounds/rainbow-activate.wav' },
-            bombExplode: { category: 'effects', volume: 1.0, file: 'sounds/bomb-explode.mp3' },
+            bombExplode: { category: 'effects', volume: 0.3, file: 'sounds/bomb-explode.mp3' },
             lightningStrike: { category: 'effects', volume: 1.0, file: 'sounds/lightning-strike.wav' },
+            chainLightningThrow: { category: 'effects', volume: 0.9, file: 'sounds/chain-lightning-throw.m4a' },
             precisionActivate: { category: 'effects', volume: 0.8, file: 'sounds/precision-activate.wav' },
             precisionTick: { category: 'effects', volume: 0.5, file: 'sounds/precision-tick.wav' },
             colorSplash: { category: 'effects', volume: 0.9, file: 'sounds/color-splash.wav' },
@@ -62,6 +63,7 @@ export class SoundManager {
             levelComplete: { category: 'ui', volume: 1.0, file: 'sounds/level-complete.wav' },
             gameOver: { category: 'ui', volume: 0.9, file: 'sounds/game-over.wav' },
             warning: { category: 'ui', volume: 0.8, file: 'sounds/warning.wav' },
+            rowsDescending: { category: 'effects', volume: 0.7, file: 'sounds/rows-descending.m4a' },
             pause: { category: 'ui', volume: 0.6, file: 'sounds/pause.wav' },
             resume: { category: 'ui', volume: 0.6, file: 'sounds/resume.wav' },
             

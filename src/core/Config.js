@@ -12,7 +12,7 @@ export const CONFIG = {
     HEX_HEIGHT: 0.866, // sqrt(3)/2 * diameter for hexagonal packing
     
     // Sound
-    SOUND_ENABLED: false,
+    SOUND_ENABLED: true,
     SOUND_VOLUME: 0.5,
     SOUND_MUTE: false,
 
@@ -89,7 +89,7 @@ export const CONFIG = {
         PROPAGATION_MULTIPLIER: 0.6, // Force reduction for propagation
         
         // Propagation settings
-        MAX_DEPTH: 2,                // Maximum propagation depth (1-4)
+        MAX_DEPTH: 3,                // Maximum propagation depth (1-4)
         MIN_FORCE: 0.02,             // Minimum force to continue propagation
         PROPAGATION_DELAY: 20,       // Delay between propagation levels (ms)
         ANGLE_FACTOR: 0.3,           // Minimum angle factor (0-1)

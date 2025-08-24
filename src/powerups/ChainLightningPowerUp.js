@@ -80,6 +80,14 @@ export class ChainLightningPowerUp extends PowerUp {
 
         // Create initial impact effect
         this.createLightningImpactEffect(impactBubble.position, gameState, gameManager);
+        
+        // Play initial lightning strike sound for impact bubble
+        if (gameManager.soundManager) {
+            gameManager.soundManager.play('lightningStrike', { 
+                volume: 1.0, // Full volume for initial impact
+                rate: 0.8 // Lower pitch for more dramatic effect
+            });
+        }
 
         // 2. Find and destroy primary arc targets
         const primaryTargets = this.findNearestBubbles(
@@ -102,6 +110,15 @@ export class ChainLightningPowerUp extends PowerUp {
 
                 this.hitBubbles.add(target);
                 bubblesDestroyed.push(target);
+                
+                // Play lightning strike sound for primary target with decreasing volume
+                if (gameManager.soundManager) {
+                    const primaryVolume = 0.8 - (index * 0.15); // Decreases from 0.8 to 0.5 for 3 targets
+                    gameManager.soundManager.play('lightningStrike', { 
+                        volume: Math.max(0.3, primaryVolume),
+                        rate: 0.9 + Math.random() * 0.2 // Slight pitch variation
+                    });
+                }
 
                 // Find secondary targets for each primary
                 const secondaryTargets = this.findNearestBubbles(
@@ -124,6 +141,15 @@ export class ChainLightningPowerUp extends PowerUp {
 
                         this.hitBubbles.add(secondary);
                         bubblesDestroyed.push(secondary);
+                        
+                        // Play lightning strike sound for secondary target with lower volume
+                        if (gameManager.soundManager) {
+                            const secondaryVolume = 0.4 - (secIndex * 0.1); // Decreases from 0.4 to 0.3
+                            gameManager.soundManager.play('lightningStrike', { 
+                                volume: Math.max(0.2, secondaryVolume),
+                                rate: 1.1 + Math.random() * 0.3 // Higher pitch for secondary
+                            });
+                        }
 
                         // Create destruction effect for secondary bubble
                         this.createElectricDestructionEffect(secondary, gameState);
@@ -156,6 +182,15 @@ export class ChainLightningPowerUp extends PowerUp {
                     // Create additional visual effects
                     this.createBubbleElectricFlash(bubble.position, gameManager);
                     this.createBubbleFlickerEffect(bubble);
+                    
+                    // Play delayed destruction sound with even lower volume and higher pitch
+                    if (gameManager.soundManager) {
+                        const delayedVolume = 0.3 - (index * 0.02); // Even quieter for delayed pops
+                        gameManager.soundManager.play('lightningStrike', {
+                            volume: Math.max(0.15, delayedVolume),
+                            rate: 1.3 + Math.random() * 0.4 // Higher pitch for the delayed "aftershock" sounds
+                        });
+                    }
 
                     // Don't mark as destroyed here - let destroyBubbleImmediately handle it atomically
                     // bubble.isDestroyed = true; // REMOVED - this was causing ghost bubbles!
@@ -357,8 +392,7 @@ export class ChainLightningPowerUp extends PowerUp {
         this.createLightningParticleTrail(startPos, endPos, isPrimary, gameState);
         this.createLightningEndEffect(endPos, isPrimary, gameState);
 
-        // Add electrical sound
-        gameManager.playSound('electricZap');
+        // Note: Lightning sounds are now played in executeChainLightning for better control
     }
 
     createLightningLine(startPos, endPos, isPrimary, gameState, gameManager) {

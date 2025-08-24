@@ -120,7 +120,11 @@ export class GameManager {
         // Level complete
         this.eventBus.on('levelComplete', () => {
             this.visualTextDisplay.showEffectText('victory');
-            this.soundManager.play('levelComplete');
+            // Play with celebratory pitch variation
+            this.soundManager.play('levelComplete', {
+                volume: 1.0,
+                rate: 0.95 + Math.random() * 0.1 // Slight pitch variation for variety
+            });
         });
         
         // Game over
@@ -140,8 +144,19 @@ export class GameManager {
     }
     
     addScreenShake(duration, intensity) {
+        // Check if we're starting a new shake or extending existing one
+        const wasShaking = this.screenShake.duration > 0;
+        
         this.screenShake.duration = Math.max(this.screenShake.duration, duration);
         this.screenShake.intensity = Math.max(this.screenShake.intensity, intensity);
+        
+        // Start playing the screen shake sound if not already shaking
+        if (!wasShaking && this.soundManager) {
+            // Store the audio instance so we can stop it later
+            this.screenShakeAudio = this.soundManager.play('screenShake', {
+                volume: Math.min(1.0, 0.5 + intensity * 0.03) // Scale volume with intensity
+            });
+        }
     }
     
     updateScreenShake(deltaTime, camera) {
@@ -158,6 +173,13 @@ export class GameManager {
                 camera.position.x = 0;
                 camera.position.y = 0;
                 this.screenShake.intensity = 0;
+                
+                // Stop the screen shake sound when shaking ends
+                if (this.screenShakeAudio) {
+                    this.screenShakeAudio.pause();
+                    this.screenShakeAudio.currentTime = 0;
+                    this.screenShakeAudio = null;
+                }
             }
         }
     }

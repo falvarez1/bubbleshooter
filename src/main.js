@@ -441,9 +441,19 @@ class BubbleShooterGame {
                     bubble.useInstancedRendering = true;
                     bubble.setGridPosition(x, y);
                     
-                    // Override onWallBounce to play sound
+                    // Override onWallBounce to play sound with variation
                     bubble.onWallBounce = () => {
-                        this.gameManager.playSound('bubbleBounce');
+                        // Play with pitch variation based on velocity
+                        const speed = Math.sqrt(bubble.velocity.x * bubble.velocity.x + bubble.velocity.y * bubble.velocity.y);
+                        const normalizedSpeed = Math.min(1, speed / 15); // Normalize to 0-1 range
+                        const pitchVariation = 0.8 + normalizedSpeed * 0.4 + Math.random() * 0.2; // 0.8-1.4 range
+                        
+                        if (this.gameManager.soundManager) {
+                            this.gameManager.soundManager.play('bubbleBounce', {
+                                volume: 0.4 + normalizedSpeed * 0.3, // Louder for faster bounces
+                                rate: pitchVariation
+                            });
+                        }
                         this.createWallImpactParticles(bubble);
                         
                         // Add wall flash effect
@@ -636,9 +646,19 @@ class BubbleShooterGame {
         //     bubble.electricArcs = [];
         // }
         
-        // Override onWallBounce to play sound
+        // Override onWallBounce to play sound with variation
         bubble.onWallBounce = () => {
-            this.gameManager.playSound('bubbleBounce');
+            // Play with pitch variation based on velocity
+            const speed = Math.sqrt(bubble.velocity.x * bubble.velocity.x + bubble.velocity.y * bubble.velocity.y);
+            const normalizedSpeed = Math.min(1, speed / 15); // Normalize to 0-1 range
+            const pitchVariation = 0.8 + normalizedSpeed * 0.4 + Math.random() * 0.2; // 0.8-1.4 range
+            
+            if (this.gameManager.soundManager) {
+                this.gameManager.soundManager.play('bubbleBounce', {
+                    volume: 0.4 + normalizedSpeed * 0.3, // Louder for faster bounces
+                    rate: pitchVariation
+                });
+            }
             this.createWallImpactParticles(bubble);
             
             // Add wall flash effect
@@ -811,7 +831,31 @@ class BubbleShooterGame {
         
         this.gameState.currentBubble.startMoving();
         
-        this.gameManager.playSound('bubbleShoot');
+        // Play different sound for Chain Lightning with power-based pitch variation
+        if (bubble.powerUpType === 'chainLightning') {
+            if (this.gameManager.soundManager) {
+                // Power affects pitch: lower pitch for soft shots (0.7), higher for powerful shots (1.2)
+                const pitchRate = 0.7 + power * 0.5;
+                // Volume also scales with power: quieter for soft (0.6), louder for powerful (1.0)
+                const volume = 0.6 + power * 0.4;
+                
+                this.gameManager.soundManager.play('chainLightningThrow', {
+                    volume: volume,
+                    rate: pitchRate
+                });
+            }
+        } else {
+            // Regular bubble shoot sound with slight power variation
+            if (this.gameManager.soundManager) {
+                const pitchRate = 0.95 + power * 0.15; // Subtle pitch increase with power
+                const volume = 0.7 + power * 0.2; // Slight volume increase with power
+                
+                this.gameManager.soundManager.play('bubbleShoot', {
+                    volume: volume,
+                    rate: pitchRate
+                });
+            }
+        }
         this.createShootingEffect(this.gameState.currentBubble.position.clone(), power);
     }
     

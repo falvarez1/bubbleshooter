@@ -785,6 +785,26 @@ export class GameLogic {
      * Add new row when level increases
      */
     addNewRow() {
+        // Play descending rows sound effect
+        if (this.gameManager && this.gameManager.soundManager) {
+            this.gameManager.soundManager.play('rowsDescending', {
+                volume: 0.7,
+                rate: 0.9 + Math.random() * 0.2 // Slight pitch variation
+            });
+        }
+        
+        // Also play a warning sound if getting close to danger
+        const dangerCheck = this.checkDangerZone();
+        if (dangerCheck && this.gameManager && this.gameManager.soundManager) {
+            // Delay warning sound slightly so it doesn't overlap with rowsDescending
+            setTimeout(() => {
+                this.gameManager.soundManager.play('warning', {
+                    volume: 0.6,
+                    rate: 1.0
+                });
+            }, 200);
+        }
+        
         // Shift all bubbles down (much simpler now!)
         this.gameState.shiftRowsDown();
         
@@ -844,6 +864,23 @@ export class GameLogic {
             // Emit event to notify that a new bubble was created and needs effects applied
             this.gameManager.eventBus.emit('bubbleCreated', bubble);
         }
+    }
+    
+    /**
+     * Check if bubbles are in danger zone (close to bottom)
+     * @returns {boolean} Whether bubbles are in danger zone
+     */
+    checkDangerZone() {
+        // Check if any bubble is within 3 rows of the bottom
+        const dangerStartRow = CONFIG.GRID_HEIGHT - 4;
+        for (let y = dangerStartRow; y < CONFIG.GRID_HEIGHT; y++) {
+            for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
+                if (this.gameState.getBubbleAt(x, y)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
     
     /**
