@@ -77,7 +77,8 @@ export class ImpactResonanceEffect {
                 color2: new THREE.Color(),
                 pulsePhase: 0,
                 baseScale: 1.0,
-                expansionRate: 1.0
+                expansionRate: 1.0,
+                attachedBubbleId: null
             });
         }
     }
@@ -126,6 +127,11 @@ export class ImpactResonanceEffect {
         this.eventBus.on('bubbleMoving', (data) => {
             this.checkNearMisses(data.bubble);
         });
+        
+        // Listen for bubble repositioning (e.g., when rows are added)
+        this.eventBus.on('bubblesRepositioned', (data) => {
+            this.handleBubblesRepositioned(data);
+        });
     }
     
     /**
@@ -143,8 +149,8 @@ export class ImpactResonanceEffect {
         // Apply squash & stretch deformation
         this.applyElasticDeformation(bubble1, bubble2, impactPoint, velocity);
         
-        // Create harmonic rings
-        this.createHarmonicRings(impactPoint, bubble1.color, bubble2.color, velocity);
+        // Create harmonic rings (attach to bubble2 which is usually stationary)
+        this.createHarmonicRings(impactPoint, bubble1.color, bubble2.color, velocity, bubble2.id);
         
         // Exchange color particles
         this.createColorExchange(bubble1, bubble2, impactPoint, velocity);
@@ -242,7 +248,7 @@ export class ImpactResonanceEffect {
     /**
      * Create harmonic rings that pulse outward
      */
-    createHarmonicRings(position, color1, color2, velocity) {
+    createHarmonicRings(position, color1, color2, velocity, attachedBubbleId = null) {
         const numRings = Math.min(3, Math.floor(1 + velocity * 0.03));
         
         for (let i = 0; i < numRings; i++) {
@@ -254,6 +260,7 @@ export class ImpactResonanceEffect {
             ring.mesh.position.z = 0.1 + i * 0.05; // Layer rings
             ring.mesh.visible = true;
             ring.active = true;
+            ring.attachedBubbleId = attachedBubbleId; // Track which bubble this ring is attached to
             
             // Color based on bubble colors
             ring.color1.set(color1);
@@ -654,6 +661,36 @@ export class ImpactResonanceEffect {
         if ('vibrate' in navigator) {
             const duration = Math.min(50, 10 + intensity);
             navigator.vibrate(duration);
+        }
+    }
+    
+    /**
+     * Handle bubble repositioning events (e.g., when rows are added)
+     */
+    handleBubblesRepositioned(data) {
+        const { movements, reason } = data;
+        
+        // Update positions of active harmonic rings
+        this.activeRings.forEach(ring => {
+            // Check if we need to update ring position
+            // Rings are typically attached to impact points, which move with bubbles
+            if (ring.attachedBubbleId) {
+                const movement = movements.get(ring.attachedBubbleId);
+                if (movement) {
+                    // Calculate position delta
+                    const delta = new THREE.Vector3().subVectors(
+                        movement.bubble.position,
+                        movement.oldPosition
+                    );
+                    // Move the ring with the bubble
+                    ring.mesh.position.add(delta);
+                }
+            }
+        });
+        
+        // Clear collision pairs as positions have changed
+        if (reason === 'rowAdded') {
+            this.collisionPairs.clear();
         }
     }
     

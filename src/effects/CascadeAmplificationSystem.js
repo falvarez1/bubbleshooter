@@ -48,6 +48,98 @@ export class CascadeAmplificationSystem {
         
         // Audio progression tracking
         this.lastAudioTier = 0;
+        
+        // Track bubble associations for effects
+        this.bubbleEffectMap = new Map(); // bubbleId -> effects
+        
+        // Setup event listeners
+        this.setupEventListeners();
+    }
+    
+    /**
+     * Setup event listeners
+     */
+    setupEventListeners() {
+        // Listen for bubble repositioning (e.g., when rows are added)
+        if (window.game && window.game.eventBus) {
+            window.game.eventBus.on('bubblesRepositioned', (data) => {
+                this.handleBubblesRepositioned(data);
+            });
+        }
+    }
+    
+    /**
+     * Handle bubble repositioning events (e.g., when rows are added)
+     */
+    handleBubblesRepositioned(data) {
+        const { movements, reason } = data;
+        
+        // Update positions of orbiting lights
+        this.orbitingLights.forEach(light => {
+            if (light.attachedBubbleId) {
+                const movement = movements.get(light.attachedBubbleId);
+                if (movement) {
+                    // Calculate position delta
+                    const delta = new THREE.Vector3().subVectors(
+                        movement.bubble.position,
+                        movement.oldPosition
+                    );
+                    // Move the light with the bubble
+                    light.position.add(delta);
+                    if (light.orbitCenter) {
+                        light.orbitCenter.add(delta);
+                    }
+                }
+            }
+        });
+        
+        // Update geometry pattern positions
+        this.geometryPatterns.forEach(pattern => {
+            if (pattern.attachedBubbleId) {
+                const movement = movements.get(pattern.attachedBubbleId);
+                if (movement) {
+                    const delta = new THREE.Vector3().subVectors(
+                        movement.bubble.position,
+                        movement.oldPosition
+                    );
+                    pattern.position.add(delta);
+                }
+            }
+        });
+        
+        // Update breathing glow positions
+        this.breathingGlows.forEach((glow, bubbleId) => {
+            const movement = movements.get(bubbleId);
+            if (movement) {
+                const delta = new THREE.Vector3().subVectors(
+                    movement.bubble.position,
+                    movement.oldPosition
+                );
+                if (glow.mesh) {
+                    glow.mesh.position.add(delta);
+                }
+            }
+        });
+        
+        // Update chain connection positions
+        this.chainConnections.forEach(connection => {
+            if (connection.startBubbleId && connection.endBubbleId) {
+                const startMovement = movements.get(connection.startBubbleId);
+                const endMovement = movements.get(connection.endBubbleId);
+                
+                if (startMovement) {
+                    connection.startPos = startMovement.bubble.position.clone();
+                }
+                if (endMovement) {
+                    connection.endPos = endMovement.bubble.position.clone();
+                }
+                
+                // Update the connection mesh if it exists
+                if (connection.mesh) {
+                    this.updateConnectionMesh(connection);
+                }
+            }
+        });
     }
     
     /**

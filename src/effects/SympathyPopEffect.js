@@ -108,7 +108,8 @@ export class SympathyPopEffect {
             groups: waveGroups,
             currentGroup: 0,
             startTime: Date.now(),
-            epicenter: source ? source.position.clone() : bubbles[0].position.clone()
+            epicenter: source ? source.position.clone() : bubbles[0].position.clone(),
+            epicenterBubbleId: source ? source.id : (bubbles[0] ? bubbles[0].id : null)
         };
         
         this.destructionWaves.push(wave);
@@ -308,6 +309,44 @@ export class SympathyPopEffect {
                 originalY: bubble.position.y
             };
         }
+    }
+    
+    /**
+     * Handle bubble repositioning events (e.g., when rows are added)
+     */
+    handleBubblesRepositioned(data) {
+        const { movements, reason } = data;
+        
+        // Update effect states for repositioned bubbles
+        this.affectedBubbles.forEach((state, bubbleId) => {
+            const movement = movements.get(bubbleId);
+            if (movement && movement.bubble) {
+                // The bubble position has already been updated by setGridPosition
+                // Just ensure our state tracking is aware of the new position
+                // Most effects are applied directly to the bubble's properties
+                // so they will automatically follow the bubble
+                
+                // Update mexicanWave originalY if it exists
+                if (movement.bubble.mexicanWave) {
+                    movement.bubble.mexicanWave.originalY = movement.bubble.position.y;
+                }
+            }
+        });
+        
+        // Update destruction wave positions if needed
+        this.destructionWaves.forEach(wave => {
+            if (wave.epicenter && wave.epicenterBubbleId) {
+                const movement = movements.get(wave.epicenterBubbleId);
+                if (movement) {
+                    // Update wave epicenter to follow the bubble
+                    const delta = new THREE.Vector3().subVectors(
+                        movement.bubble.position,
+                        movement.oldPosition
+                    );
+                    wave.epicenter.add(delta);
+                }
+            }
+        });
     }
     
     /**

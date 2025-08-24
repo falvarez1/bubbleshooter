@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Effect Repositioning Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
+        }
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            margin: 0 auto;
+            border: 2px solid #444;
+        }
+        #controls {
+            text-align: center;
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 0 10px;
+            font-size: 16px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        #status {
+            margin-top: 20px;
+            padding: 10px;
+            background: #333;
+            border-radius: 5px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer"></div>
+    <div id="controls">
+        <button onclick="addRow()">Add New Row</button>
+        <button onclick="toggleEffects()">Toggle Effects</button>
+        <button onclick="resetGame()">Reset</button>
+    </div>
+    <div id="status">
+        <div>Status: <span id="statusText">Initializing...</span></div>
+        <div>Active Effects: <span id="effectCount">0</span></div>
+        <div>Row Count: <span id="rowCount">0</span></div>
+    </div>
+
+    <script type="module">
+        // Import the game modules
+        import('./src/main.js').then(module => {
+            window.gameModule = module;
+            updateStatus('Game loaded. Click "Add New Row" to test effect repositioning.');
+        });
+
+        // Helper functions
+        window.addRow = function() {
+            if (window.game && window.game.gameLogic) {
+                updateStatus('Adding new row and checking effect positions...');
+                
+                // Store effect positions before adding row
+                const beforePositions = captureEffectPositions();
+                
+                // Add new row
+                window.game.gameLogic.addNewRow();
+                
+                // Check effect positions after adding row
+                setTimeout(() => {
+                    const afterPositions = captureEffectPositions();
+                    comparePositions(beforePositions, afterPositions);
+                    updateRowCount();
+                }, 100);
+            } else {
+                updateStatus('Game not initialized yet.');
+            }
+        };
+
+        window.toggleEffects = function() {
+            if (window.game && window.game.effectsSystem) {
+                // Toggle magnetic field effect
+                if (window.game.effectsSystem.magneticField) {
+                    const enabled = !window.game.effectsSystem.magneticField.enabled;
+                    window.game.effectsSystem.magneticField.enabled = enabled;
+                    updateStatus(`Magnetic field effects ${enabled ? 'enabled' : 'disabled'}`);
+                }
+                
+                // Trigger some test effects
+                if (window.game.eventBus) {
+                    const bubbles = window.game.gameState.getAllBubbles();
+                    if (bubbles.length > 2) {
+                        // Simulate a match for sympathy effects
+                        window.game.eventBus.emit('matchesFound', {
+                            matches: bubbles.slice(0, 3),
+                            source: bubbles[0]
+                        });
+                        updateStatus('Triggered sympathy effects on 3 bubbles');
+                    }
+                }
+            }
+        };
+
+        window.resetGame = function() {
+            location.reload();
+        };
+
+        function captureEffectPositions() {
+            const positions = {
+                magneticTendrils: [],
+                harmonicRings: [],
+                sympathyEffects: []
+            };
+
+            // Capture magnetic field tendril positions
+            if (window.game?.effectsSystem?.magneticField) {
+                const magneticField = window.game.effectsSystem.magneticField;
+                magneticField.attractionPairs.forEach((effectGroup, bubbleId) => {
+                    effectGroup.tendrils.forEach(tendril => {
+                        positions.magneticTendrils.push({
+                            bubbleId: bubbleId,
+                            position: tendril.mesh.position.clone()
+                        });
+                    });
+                });
+            }
+
+            // Capture impact resonance ring positions
+            if (window.game?.effectsSystem?.impactResonance) {
+                const impactResonance = window.game.effectsSystem.impactResonance;
+                impactResonance.activeRings.forEach(ring => {
+                    positions.harmonicRings.push({
+                        bubbleId: ring.attachedBubbleId,
+                        position: ring.mesh.position.clone()
+                    });
+                });
+            }
+
+            // Capture sympathy effect positions
+            if (window.game?.effectsSystem?.sympathyPop) {
+                const sympathyPop = window.game.effectsSystem.sympathyPop;
+                sympathyPop.affectedBubbles.forEach((state, bubbleId) => {
+                    if (state.bubble && state.bubble.position) {
+                        positions.sympathyEffects.push({
+                            bubbleId: bubbleId,
+                            position: state.bubble.position.clone()
+                        });
+                    }
+                });
+            }
+
+            return positions;
+        }
+
+        function comparePositions(before, after) {
+            let movedCount = 0;
+            let stuckCount = 0;
+            
+            // Check magnetic tendrils
+            after.magneticTendrils.forEach(afterTendril => {
+                const beforeTendril = before.magneticTendrils.find(
+                    t => t.bubbleId === afterTendril.bubbleId
+                );
+                if (beforeTendril) {
+                    const moved = !beforeTendril.position.equals(afterTendril.position);
+                    if (moved) movedCount++;
+                    else stuckCount++;
+                }
+            });
+
+            // Check harmonic rings
+            after.harmonicRings.forEach(afterRing => {
+                const beforeRing = before.harmonicRings.find(
+                    r => r.bubbleId === afterRing.bubbleId
+                );
+                if (beforeRing) {
+                    const moved = !beforeRing.position.equals(afterRing.position);
+                    if (moved) movedCount++;
+                    else stuckCount++;
+                }
+            });
+
+            const totalEffects = movedCount + stuckCount;
+            if (totalEffects > 0) {
+                if (stuckCount === 0) {
+                    updateStatus(`✅ Success! All ${movedCount} effects moved with their bubbles.`);
+                } else {
+                    updateStatus(`⚠️ Issue detected: ${stuckCount}/${totalEffects} effects did not move!`);
+                }
+            } else {
+                updateStatus('No active effects to track. Try "Toggle Effects" first.');
+            }
+
+            updateEffectCount();
+        }
+
+        function updateStatus(message) {
+            document.getElementById('statusText').textContent = message;
+            console.log('[Test]', message);
+        }
+
+        function updateEffectCount() {
+            let count = 0;
+            
+            if (window.game?.effectsSystem) {
+                if (window.game.effectsSystem.magneticField) {
+                    count += window.game.effectsSystem.magneticField.attractionPairs.size;
+                }
+                if (window.game.effectsSystem.impactResonance) {
+                    count += window.game.effectsSystem.impactResonance.activeRings.size;
+                }
+                if (window.game.effectsSystem.sympathyPop) {
+                    count += window.game.effectsSystem.sympathyPop.affectedBubbles.size;
+                }
+            }
+            
+            document.getElementById('effectCount').textContent = count;
+        }
+
+        function updateRowCount() {
+            if (window.game?.gameState) {
+                let rowCount = 0;
+                for (let y = 0; y < window.game.gameState.bubbleGrid.length; y++) {
+                    if (window.game.gameState.bubbleGrid[y].some(b => b !== null)) {
+                        rowCount++;
+                    }
+                }
+                document.getElementById('rowCount').textContent = rowCount;
+            }
+        }
+
+        // Update counts periodically
+        setInterval(() => {
+            updateEffectCount();
+            updateRowCount();
+        }, 1000);
+    </script>
+</body>
+</html>
