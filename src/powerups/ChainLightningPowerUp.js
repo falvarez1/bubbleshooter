@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { CONFIG, PARTICLE_CONFIG } from '../core/Config.js';
 import { PowerUp } from './PowerUp.js';
 import { ParticleFactory } from '../entities/Particle.js';
+import { ChainLightningVisuals } from '../graphics/ChainLightningVisuals.js';
 
 /**
  * Chain Lightning Power-Up
@@ -927,9 +928,37 @@ export class ChainLightningPowerUp extends PowerUp {
         bubble.electricGlow = 0.5;
         bubble.electricTime = 0;
         
-        // Update color to electric blue if using instanced rendering
+        // Update color to electric blue and enable special shader effects
         if (bubble.useInstancedRendering && window.game?.bubbleInstances) {
             window.game.bubbleInstances.setElectricEffect(bubble);
+            
+            // Enable distortion and other electrical effects in the shader
+            // These effects are already built into the BubbleInstances shader
+            const bubbleInstances = window.game.bubbleInstances;
+            if (bubbleInstances.instancedMesh && bubbleInstances.instancedMesh.material.uniforms) {
+                // Store original effect states to restore later
+                bubble.originalEffects = {
+                    enableDistortion: bubbleInstances.instancedMesh.material.uniforms.enableDistortion.value,
+                    enableSparkles: bubbleInstances.instancedMesh.material.uniforms.enableSparkles.value,
+                    enableColorShift: bubbleInstances.instancedMesh.material.uniforms.enableColorShift.value,
+                    enablePulse: bubbleInstances.instancedMesh.material.uniforms.enablePulse.value
+                };
+                
+                // Enable electrical effects for all instances (will only affect the electric bubble)
+                bubbleInstances.instancedMesh.material.uniforms.enableDistortion.value = 1.0;
+                bubbleInstances.instancedMesh.material.uniforms.enableSparkles.value = 1.0;
+                bubbleInstances.instancedMesh.material.uniforms.enableColorShift.value = 1.0;
+                bubbleInstances.instancedMesh.material.uniforms.enablePulse.value = 1.0;
+            }
+        }
+        
+        // Create additional visual effects using ChainLightningVisuals
+        if (window.game && window.game.scene) {
+            if (!window.game.chainLightningVisuals) {
+                window.game.chainLightningVisuals = new ChainLightningVisuals(window.game.scene);
+            }
+            window.game.chainLightningVisuals.createElectricField(bubble);
+            bubble.hasChainLightningVisuals = true;
         }
         
         // Create particle-based electrical effects around the bubble
@@ -1001,6 +1030,24 @@ export class ChainLightningPowerUp extends PowerUp {
             if (!this.active) {
                 bubble.isElectric = false;
                 bubble.electricGlow = 0;
+                
+                // Remove visual effects
+                if (bubble.hasChainLightningVisuals && window.game?.chainLightningVisuals) {
+                    window.game.chainLightningVisuals.removeEffects(bubble.id);
+                    bubble.hasChainLightningVisuals = false;
+                }
+                
+                // Restore original shader effects
+                if (bubble.originalEffects && window.game?.bubbleInstances) {
+                    const bubbleInstances = window.game.bubbleInstances;
+                    if (bubbleInstances.instancedMesh && bubbleInstances.instancedMesh.material.uniforms) {
+                        bubbleInstances.instancedMesh.material.uniforms.enableDistortion.value = bubble.originalEffects.enableDistortion;
+                        bubbleInstances.instancedMesh.material.uniforms.enableSparkles.value = bubble.originalEffects.enableSparkles;
+                        bubbleInstances.instancedMesh.material.uniforms.enableColorShift.value = bubble.originalEffects.enableColorShift;
+                        bubbleInstances.instancedMesh.material.uniforms.enablePulse.value = bubble.originalEffects.enablePulse;
+                    }
+                    bubble.originalEffects = null;
+                }
             }
         };
         

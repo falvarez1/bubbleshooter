@@ -1572,6 +1572,11 @@ class BubbleShooterGame {
             // Update game manager
             this.gameManager.update(deltaTime, this.camera);
             
+            // Update Chain Lightning visual effects if present
+            if (this.chainLightningVisuals) {
+                this.chainLightningVisuals.update(deltaTime);
+            }
+            
             // Update power meter
             if (this.gameState.isCharging) {
                 // Reduced from 2 to 1 to double the charge time (from 0.5s to 1s for full charge)
