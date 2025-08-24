@@ -62,6 +62,8 @@ export class BubbleInstances {
         
         // Set instance count to maximum but all instances start invisible (scale = 0)
         this.instancedMesh.count = maxBubbles;
+        this.instancedMesh.frustumCulled = false; // Prevent frustum culling issues
+        this.instancedMesh.renderOrder = 1; // Render after bloom objects
         
         // Create glow effect mesh (slightly larger, back-side rendering)
         this.glowGeometry = new THREE.IcosahedronGeometry(CONFIG.BUBBLE_RADIUS * 1.05, 2);
@@ -71,6 +73,8 @@ export class BubbleInstances {
             maxBubbles
         );
         this.glowMesh.count = maxBubbles;
+        this.glowMesh.frustumCulled = false;
+        this.glowMesh.renderOrder = 1;
                        
         // Set up instance attributes
         this.setupInstanceAttributes();
@@ -147,6 +151,12 @@ export class BubbleInstances {
                     vColor = instanceColor;
                     vGlow = instanceGlow;
                     vUv = uv;
+                    
+                    // Early exit for hidden instances - move them far away and cull
+                    if (instanceScale < 0.01) {
+                        gl_Position = vec4(0.0, 0.0, -10000.0, 1.0);
+                        return;
+                    }
                     
                     // Wobble effect
                     vec3 wobbleOffset = vec3(0.0);
@@ -298,6 +308,11 @@ export class BubbleInstances {
                 }
                 
                 void main() {
+                    // Discard fragments from hidden instances
+                    if (length(vWorldPosition) < 0.01) {
+                        discard;
+                    }
+                    
                     vec3 normal = normalize(vNormal);
                     vec3 viewDir = normalize(vViewPosition);
                     vec3 baseColor = vColor;
@@ -449,7 +464,8 @@ export class BubbleInstances {
             `,
             transparent: true,
             side: THREE.FrontSide,
-            depthWrite: true
+            depthWrite: true,
+            depthTest: true
         });
     }
     
@@ -471,6 +487,12 @@ export class BubbleInstances {
                 void main() {
                     vColor = instanceColor;
                     vGlow = instanceGlow;
+                    
+                    // Early exit for hidden instances
+                    if (instanceScale < 0.01) {
+                        gl_Position = vec4(0.0, 0.0, -10000.0, 1.0);
+                        return;
+                    }
                     
                     // Apply scale AFTER matrix transformation for proper hiding
                     vec3 baseTransformed = position * 1.08;
@@ -531,6 +553,15 @@ export class BubbleInstances {
         this.instancedMesh.geometry.setAttribute('instanceScale', 
             new THREE.InstancedBufferAttribute(scales, 1));
         
+        // Initialize all instance matrices to be far away
+        const hiddenMatrix = new THREE.Matrix4();
+        hiddenMatrix.makeScale(0.001, 0.001, 0.001);
+        hiddenMatrix.setPosition(0, -10000, -10000);
+        for (let i = 0; i < this.maxBubbles; i++) {
+            this.instancedMesh.setMatrixAt(i, hiddenMatrix);
+        }
+        this.instancedMesh.instanceMatrix.needsUpdate = true;
+        
         const glows = new Float32Array(this.maxBubbles);
         this.instancedMesh.geometry.setAttribute('instanceGlow', 
             new THREE.InstancedBufferAttribute(glows, 1));
@@ -548,6 +579,12 @@ export class BubbleInstances {
         const glowGlows = new Float32Array(this.maxBubbles);
         this.glowMesh.geometry.setAttribute('instanceGlow', 
             new THREE.InstancedBufferAttribute(glowGlows, 1));
+        
+        // Initialize all glow instance matrices to be far away
+        for (let i = 0; i < this.maxBubbles; i++) {
+            this.glowMesh.setMatrixAt(i, hiddenMatrix);
+        }
+        this.glowMesh.instanceMatrix.needsUpdate = true;
     }
     
     addBubble(bubble, type = 'grid') {
@@ -776,9 +813,10 @@ export class BubbleInstances {
         
         // Create a completely zeroed-out matrix to ensure the instance is hidden
         // IMPORTANT: We must update BOTH the matrix AND the scale attribute
+        // Move far outside the view frustum to prevent any depth buffer interference
         const hiddenMatrix = new THREE.Matrix4();
-        hiddenMatrix.makeScale(0, 0, 0);
-        hiddenMatrix.setPosition(0, -1000, -1000);
+        hiddenMatrix.makeScale(0.001, 0.001, 0.001); // Near-zero scale instead of exactly 0
+        hiddenMatrix.setPosition(0, -10000, -10000); // Move very far away
         
         this.instancedMesh.setMatrixAt(instanceIndex, hiddenMatrix);
         this.instancedMesh.instanceMatrix.needsUpdate = true;
