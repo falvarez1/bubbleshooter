@@ -47,8 +47,8 @@ export class CollisionSystem {
         // Collect all active grid bubbles
         this.gridBubbleCache = [];
         for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
-            const isOddRow = y % 2 === 1;
-            const bubblesInRow = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
+            // All rows now have the same width
+            const bubblesInRow = CONFIG.GRID_WIDTH;
             
             for (let x = 0; x < bubblesInRow; x++) {
                 const bubble = this.gameState.bubbleGrid[y][x];
@@ -201,12 +201,8 @@ export class CollisionSystem {
         if (gridPosition) {
             const { x: finalX, y: finalY } = gridPosition;
             
-            // Snap to position
-            const isOddRow = finalY % 2 === 1;
-            bubble.position.x = (finalX - CONFIG.GRID_WIDTH / 2 + 0.5) * CONFIG.HEX_WIDTH + (isOddRow ? CONFIG.HEX_WIDTH / 2 : 0);
-            bubble.position.y = CONFIG.GRID_TOP_Y - finalY * CONFIG.HEX_HEIGHT;
-            bubble.gridX = finalX;
-            bubble.gridY = finalY;
+            // Use the bubble's setGridPosition method to ensure consistent positioning
+            bubble.setGridPosition(finalX, finalY);
             
             // Update mesh position only if not using instanced rendering
             if (!bubble.useInstancedRendering) {
@@ -262,7 +258,8 @@ export class CollisionSystem {
         const estimatedY = Math.max(0, Math.min(CONFIG.GRID_HEIGHT - 1, centerY));
         const isOddRow = estimatedY % 2 === 1;
         const xOffset = isOddRow ? CONFIG.HEX_WIDTH / 2 : 0;
-        const centerX = Math.round((position.x + CONFIG.GRID_WIDTH / 2 * CONFIG.HEX_WIDTH - 0.5 * CONFIG.HEX_WIDTH - xOffset) / CONFIG.HEX_WIDTH);
+        // Update to match the new centering formula with quarter bubble shift
+        const centerX = Math.round((position.x + CONFIG.HEX_WIDTH / 4 - xOffset) / CONFIG.HEX_WIDTH + (CONFIG.GRID_WIDTH - 1) / 2);
         const estimatedX = Math.max(0, Math.min(CONFIG.GRID_WIDTH - 1, centerX));
         
         // Pre-calculate all possible positions and filter valid ones
@@ -273,7 +270,8 @@ export class CollisionSystem {
         // First pass: collect all empty positions
         for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
             const isOddRowCheck = y % 2 === 1;
-            const bubblesInRow = isOddRowCheck ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
+            // All rows now have the same width
+            const bubblesInRow = CONFIG.GRID_WIDTH;
             
             for (let x = 0; x < bubblesInRow; x++) {
                 const existingBubble = this.gameState.bubbleGrid[y][x];
@@ -286,7 +284,8 @@ export class CollisionSystem {
                     }
                     
                     // Calculate world position for this grid cell
-                    const xPos = (x - CONFIG.GRID_WIDTH / 2 + 0.5) * CONFIG.HEX_WIDTH + (isOddRowCheck ? CONFIG.HEX_WIDTH / 2 : 0);
+                    // Center the grid properly - shift left by quarter bubble to account for odd row offset
+                    const xPos = (x - (CONFIG.GRID_WIDTH - 1) / 2) * CONFIG.HEX_WIDTH + (isOddRowCheck ? CONFIG.HEX_WIDTH / 2 : 0) - CONFIG.HEX_WIDTH / 4;
                     const yPos = CONFIG.GRID_TOP_Y - y * CONFIG.HEX_HEIGHT;
                     
                     worldPositions[positionCount * 3] = xPos;
@@ -429,8 +428,8 @@ export class CollisionSystem {
             const ny = y + dy;
             
             if (ny >= 0 && ny < CONFIG.GRID_HEIGHT) {
-                const isNeighborOddRow = ny % 2 === 1;
-                const maxX = isNeighborOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
+                // All rows now have the same width
+                const maxX = CONFIG.GRID_WIDTH;
                 
                 if (nx >= 0 && nx < maxX && this.gameState.bubbleGrid[ny][nx]) {
                     neighbors.push(this.gameState.bubbleGrid[ny][nx]);

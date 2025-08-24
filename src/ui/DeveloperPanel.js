@@ -859,7 +859,8 @@ export class DeveloperPanel {
         
         // Calculate world position using the same logic as the game
         const isOddRow = y % 2 === 1;
-        const xPos = (x - CONFIG.GRID_WIDTH / 2 + 0.5) * CONFIG.HEX_WIDTH + (isOddRow ? CONFIG.HEX_WIDTH / 2 : 0);
+        // Center the grid properly - shift left by quarter bubble to account for odd row offset
+        const xPos = (x - (CONFIG.GRID_WIDTH - 1) / 2) * CONFIG.HEX_WIDTH + (isOddRow ? CONFIG.HEX_WIDTH / 2 : 0) - CONFIG.HEX_WIDTH / 4;
         const yPos = CONFIG.GRID_TOP_Y - y * CONFIG.HEX_HEIGHT;
         
         this.dropPreview.position.set(xPos, yPos, 0.1); // Slightly in front
@@ -1458,15 +1459,16 @@ export class DeveloperPanel {
         
         const isOddRow = y % 2 === 1;
         
-        // Calculate column (x) position
-        let x = (worldPos.x + CONFIG.GRID_WIDTH / 2 * CONFIG.HEX_WIDTH - 0.5 * CONFIG.HEX_WIDTH) / CONFIG.HEX_WIDTH;
+        // Calculate column (x) position - reverse of the centering formula
+        // Account for the quarter bubble shift
+        let x = (worldPos.x + CONFIG.HEX_WIDTH / 4) / CONFIG.HEX_WIDTH + (CONFIG.GRID_WIDTH - 1) / 2;
         if (isOddRow) {
-            x -= 0.5;
+            x -= 0.5; // Account for the hexagonal offset
         }
         x = Math.round(x);
         
-        // Clamp x to valid range for this row
-        const maxX = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
+        // All rows now have the same width
+        const maxX = CONFIG.GRID_WIDTH;
         if (x < 0 || x >= maxX) {
             return null;
         }
@@ -2170,11 +2172,14 @@ export class DeveloperPanel {
         // Create grid using the same positioning logic as the game
         for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
             const isOddRow = y % 2 === 1;
-            const bubblesInRow = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
+            // All rows now have the same width
+            const bubblesInRow = CONFIG.GRID_WIDTH;
             
             for (let x = 0; x < bubblesInRow; x++) {
                 // Use the exact same positioning logic as Bubble.setGridPosition
-                const xPos = (x - CONFIG.GRID_WIDTH / 2 + 0.5) * CONFIG.HEX_WIDTH + (isOddRow ? CONFIG.HEX_WIDTH / 2 : 0);
+                // Keep the visual offset for odd rows to maintain hexagonal appearance
+                // Center the grid properly - shift left by quarter bubble to account for odd row offset
+                const xPos = (x - (CONFIG.GRID_WIDTH - 1) / 2) * CONFIG.HEX_WIDTH + (isOddRow ? CONFIG.HEX_WIDTH / 2 : 0) - CONFIG.HEX_WIDTH / 4;
                 const yPos = CONFIG.GRID_TOP_Y - y * CONFIG.HEX_HEIGHT;
                 
                 const circleMesh = new THREE.LineLoop(circleGeometry, material);

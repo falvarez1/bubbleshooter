@@ -374,7 +374,8 @@ export class Bubble {
         
         // Calculate world position
         const isOddRow = y % 2 === 1;
-        const xPos = (x - CONFIG.GRID_WIDTH / 2 + 0.5) * CONFIG.HEX_WIDTH + (isOddRow ? CONFIG.HEX_WIDTH / 2 : 0);
+        // Center the grid properly - shift left by quarter bubble to account for odd row offset
+        const xPos = (x - (CONFIG.GRID_WIDTH - 1) / 2) * CONFIG.HEX_WIDTH + (isOddRow ? CONFIG.HEX_WIDTH / 2 : 0) - CONFIG.HEX_WIDTH / 4;
         const yPos = CONFIG.GRID_TOP_Y - y * CONFIG.HEX_HEIGHT;
         
         this.position.set(xPos, yPos, 0);
