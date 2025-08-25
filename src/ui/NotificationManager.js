@@ -12,6 +12,7 @@ export class NotificationManager {
         this.blockingNotificationCount = 0;
         this.pausedTimeouts = new Map();
         this.isPaused = false;
+        this.queuedDuringPause = [];
         
         // Define zones for different notification types
         // Each zone has a base position and can stack notifications vertically
@@ -129,6 +130,15 @@ export class NotificationManager {
      * @param {boolean} options.immediate - Skip queue and show immediately
      */
     show(options) {
+        // If paused, queue ALL notifications for later
+        // This prevents ANY new notifications from appearing during pause
+        if (this.isPaused) {
+            // Store the notification for when we resume
+            this.queuedDuringPause = this.queuedDuringPause || [];
+            this.queuedDuringPause.push(options);
+            return;
+        }
+        
         const notification = {
             id: Date.now() + Math.random(),
             text: options.text || '',
@@ -516,6 +526,13 @@ export class NotificationManager {
         if (this.isPaused) return;
         this.isPaused = true;
         
+        // Initialize queue for notifications that try to show during pause
+        this.queuedDuringPause = [];
+        
+        // Stop processing queue immediately
+        this.processingPaused = this.processing;
+        this.processing = false;
+        
         // Pause all active notification animations
         this.activeNotifications.forEach((notification, id) => {
             if (notification.element) {
@@ -550,9 +567,17 @@ export class NotificationManager {
             }
         });
         
-        // Pause processing of queued notifications
-        this.processingPaused = this.processing;
-        this.processing = false;
+        // Also pause any floating scores that might be in CSS animation
+        // This catches any elements that were created just before pause
+        requestAnimationFrame(() => {
+            const floatingScores = document.querySelectorAll('.floating-score');
+            floatingScores.forEach(element => {
+                if (element.style.animationPlayState !== 'paused') {
+                    element.style.animationPlayState = 'paused';
+                    element.dataset.wasPausedLate = 'true';
+                }
+            });
+        });
     }
     
     /**
@@ -581,6 +606,13 @@ export class NotificationManager {
             }
         });
         
+        // Resume any floating scores that were paused late
+        const latelyPausedScores = document.querySelectorAll('[data-was-paused-late="true"]');
+        latelyPausedScores.forEach(element => {
+            element.style.animationPlayState = 'running';
+            delete element.dataset.wasPausedLate;
+        });
+        
         // Restart removal timeouts with remaining time
         this.pausedTimeouts.forEach((pausedData, id) => {
             const notification = this.activeNotifications.get(id);
@@ -596,6 +628,16 @@ export class NotificationManager {
             }
         });
         this.pausedTimeouts.clear();
+        
+        // Process any notifications that were queued during pause
+        if (this.queuedDuringPause && this.queuedDuringPause.length > 0) {
+            // Add them to the regular queue with current timestamps
+            this.queuedDuringPause.forEach(options => {
+                // Re-show the notification now that we're unpaused
+                this.show(options);
+            });
+            this.queuedDuringPause = [];
+        }
         
         // Resume processing if it was paused
         if (this.processingPaused) {

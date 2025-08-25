@@ -296,6 +296,11 @@
     backface-visibility: hidden;
 }
 
+/* When body is paused, immediately pause all floating scores */
+body.paused .floating-score {
+    animation-play-state: paused !important;
+}
+
 @keyframes floatUpAndFade {
     0% {
         transform: translate(-50%, -50%) translateY(0) scale(1.3);

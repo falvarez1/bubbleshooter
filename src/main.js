@@ -62,6 +62,9 @@ class BubbleShooterGame {
         this.collisionSystem = new CollisionSystem(this.gameState, this.gameManager);
         this.gameLogic = new GameLogic(this.gameState, this.gameManager, this.scene);
         
+        // Connect pause system to game logic so it can check pause state
+        this.gameLogic.pauseSystem = this.pauseSystem;
+        
         // Add bloom debugger (only in development)
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
             this.bloomDebugger = new BloomDebugger(this.postProcessingManager);
@@ -78,6 +81,8 @@ class BubbleShooterGame {
         this.dangerZoneSystem = new DangerZoneSystem(this.gameState, this.scene, this.gameManager.eventBus);
         this.colorClusteringSystem = new ColorClusteringSystem(this.gameState, this.gameManager.eventBus);
         this.levelProgressionSystem = new LevelProgressionSystem(this.gameState, this.gameManager.eventBus);
+        // Connect pause system to level progression
+        this.levelProgressionSystem.pauseSystem = this.pauseSystem;
         this.smartColorSelectionSystem = new SmartColorSelectionSystem(this.gameState, this.gameManager.eventBus);
         
         // Initialize instanced bubble renderer

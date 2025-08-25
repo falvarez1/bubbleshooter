@@ -15,6 +15,7 @@ export class GameLogic {
         this.scene = scene;
         this.bubbleInstances = null; // Will be set by main game
         this.collisionSystem = null; // Will be set by main game
+        this.pauseSystem = null; // Will be set by main game
         
         // Set up event listeners for power-up effects
         this.setupEventListeners();
@@ -72,7 +73,10 @@ export class GameLogic {
         // Show individual floating score for each destroyed bubble
         bubbles.forEach((bubble, index) => {
             setTimeout(() => {
-                this.gameManager.showFloatingScore(bubble.position, pointsPerBubble);
+                // Only show score if not paused
+                if (!this.pauseSystem || !this.pauseSystem.getIsPaused()) {
+                    this.gameManager.showFloatingScore(bubble.position, pointsPerBubble);
+                }
             }, index * 25); // Quick succession for lightning effect
         });
         
@@ -123,7 +127,9 @@ export class GameLogic {
                 if (bubble.isDestroyed) return;
                 
                 // Show individual points for this bubble
-                if (this.gameManager && this.gameManager.showFloatingScore) {
+                // Only show score if not paused
+                if (this.gameManager && this.gameManager.showFloatingScore && 
+                    (!this.pauseSystem || !this.pauseSystem.getIsPaused())) {
                     this.gameManager.showFloatingScore(bubble.position, pointsPerBubble);
                 }
                 
@@ -172,7 +178,9 @@ export class GameLogic {
                 if (bubble.isDestroyed) return;
                 
                 // Show individual points for this bubble
-                if (this.gameManager && this.gameManager.showFloatingScore) {
+                // Only show score if not paused
+                if (this.gameManager && this.gameManager.showFloatingScore && 
+                    (!this.pauseSystem || !this.pauseSystem.getIsPaused())) {
                     this.gameManager.showFloatingScore(bubble.position, pointsPerBubble);
                 }
                 
@@ -332,7 +340,10 @@ export class GameLogic {
             this.gameState.addScore(points);
             this.gameState.incrementCombo();
             
-            this.gameManager.showFloatingScore(bubble.position, points);
+            // Only show score if not paused
+            if (!this.pauseSystem || !this.pauseSystem.getIsPaused()) {
+                this.gameManager.showFloatingScore(bubble.position, points);
+            }
             
             destroyed.forEach((b, index) => {
                 setTimeout(() => {
@@ -532,7 +543,10 @@ export class GameLogic {
             // Show individual floating score for each bubble
             floatingBubbles.forEach((bubble, index) => {
                 setTimeout(() => {
-                    this.gameManager.showFloatingScore(bubble.position, pointsPerFloatingBubble);
+                    // Only show score if not paused
+                    if (!this.pauseSystem || !this.pauseSystem.getIsPaused()) {
+                        this.gameManager.showFloatingScore(bubble.position, pointsPerFloatingBubble);
+                    }
                 }, index * 30 + 100); // Slight delay after the bubble starts floating
             });
             
@@ -740,7 +754,10 @@ export class GameLogic {
             // Victory!
             const victoryBonus = 1000 * this.gameState.level;
             this.gameState.addScore(victoryBonus);
-            this.gameManager.showFloatingScore(new THREE.Vector3(0, 0, 0), victoryBonus);
+            // Only show score if not paused
+            if (!this.pauseSystem || !this.pauseSystem.getIsPaused()) {
+                this.gameManager.showFloatingScore(new THREE.Vector3(0, 0, 0), victoryBonus);
+            }
             
             // Emit victory event
             this.gameManager.eventBus.emit('levelComplete');

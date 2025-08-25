@@ -93,6 +93,14 @@ export class PauseSystem {
                     animation-play-state: paused !important;
                 }
                 
+                /* Specifically target floating scores and notifications */
+                body.paused .floating-score,
+                body.paused .game-notification {
+                    animation-play-state: paused !important;
+                    /* Also freeze any transform transitions */
+                    transition: none !important;
+                }
+                
                 body.paused #pause-indicator,
                 body.paused #pause-indicator * {
                     animation-play-state: running !important;
@@ -196,6 +204,20 @@ export class PauseSystem {
         // Pause all audio
         this.pauseAudio();
         
+        // Also freeze any newly created floating scores immediately
+        // This catches elements created in the same frame as pause
+        requestAnimationFrame(() => {
+            if (this.isPaused) {
+                const newFloatingScores = document.querySelectorAll('.floating-score:not([data-was-paused-late])');
+                newFloatingScores.forEach(element => {
+                    if (element.style.animationPlayState !== 'paused') {
+                        element.style.animationPlayState = 'paused';
+                        element.dataset.wasPausedLate = 'true';
+                    }
+                });
+            }
+        });
+        
         // Emit pause event for other systems
         if (this.eventBus) {
             this.eventBus.emit('gamePaused', { 
@@ -261,6 +283,20 @@ export class PauseSystem {
                 // Temporarily set transition duration to 0
                 element.style.transition = 'none';
                 this.pausedElements.add(element);
+            }
+        });
+        
+        // Also catch any elements that might be created in the same frame
+        requestAnimationFrame(() => {
+            if (this.isPaused) {
+                const newElements = document.querySelectorAll('.floating-score, .game-notification');
+                newElements.forEach(element => {
+                    if (!this.pausedElements.has(element)) {
+                        element.style.animationPlayState = 'paused';
+                        element.style.transition = 'none';
+                        this.pausedElements.add(element);
+                    }
+                });
             }
         });
     }
