@@ -596,7 +596,18 @@ export class LevelProgressionSystem {
         };
         
         try {
+            // Save to main progress slot
             localStorage.setItem('bubbleShooterProgress', JSON.stringify(saveData));
+            
+            // Also save simplified version for splash screen Continue button
+            const simpleSave = {
+                level: this.gameState.level,
+                score: this.gameState.score,
+                highScore: this.gameState.highScore || this.gameState.score,
+                timestamp: Date.now()
+            };
+            localStorage.setItem('bubbleShooterSave', JSON.stringify(simpleSave));
+            
             console.log('Progress saved');
         } catch (e) {
             console.warn('Failed to save progress:', e);

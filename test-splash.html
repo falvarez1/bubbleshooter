@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Splash Screen Test</title>
+    <link rel="stylesheet" href="css/splash-screen.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <!-- Import map for ES modules -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        
+        // Import splash screen
+        import { SplashScreen, AssetLoader } from './src/ui/SplashScreen.js';
+        
+        // Create splash screen
+        const splashScreen = new SplashScreen();
+        const assetLoader = new AssetLoader(splashScreen);
+        
+        // Set up callbacks
+        splashScreen.onStart(() => {
+            alert('Starting new game!');
+            splashScreen.hide();
+        });
+        
+        splashScreen.onContinue(() => {
+            alert('Continuing saved game!');
+            splashScreen.hide();
+        });
+        
+        // Simulate asset loading
+        assetLoader.loadAll(THREE, () => {
+            console.log('Loading complete!');
+        });
+        
+        // Add test save data
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 's') {
+                // Save test game state
+                const testSave = {
+                    currentLevel: 15,
+                    score: 12500,
+                    highScore: 25000
+                };
+                localStorage.setItem('bubbleShooterGameState', JSON.stringify(testSave));
+                alert('Test save created! Refresh to see Continue option.');
+            }
+            if (e.key === 'c') {
+                // Clear save
+                localStorage.removeItem('bubbleShooterGameState');
+                alert('Save cleared! Refresh to see disabled Continue.');
+            }
+        });
+        
+        console.log('Press S to create test save, C to clear save');
+    </script>
+</body>
+</html>
