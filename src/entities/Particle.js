@@ -341,13 +341,11 @@ export class ParticlePool {
 export class Particle {
     constructor(x, y, z, color, size, gameState) {
         // Use the global particle pool from gameState
-        if (gameState && gameState.particlePool) {
-            this._pooledParticle = gameState.particlePool.spawn(x, y, z, color, size);
-            if (this._pooledParticle) {
-                this.position = this._pooledParticle.position;
-                this.velocity = this._pooledParticle.velocity;
-                this.mesh = this._pooledParticle.mesh;
-            }
+        this._pooledParticle = gameState.particlePool.spawn(x, y, z, color, size);
+        if (this._pooledParticle) {
+            this.position = this._pooledParticle.position;
+            this.velocity = this._pooledParticle.velocity;
+            this.mesh = this._pooledParticle.mesh;
         }
     }
     
@@ -367,6 +365,11 @@ export class Particle {
  */
 export class ParticleFactory {
     static createExplosion(position, color, count, pool) {
+        if (!pool) {
+            console.warn('Particle pool not available for createExplosion');
+            return [];
+        }
+        
         const particles = [];
         for (let i = 0; i < count; i++) {
             const angle = (Math.PI * 2 * i) / count;

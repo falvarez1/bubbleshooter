@@ -753,6 +753,9 @@ export class GameLogic {
      * Check victory condition
      */
     checkVictory() {
+        // Don't check victory if game hasn't started yet
+        if (!this.gameState.gameStarted) return;
+        
         const bubbleCount = this.gameState.countBubbles(bubble => !bubble.isPowerUp);
         
         if (bubbleCount === 0 && !this.gameState.isGameOver) {
@@ -769,24 +772,26 @@ export class GameLogic {
             
             // Create celebration effect
             for (let i = 0; i < 50; i++) {
-                setTimeout(() => {
-                    const x = (Math.random() - 0.5) * 10;
-                    const y = (Math.random() - 0.5) * 10;
-                    const color = CONFIG.BUBBLE_COLORS[Math.floor(Math.random() * CONFIG.BUBBLE_COLORS.length)];
-                    
-                    const particle = this.gameState.particlePool.spawn(
-                        x, y, 0, color, 0.3,
-                        new THREE.Vector3(
-                            (Math.random() - 0.5) * 15,
-                            Math.random() * 10 + 5,
-                            (Math.random() - 0.5) * 5
-                        )
-                    );
-                    
-                    if (particle) {
-                        particle.decay = 0.015;
-                    }
-                }, i * 20);
+                    setTimeout(() => {
+                        // Particle pool is guaranteed to be initialized
+                        
+                        const x = (Math.random() - 0.5) * 10;
+                        const y = (Math.random() - 0.5) * 10;
+                        const color = CONFIG.BUBBLE_COLORS[Math.floor(Math.random() * CONFIG.BUBBLE_COLORS.length)];
+                        
+                        const particle = this.gameState.particlePool.spawn(
+                            x, y, 0, color, 0.3,
+                            new THREE.Vector3(
+                                (Math.random() - 0.5) * 15,
+                                Math.random() * 10 + 5,
+                                (Math.random() - 0.5) * 5
+                            )
+                        );
+                        
+                        if (particle) {
+                            particle.decay = 0.015;
+                        }
+                    }, i * 20);
             }
             
             // Add new rows after celebration

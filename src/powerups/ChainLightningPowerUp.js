@@ -256,6 +256,8 @@ export class ChainLightningPowerUp extends PowerUp {
     }
 
     createMainImpactBurst(position, gameState) {
+        // Particle pool is guaranteed to be initialized
+        
         // Main electrical explosion at impact point (reduced for performance)
         const burstCount = 15;
         const colors = [0x00ddff, 0xffffff, 0x88ccff, 0x0088ff];
@@ -298,6 +300,8 @@ export class ChainLightningPowerUp extends PowerUp {
     }
 
     createElectricRingWave(position, gameState) {
+        // Particle pool is guaranteed to be initialized
+        
         // Expanding ring of electrical particles (reduced for performance)
         const ringParticles = 12;
         const rings = 2;
@@ -333,6 +337,8 @@ export class ChainLightningPowerUp extends PowerUp {
     }
 
     createSparkShower(position, gameState) {
+        // Particle pool is guaranteed to be initialized
+        
         // Upward shower of electrical sparks (reduced for performance)
         const sparkCount = 10;
 
@@ -485,6 +491,8 @@ export class ChainLightningPowerUp extends PowerUp {
     }
 
     createLightningParticleTrail(startPos, endPos, isPrimary, gameState) {
+        // Particle pool is guaranteed to be initialized
+        
         // Create particle trail along the lightning path (reduced for performance)
         const trailParticles = isPrimary ? 8 : 4;
         const colors = [0x00ddff, 0xffffff, 0x88ccff];
@@ -538,6 +546,8 @@ export class ChainLightningPowerUp extends PowerUp {
     }
 
     createLightningEndEffect(endPos, isPrimary, gameState) {
+        // Particle pool is guaranteed to be initialized
+        
         // Create impact burst at the end of the lightning arc
         const burstCount = isPrimary ? 12 : 6;
         const colors = [0x00ddff, 0xffffff, 0x88ccff];
@@ -784,7 +794,6 @@ export class ChainLightningPowerUp extends PowerUp {
         // Create particle-based electrical effects around the bubble
         // More convincing electric sparks around the bubble
         bubble.powerUpAnimation.createElectricParticles = () => {
-            if (!gameState.particlePool) return;
 
             const sparkCount = 10; // more, but still tiny + short-lived
             const baseRadius = CONFIG.BUBBLE_RADIUS * 1.15;

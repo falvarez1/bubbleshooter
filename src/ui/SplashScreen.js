@@ -1,7 +1,7 @@
 // SplashScreen.js - Manages the loading screen and main menu
 
 class SplashScreen {
-    constructor() {
+    constructor(useExistingHTML = false) {
         this.container = null;
         this.progressBar = null;
         this.loadingMessage = null;
@@ -9,6 +9,7 @@ class SplashScreen {
         this.assetsLoaded = false;
         this.onStartCallback = null;
         this.onContinueCallback = null;
+        this.useExistingHTML = useExistingHTML;
         
         this.loadingMessages = [
             "Initializing Bubble Physics...",
@@ -23,11 +24,44 @@ class SplashScreen {
     }
     
     init() {
-        // Create splash screen HTML structure
-        this.createSplashScreen();
+        if (this.useExistingHTML) {
+            // Use existing HTML elements
+            this.attachToExistingHTML();
+        } else {
+            // Create splash screen HTML structure immediately
+            this.createSplashScreen();
+            // Force immediate render
+            this.forceRender();
+        }
         
-        // Check for saved game state
-        this.checkSavedGame();
+        // Check for saved game state after DOM is ready
+        requestAnimationFrame(() => {
+            this.checkSavedGame();
+        });
+    }
+    
+    forceRender() {
+        // Force browser to render the splash screen immediately
+        if (this.container) {
+            this.container.offsetHeight; // Trigger reflow
+        }
+    }
+    
+    attachToExistingHTML() {
+        // Attach to existing HTML elements
+        this.container = document.getElementById('splashScreen');
+        if (!this.container) {
+            console.error('Splash screen HTML not found!');
+            return;
+        }
+        
+        // Cache elements
+        this.progressBar = this.container.querySelector('.loading-progress-fill');
+        this.loadingMessage = this.container.querySelector('.loading-message');
+        this.mainMenu = this.container.querySelector('.main-menu');
+        
+        // Setup menu event listeners
+        this.setupMenuListeners();
     }
     
     createSplashScreen() {
@@ -36,8 +70,8 @@ class SplashScreen {
         this.container.className = 'splash-screen';
         this.container.innerHTML = `
             <div class="splash-logo">
-                BUBBLE SHOOTER
-                <div class="splash-subtitle">Premium 3D Edition</div>
+                SUPER BUBBLE SHOOTER
+                <div class="splash-subtitle">By Oreo the Pitador</div>
             </div>
             
             <div class="bubble-galaxy">
@@ -264,7 +298,7 @@ class SplashScreen {
     
     showCredits() {
         // Simple credits alert for now
-        alert('Bubble Shooter Premium 3D\n\nDeveloped with Three.js\nDesigned for maximum fun!\n\n© 2024');
+        alert('Super Bubble Shooter 9001\n\nDeveloped by Frank Alvarez\nDesigned for shits and giggles!\n\n© 2025');
     }
     
     hide(callback) {
@@ -300,6 +334,8 @@ class AssetLoader {
         this.totalAssets = 0;
         this.loadedAssets = 0;
         this.assets = [];
+        this.startTime = null;
+        this.minLoadTime = 1500; // Minimum time to show loading screen (ms)
     }
     
     addAsset(url, type = 'texture') {
@@ -308,10 +344,18 @@ class AssetLoader {
     }
     
     loadAll(THREE, callback) {
+        this.startTime = Date.now();
+        
+        // Start loading asynchronously
+        requestAnimationFrame(() => {
+            this._performLoading(THREE, callback);
+        });
+    }
+    
+    _performLoading(THREE, callback) {
         if (this.assets.length === 0) {
-            // No assets to load, complete immediately
-            this.splashScreen.updateProgress(100);
-            if (callback) callback();
+            // Simulate loading with minimum time
+            this.simulateLoading(callback);
             return;
         }
         
@@ -339,22 +383,46 @@ class AssetLoader {
         // Create loaders
         const textureLoader = new THREE.TextureLoader(manager);
         
-        // Simulate loading for demo (since we don't have real textures)
-        // In real implementation, you would load actual textures here
+        // Load actual assets here
+        this.simulateLoading(callback);
+    }
+    
+    simulateLoading(callback) {
+        // Simulate loading with smooth progress
         let progress = 0;
-        const interval = setInterval(() => {
-            progress += 10;
-            this.splashScreen.updateProgress(progress);
+        const startTime = Date.now();
+        const duration = this.minLoadTime;
+        
+        const updateProgress = () => {
+            const elapsed = Date.now() - startTime;
+            progress = Math.min(100, (elapsed / duration) * 100);
             
-            if (progress >= 100) {
-                clearInterval(interval);
-                if (callback) callback();
+            // Use easing for smoother progress
+            const easedProgress = this.easeOutCubic(progress / 100) * 100;
+            this.splashScreen.updateProgress(easedProgress);
+            
+            if (progress < 100) {
+                requestAnimationFrame(updateProgress);
+            } else {
+                // Ensure minimum load time has passed
+                const totalElapsed = Date.now() - this.startTime;
+                if (totalElapsed < this.minLoadTime) {
+                    setTimeout(() => {
+                        if (callback) callback();
+                    }, this.minLoadTime - totalElapsed);
+                } else {
+                    if (callback) callback();
+                }
             }
-        }, 200);
+        };
+        
+        requestAnimationFrame(updateProgress);
+    }
+    
+    easeOutCubic(t) {
+        return 1 - Math.pow(1 - t, 3);
     }
 }
 
 // Export for use in main game
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { SplashScreen, AssetLoader };
-}
+export { SplashScreen, AssetLoader };
