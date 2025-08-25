@@ -603,6 +603,26 @@ export class NotificationManager {
         if (!this.isPaused) return;
         this.isPaused = false;
         
+        // Clean up orphaned elements that got stuck during pause
+        if (this.orphanedElements && this.orphanedElements.size > 0) {
+            this.orphanedElements.forEach(element => {
+                // Remove orphaned floating scores immediately
+                if (element && element.parentNode) {
+                    console.log('Removing orphaned notification element');
+                    element.remove();
+                }
+            });
+            this.orphanedElements.clear();
+        }
+        
+        // Also clean up any orphaned floating scores marked in DOM
+        const orphanedElements = document.querySelectorAll('[data-orphaned="true"]');
+        orphanedElements.forEach(element => {
+            if (element && element.parentNode) {
+                element.remove();
+            }
+        });
+        
         // Resume all active notification animations
         this.activeNotifications.forEach((notification, id) => {
             if (notification.element) {
@@ -622,8 +642,8 @@ export class NotificationManager {
             }
         });
         
-        // Resume any floating scores that were paused late
-        const latelyPausedScores = document.querySelectorAll('[data-was-paused-late="true"]');
+        // Resume any floating scores that were paused late (but not orphaned)
+        const latelyPausedScores = document.querySelectorAll('[data-was-paused-late="true"]:not([data-orphaned="true"])');
         latelyPausedScores.forEach(element => {
             element.style.animationPlayState = 'running';
             delete element.dataset.wasPausedLate;
