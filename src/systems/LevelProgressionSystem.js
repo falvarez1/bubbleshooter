@@ -8,6 +8,7 @@ export class LevelProgressionSystem {
     constructor(gameState, eventBus) {
         this.gameState = gameState;
         this.eventBus = eventBus;
+        this.pauseSystem = null; // Will be set by main game
         
         // Level configuration
         this.config = {
@@ -500,6 +501,12 @@ export class LevelProgressionSystem {
     }
     
     triggerZenMoment() {
+        // Don't trigger zen moment if game is paused
+        if (this.pauseSystem && this.pauseSystem.getIsPaused()) {
+            console.log('Zen moment skipped - game is paused');
+            return;
+        }
+        
         console.log('Zen moment activated!');
         
         // Use the notification manager through the event bus

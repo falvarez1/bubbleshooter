@@ -11,6 +11,7 @@ import { PrecisionAimIndicator } from './systems/PrecisionAimIndicator.js';
 import { GameLogic } from './systems/GameLogic.js';
 import { UIManager } from './ui/VisualTextDisplay.js';
 import { PerformanceManager } from './core/PerformanceManager.js';
+import { PauseSystem } from './systems/PauseSystem.js';
 import { SmartColorDebugUI } from './ui/SmartColorDebugUI.js';
 import { BubbleEffectsSystem } from './graphics/BubbleEffectsSystem.js';
 import { developerPanel } from './ui/DeveloperPanel.js';
@@ -45,6 +46,7 @@ class BubbleShooterGame {
         this.audioSystem = new AudioSystem();
         this.uiManager = new UIManager();
         this.performanceManager = new PerformanceManager();
+        this.pauseSystem = new PauseSystem(this.gameManager.eventBus);
         
         
         // Get Three.js objects
@@ -59,6 +61,9 @@ class BubbleShooterGame {
         this.trajectorySystem = new TrajectorySystem(this.scene, this.postProcessingManager);
         this.collisionSystem = new CollisionSystem(this.gameState, this.gameManager);
         this.gameLogic = new GameLogic(this.gameState, this.gameManager, this.scene);
+        
+        // Connect pause system to game logic so it can check pause state
+        this.gameLogic.pauseSystem = this.pauseSystem;
         
         // Add bloom debugger (only in development)
         if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
@@ -76,6 +81,8 @@ class BubbleShooterGame {
         this.dangerZoneSystem = new DangerZoneSystem(this.gameState, this.scene, this.gameManager.eventBus);
         this.colorClusteringSystem = new ColorClusteringSystem(this.gameState, this.gameManager.eventBus);
         this.levelProgressionSystem = new LevelProgressionSystem(this.gameState, this.gameManager.eventBus);
+        // Connect pause system to level progression
+        this.levelProgressionSystem.pauseSystem = this.pauseSystem;
         this.smartColorSelectionSystem = new SmartColorSelectionSystem(this.gameState, this.gameManager.eventBus);
         
         // Initialize instanced bubble renderer
@@ -375,6 +382,55 @@ class BubbleShooterGame {
             setTimeout(() => {
                 this.progressiveTimerSystem.config.isPaused = false;
             }, data.duration);
+        });
+        
+        // Handle comprehensive pause events from notifications
+        this.gameManager.eventBus.on('pauseAll', (data) => {
+            if (data.reason === 'notification') {
+                // Store current game state for resuming
+                this.pausedByNotification = true;
+                this.gameState.isPaused = true;
+                
+                // Pause timer system
+                this.progressiveTimerSystem.config.isPaused = true;
+                
+                // Store bubble velocities if any are moving
+                this.pausedBubbleStates = new Map();
+                if (this.gameState.currentBubble && this.gameState.currentBubble.isMoving) {
+                    this.pausedBubbleStates.set('current', {
+                        velocity: this.gameState.currentBubble.velocity.clone(),
+                        isMoving: true
+                    });
+                    // Zero out velocity
+                    this.gameState.currentBubble.velocity.set(0, 0, 0);
+                    this.gameState.currentBubble.isMoving = false;
+                }
+                
+                console.log(`Game paused for ${data.notificationType} notification`);
+            }
+        });
+        
+        // Handle resume events from notifications
+        this.gameManager.eventBus.on('resumeAll', (data) => {
+            if (data.reason === 'notification' && this.pausedByNotification) {
+                this.pausedByNotification = false;
+                this.gameState.isPaused = false;
+                
+                // Resume timer system
+                this.progressiveTimerSystem.config.isPaused = false;
+                
+                // Restore bubble velocities
+                if (this.pausedBubbleStates && this.pausedBubbleStates.has('current')) {
+                    const state = this.pausedBubbleStates.get('current');
+                    if (this.gameState.currentBubble) {
+                        this.gameState.currentBubble.velocity = state.velocity;
+                        this.gameState.currentBubble.isMoving = state.isMoving;
+                    }
+                }
+                this.pausedBubbleStates = null;
+                
+                console.log('Game resumed after notification');
+            }
         });
         
         // Handle level settings changes
@@ -1413,6 +1469,12 @@ class BubbleShooterGame {
     handleKeyDown(event) {
         const key = event.key.toLowerCase();
         
+        // P key is handled by PauseSystem, but also update gameState
+        if (key === 'p') {
+            this.gameState.togglePause();
+            return;
+        }
+        
         // Number keys 1-3 activate collected power-ups (not debug-only)
         if (key >= '1' && key <= '3') {
             const slotIndex = parseInt(key) - 1;
@@ -1593,12 +1655,26 @@ class BubbleShooterGame {
         this.lastTime = currentTime;
         
         // Clamp deltaTime to prevent issues with large gaps
-        const clampedDeltaTime = Math.min(deltaTime, 0.1); // Max 100ms per frame
+        let clampedDeltaTime = Math.min(deltaTime, 0.1); // Max 100ms per frame
         
-        // Apply time scale for slow motion effects
-        const effectiveDeltaTime = clampedDeltaTime * this.gameState.timeScale;
+        // Update pause system tracking
+        this.pauseSystem.updateFrameCount();
+        this.pauseSystem.updateGameTime(clampedDeltaTime);
         
-        if (!this.gameState.isGameOver && !this.gameState.isPaused) {
+        // If paused by debug pause system, set deltaTime to 0 to freeze everything
+        if (this.pauseSystem.getIsPaused()) {
+            clampedDeltaTime = 0;
+        }
+        
+        // Check if game should be paused due to blocking notifications or debug pause
+        const shouldPause = this.pauseSystem.getIsPaused() || 
+            this.pausedByNotification || 
+            (this.gameManager.visualTextDisplay?.notificationManager?.blockingNotificationCount > 0);
+        
+        // Apply time scale for slow motion effects (only when not paused)
+        const effectiveDeltaTime = shouldPause ? 0 : (clampedDeltaTime * this.gameState.timeScale);
+        
+        if (!this.gameState.isGameOver && !shouldPause) {
             // Update progressive game systems (use real time, not affected by slow motion)
             this.progressiveTimerSystem.update(clampedDeltaTime);
             this.dangerZoneSystem.update(clampedDeltaTime, this.camera);
@@ -1623,8 +1699,8 @@ class BubbleShooterGame {
             // Update precision aim indicator
             this.precisionAimIndicator.update(effectiveDeltaTime);
             
-            // Update current bubble
-            if (this.gameState.currentBubble) {
+            // Update current bubble only if not paused
+            if (this.gameState.currentBubble && !shouldPause) {
                 this.gameState.currentBubble.update(effectiveDeltaTime);
                 
                 // Update instanced renderer for moving bubble
@@ -1700,7 +1776,10 @@ class BubbleShooterGame {
                             this.bubbleInstances.addBubble(bubble, 'grid');
                         }
                         
-                        bubble.update(effectiveDeltaTime);
+                        // Only update bubbles if not paused by notification
+                        if (!shouldPause) {
+                            bubble.update(effectiveDeltaTime);
+                        }
                         
                         // Only update instanced renderer if bubble is animating or has impact physics or sympathy effects
                         if (bubble.useInstancedRendering && 
@@ -1827,16 +1906,21 @@ class BubbleShooterGame {
             this.trajectorySystem.renderTrajectory(this.gameState);
         }
         
-        // Update game board (starfield, etc.) - use real time for background
-        this.gameBoard.update(clampedDeltaTime, currentTime, this.gameState.mousePosition);
+        // When paused, skip updates but still render for debugging visibility
+        if (!this.pauseSystem.getIsPaused()) {
+            // Update game board (starfield, etc.) only when not paused
+            this.gameBoard.update(clampedDeltaTime, currentTime, this.gameState.mousePosition);
+            
+            // Animate lights only when not paused
+            this.sceneManager.animateLights(currentTime * 0.001);
+        }
         
-        // Animate lights
-        this.sceneManager.animateLights(currentTime * 0.001);
-        
-        // Render blast wave effect if active, otherwise render normally
+        // Always render, even when paused (for debugging)
         if (!this.gameManager.render()) {
             // Pass deltaTime to scene manager for post-processing
-            this.sceneManager.render(effectiveDeltaTime);
+            // Use 0 deltaTime when paused to freeze post-processing effects
+            const renderDeltaTime = this.pauseSystem.getIsPaused() ? 0 : effectiveDeltaTime;
+            this.sceneManager.render(renderDeltaTime);
         }
     }
 }

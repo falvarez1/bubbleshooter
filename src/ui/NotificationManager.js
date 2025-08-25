@@ -10,35 +10,38 @@ export class NotificationManager {
         this.processing = false;
         this.eventBus = eventBus;
         this.blockingNotificationCount = 0;
+        this.pausedTimeouts = new Map();
+        this.isPaused = false;
+        this.queuedDuringPause = [];
         
         // Define zones for different notification types
         // Each zone has a base position and can stack notifications vertically
         this.zones = {
-            // Primary zone - center top for major events (combos, level up, zen moment)
+            // Primary zone - center top for major events (combos, level up)
             primary: { 
                 x: '50%', 
-                y: '30%',
+                y: '25%',  // Moved up to avoid overlap with center
                 priority: 3,
                 maxStack: 2
             },
             // Secondary zone - left side for power-ups
             powerup: { 
-                x: '25%', 
+                x: '30%',  // Moved more inward to avoid edge cutoff
                 y: '35%',
                 priority: 2,
                 maxStack: 3
             },
-            // Tertiary zone - right side for scores and minor events
+            // Tertiary zone - right side for scores and minor events  
             score: { 
-                x: '75%', 
+                x: '70%',  // Moved more inward to avoid edge cutoff
                 y: '35%',
                 priority: 1,
                 maxStack: 4
             },
-            // Center zone - for critical announcements
+            // Center zone - for critical announcements (zen moment)
             center: {
                 x: '50%',
-                y: '50%',
+                y: '45%',  // Slightly higher to give more separation
                 priority: 4,
                 maxStack: 1
             }
@@ -85,6 +88,12 @@ export class NotificationManager {
         
         // Initialize DOM container
         this.initializeContainer();
+        
+        // Listen for pause/resume events if eventBus is available
+        if (this.eventBus) {
+            this.eventBus.on('gamePaused', () => this.pause());
+            this.eventBus.on('gameResumed', () => this.resume());
+        }
     }
     
     initializeContainer() {
@@ -99,11 +108,14 @@ export class NotificationManager {
                 width: 100%;
                 height: 100%;
                 pointer-events: none;
-                z-index: 1500;
+                z-index: 2000;
             `;
             document.body.appendChild(container);
         }
         this.container = document.getElementById('notification-container');
+        
+        // Initialize overlay element (hidden by default)
+        this.overlay = null;
     }
     
     /**
@@ -118,6 +130,15 @@ export class NotificationManager {
      * @param {boolean} options.immediate - Skip queue and show immediately
      */
     show(options) {
+        // If paused, queue ALL notifications for later
+        // This prevents ANY new notifications from appearing during pause
+        if (this.isPaused) {
+            // Store the notification for when we resume
+            this.queuedDuringPause = this.queuedDuringPause || [];
+            this.queuedDuringPause.push(options);
+            return;
+        }
+        
         const notification = {
             id: Date.now() + Math.random(),
             text: options.text || '',
@@ -147,7 +168,7 @@ export class NotificationManager {
     async processQueue() {
         this.processing = true;
         
-        while (this.queue.length > 0) {
+        while (this.queue.length > 0 && !this.isPaused) {
             const notification = this.queue.shift();
             
             // Skip if notification is too old (> 3 seconds)
@@ -160,12 +181,28 @@ export class NotificationManager {
             
             // Small delay between notifications for cascade effect
             await this.delay(150);
+            
+            // Check if paused during delay
+            if (this.isPaused) {
+                // Put the remaining notifications back
+                if (notification) {
+                    this.queue.unshift(notification);
+                }
+                break;
+            }
         }
         
         this.processing = false;
     }
     
     async displayNotification(notification) {
+        // Don't display new notifications while paused
+        if (this.isPaused) {
+            // Queue it for later
+            this.queue.push(notification);
+            return;
+        }
+        
         // Determine zone
         const zoneName = this.typeToZone[notification.type] || 'primary';
         const zone = this.zones[zoneName];
@@ -173,12 +210,18 @@ export class NotificationManager {
         // Check if this is a blocking notification
         const isBlocking = this.blockingTypes.has(notification.type);
         
-        // If blocking, pause the game timer
+        // If blocking, pause the game completely
         if (isBlocking && this.eventBus) {
             this.blockingNotificationCount++;
             if (this.blockingNotificationCount === 1) {
-                // First blocking notification, pause the timer
-                this.eventBus.emit('pauseTimer', { reason: 'notification' });
+                // First blocking notification, pause everything
+                this.eventBus.emit('pauseAll', { 
+                    reason: 'notification',
+                    notificationType: notification.type 
+                });
+                
+                // Show overlay for better visibility
+                this.showBlockingOverlay();
             }
         }
         
@@ -207,20 +250,36 @@ export class NotificationManager {
             element.classList.add('notification-enter');
         });
         
-        // Set up removal
-        setTimeout(() => {
+        // Set up removal with tracking for pause/resume
+        const timeoutId = setTimeout(() => {
             this.removeNotification(notification.id);
         }, notification.duration);
+        
+        // Update tracking with timeout ID and start time
+        const trackedNotification = this.activeNotifications.get(notification.id);
+        if (trackedNotification) {
+            trackedNotification.timeoutId = timeoutId;
+            trackedNotification.startTime = Date.now();
+        }
     }
     
     calculatePosition(notification, zone, zoneName) {
-        // If specific position provided, use it
+        // If specific position provided, clamp it to screen bounds
         if (notification.position) {
-            return notification.position;
+            const padding = 100; // Minimum distance from edge
+            const x = Math.max(padding, Math.min(window.innerWidth - padding, notification.position.x));
+            const y = Math.max(padding, Math.min(window.innerHeight - padding, notification.position.y));
+            return {
+                x: x + 'px',
+                y: y + 'px'
+            };
         }
         
         // Get current stack count in this zone
         const stackCount = this.zoneOccupancy[zoneName].length;
+        
+        // Check for potential overlaps with other zones
+        const hasOverlapRisk = this.checkOverlapRisk(zoneName);
         
         // Calculate vertical offset for stacking
         let yOffset = 0;
@@ -233,6 +292,11 @@ export class NotificationManager {
             if (altZone) {
                 return this.calculatePosition(notification, this.zones[altZone], altZone);
             }
+        }
+        
+        // Add additional offset if there's overlap risk
+        if (hasOverlapRisk) {
+            yOffset += 100; // Add extra spacing to avoid overlap
         }
         
         // Parse base Y position and add offset
@@ -302,8 +366,13 @@ export class NotificationManager {
         if (isBlocking && this.eventBus) {
             this.blockingNotificationCount--;
             if (this.blockingNotificationCount === 0) {
-                // No more blocking notifications, resume timer
-                this.eventBus.emit('resumeTimer', { reason: 'notification' });
+                // No more blocking notifications, resume everything
+                this.eventBus.emit('resumeAll', { 
+                    reason: 'notification' 
+                });
+                
+                // Hide overlay
+                this.hideBlockingOverlay();
             }
         }
         
@@ -371,6 +440,30 @@ export class NotificationManager {
     }
     
     /**
+     * Check if there's a risk of overlap with adjacent zones
+     */
+    checkOverlapRisk(zoneName) {
+        // Define zones that are visually close to each other
+        const adjacentZones = {
+            'center': ['primary'],
+            'primary': ['center', 'powerup', 'score'],
+            'powerup': ['primary'],
+            'score': ['primary']
+        };
+        
+        const adjacent = adjacentZones[zoneName] || [];
+        
+        // Check if any adjacent zone has active notifications
+        for (const adjZone of adjacent) {
+            if (this.zoneOccupancy[adjZone] && this.zoneOccupancy[adjZone].length > 0) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
      * Helper to create delay
      */
     delay(ms) {
@@ -390,5 +483,239 @@ export class NotificationManager {
      */
     getNotification(id) {
         return this.activeNotifications.get(id);
+    }
+    
+    /**
+     * Show overlay for blocking notifications
+     */
+    showBlockingOverlay() {
+        if (!this.overlay) {
+            this.overlay = document.createElement('div');
+            this.overlay.className = 'notification-overlay';
+            // Insert overlay BEFORE the notification container so notifications appear on top
+            document.body.insertBefore(this.overlay, this.container);
+        }
+        
+        // Force reflow before adding active class for animation
+        this.overlay.offsetHeight;
+        requestAnimationFrame(() => {
+            this.overlay.classList.add('active');
+        });
+    }
+    
+    /**
+     * Hide overlay for blocking notifications
+     */
+    hideBlockingOverlay() {
+        if (this.overlay) {
+            this.overlay.classList.remove('active');
+            // Remove overlay after transition completes
+            setTimeout(() => {
+                if (this.overlay && this.overlay.parentNode) {
+                    this.overlay.remove();
+                    this.overlay = null;
+                }
+            }, 300);
+        }
+    }
+    
+    /**
+     * Pause all notifications and their animations
+     */
+    pause() {
+        if (this.isPaused) return;
+        this.isPaused = true;
+        
+        // Initialize queue for notifications that try to show during pause
+        this.queuedDuringPause = [];
+        
+        // Stop processing queue immediately
+        this.processingPaused = this.processing;
+        this.processing = false;
+        
+        // Pause all active notification animations
+        this.activeNotifications.forEach((notification, id) => {
+            if (notification.element) {
+                // Pause CSS animations - including floating score animations
+                const element = notification.element;
+                
+                // Force immediate pause of all animations on this element
+                element.style.animationPlayState = 'paused';
+                
+                // Also check for any child elements that might have animations
+                const allAnimatedElements = element.querySelectorAll('*');
+                allAnimatedElements.forEach(child => {
+                    child.style.animationPlayState = 'paused';
+                });
+                
+                // Store animation state for resume
+                element.dataset.wasPaused = 'true';
+                
+                // If there's a removal timeout, clear it and store remaining time
+                if (notification.timeoutId) {
+                    clearTimeout(notification.timeoutId);
+                    const elapsed = Date.now() - notification.startTime;
+                    const remaining = notification.duration - elapsed;
+                    
+                    // Ensure minimum remaining time to prevent stuck notifications
+                    // If less than 100ms remaining, set to 100ms to ensure removal
+                    const safeRemaining = Math.max(100, remaining);
+                    
+                    this.pausedTimeouts.set(id, {
+                        remaining: safeRemaining,
+                        notification: notification,
+                        startTime: notification.startTime
+                    });
+                    // Clear the timeout ID so it won't fire while paused
+                    notification.timeoutId = null;
+                }
+            }
+        });
+        
+        // Also pause any floating scores that might be in CSS animation
+        // This catches any elements that were created just before pause
+        requestAnimationFrame(() => {
+            if (!this.isPaused) return; // Skip if already resumed
+            
+            const floatingScores = document.querySelectorAll('.floating-score, .game-notification');
+            floatingScores.forEach(element => {
+                if (element.style.animationPlayState !== 'paused') {
+                    element.style.animationPlayState = 'paused';
+                    element.dataset.wasPausedLate = 'true';
+                    
+                    // Check if this element is tracked in activeNotifications
+                    let isTracked = false;
+                    this.activeNotifications.forEach(notification => {
+                        if (notification.element === element) {
+                            isTracked = true;
+                        }
+                    });
+                    
+                    // If not tracked, it's an orphaned element that should be removed
+                    if (!isTracked) {
+                        // Mark for cleanup - these are orphaned notifications
+                        element.dataset.orphaned = 'true';
+                        
+                        // Store for later cleanup
+                        if (!this.orphanedElements) {
+                            this.orphanedElements = new Set();
+                        }
+                        this.orphanedElements.add(element);
+                        console.log('Found orphaned floating score element during pause');
+                    }
+                }
+            });
+        });
+    }
+    
+    /**
+     * Resume all notifications and their animations
+     */
+    resume() {
+        if (!this.isPaused) return;
+        this.isPaused = false;
+        
+        // Clean up orphaned elements that got stuck during pause
+        if (this.orphanedElements && this.orphanedElements.size > 0) {
+            this.orphanedElements.forEach(element => {
+                // Remove orphaned floating scores immediately
+                if (element && element.parentNode) {
+                    console.log('Removing orphaned notification element');
+                    element.remove();
+                }
+            });
+            this.orphanedElements.clear();
+        }
+        
+        // Also clean up any orphaned floating scores marked in DOM
+        const orphanedElements = document.querySelectorAll('[data-orphaned="true"]');
+        orphanedElements.forEach(element => {
+            if (element && element.parentNode) {
+                element.remove();
+            }
+        });
+        
+        // Resume all active notification animations
+        this.activeNotifications.forEach((notification, id) => {
+            if (notification.element) {
+                const element = notification.element;
+                
+                // Resume CSS animations for element and all children
+                if (element.dataset.wasPaused === 'true') {
+                    element.style.animationPlayState = 'running';
+                    delete element.dataset.wasPaused;
+                    
+                    // Also resume any child element animations
+                    const allAnimatedElements = element.querySelectorAll('*');
+                    allAnimatedElements.forEach(child => {
+                        child.style.animationPlayState = 'running';
+                    });
+                }
+            }
+        });
+        
+        // Resume any floating scores that were paused late (but not orphaned)
+        const latelyPausedScores = document.querySelectorAll('[data-was-paused-late="true"]:not([data-orphaned="true"])');
+        latelyPausedScores.forEach(element => {
+            element.style.animationPlayState = 'running';
+            delete element.dataset.wasPausedLate;
+        });
+        
+        // Restart removal timeouts with remaining time
+        this.pausedTimeouts.forEach((pausedData, id) => {
+            const notification = this.activeNotifications.get(id);
+            if (notification && notification.element) {
+                // Update start time and duration for accurate tracking
+                notification.startTime = Date.now();
+                notification.duration = pausedData.remaining;
+                
+                // Ensure we have a valid positive duration
+                const timeoutDuration = Math.max(100, pausedData.remaining);
+                
+                // Create new timeout with remaining duration
+                notification.timeoutId = setTimeout(() => {
+                    // Double-check the notification still exists before removing
+                    if (this.activeNotifications.has(id)) {
+                        this.removeNotification(id);
+                    }
+                }, timeoutDuration);
+            } else {
+                // If notification was somehow lost, clean up
+                this.activeNotifications.delete(id);
+            }
+        });
+        this.pausedTimeouts.clear();
+        
+        // Process any notifications that were queued during pause
+        if (this.queuedDuringPause && this.queuedDuringPause.length > 0) {
+            // Add them to the regular queue with current timestamps
+            this.queuedDuringPause.forEach(options => {
+                // Re-show the notification now that we're unpaused
+                this.show(options);
+            });
+            this.queuedDuringPause = [];
+        }
+        
+        // Resume processing if it was paused
+        if (this.processingPaused) {
+            this.processing = true;
+            this.processingPaused = false;
+            this.processQueue();
+        }
+        
+        // Failsafe: Clean up any notifications that should have been removed
+        // This handles edge cases where notifications get stuck
+        setTimeout(() => {
+            this.activeNotifications.forEach((notification, id) => {
+                if (notification.startTime && notification.duration) {
+                    const elapsed = Date.now() - notification.startTime;
+                    // If the notification has exceeded its duration by more than 500ms, remove it
+                    if (elapsed > notification.duration + 500) {
+                        console.log('Cleaning up stuck notification:', notification.type);
+                        this.removeNotification(id);
+                    }
+                }
+            });
+        }, 500); // Check after a short delay
     }
 }

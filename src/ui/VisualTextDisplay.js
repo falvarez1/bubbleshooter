@@ -113,8 +113,14 @@ export class VisualTextDisplay {
         const vector = position.clone();
         vector.project(this.camera);
         
-        const x = (vector.x + 1) / 2 * window.innerWidth;
-        const y = -(vector.y - 1) / 2 * window.innerHeight;
+        // Convert normalized device coordinates to screen coordinates
+        let x = (vector.x + 1) / 2 * window.innerWidth;
+        let y = -(vector.y - 1) / 2 * window.innerHeight;
+        
+        // Clamp to ensure notifications don't get cut off at edges
+        const minPadding = 100; // Minimum distance from screen edge
+        x = Math.max(minPadding, Math.min(window.innerWidth - minPadding, x));
+        y = Math.max(minPadding, Math.min(window.innerHeight - minPadding, y));
         
         return { x, y };
     }

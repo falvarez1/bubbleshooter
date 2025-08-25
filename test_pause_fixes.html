@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pause System Fix Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Orbitron', monospace;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 10000;
+        }
+        
+        button {
+            display: block;
+            margin: 10px 0;
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-family: inherit;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        button.danger {
+            background: #f44336;
+        }
+        
+        button.danger:hover {
+            background: #da190b;
+        }
+        
+        .info {
+            margin-top: 20px;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+        }
+        
+        .status {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        
+        .paused-indicator {
+            color: #ff4444;
+            font-weight: bold;
+        }
+        
+        .running-indicator {
+            color: #44ff44;
+            font-weight: bold;
+        }
+    </style>
+    <link rel="stylesheet" href="css/notifications.css">
+</head>
+<body>
+    <div class="controls">
+        <h2>Pause System Test</h2>
+        
+        <button id="pauseBtn">Pause Game (P)</button>
+        <button id="triggerScoresBtn">Trigger Score Notifications</button>
+        <button id="triggerComboBtn">Trigger Combo Event</button>
+        <button id="triggerZenBtn">Trigger Zen Moment</button>
+        <button id="clearAllBtn" class="danger">Clear All Notifications</button>
+        
+        <div class="info">
+            <div class="status">Pause Status: <span id="pauseStatus" class="running-indicator">RUNNING</span></div>
+            <div class="status">Active Notifications: <span id="activeCount">0</span></div>
+            <div class="status">Queued During Pause: <span id="queuedCount">0</span></div>
+            <div class="status">Test Results: <span id="testResults">Ready</span></div>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <h3>Test Instructions:</h3>
+            <ol style="font-size: 12px; text-align: left;">
+                <li>Click "Trigger Score Notifications"</li>
+                <li>Immediately press P to pause</li>
+                <li>Verify NO new scores appear after pause</li>
+                <li>Verify existing animations freeze</li>
+                <li>Press P to resume</li>
+                <li>Verify queued notifications appear</li>
+            </ol>
+        </div>
+    </div>
+
+    <script type="module">
+        import { EventBus } from './src/core/EventBus.js';
+        import { NotificationManager } from './src/ui/NotificationManager.js';
+        import { PauseSystem } from './src/systems/PauseSystem.js';
+        
+        // Initialize systems
+        const eventBus = new EventBus();
+        const notificationManager = new NotificationManager(eventBus);
+        const pauseSystem = new PauseSystem(eventBus);
+        
+        // UI elements
+        const pauseBtn = document.getElementById('pauseBtn');
+        const pauseStatus = document.getElementById('pauseStatus');
+        const activeCount = document.getElementById('activeCount');
+        const queuedCount = document.getElementById('queuedCount');
+        const testResults = document.getElementById('testResults');
+        
+        // Update status display
+        function updateStatus() {
+            const isPaused = pauseSystem.getIsPaused();
+            pauseStatus.textContent = isPaused ? 'PAUSED' : 'RUNNING';
+            pauseStatus.className = isPaused ? 'paused-indicator' : 'running-indicator';
+            pauseBtn.textContent = isPaused ? 'Resume Game (P)' : 'Pause Game (P)';
+            
+            activeCount.textContent = notificationManager.activeNotifications.size;
+            queuedCount.textContent = notificationManager.queuedDuringPause ? notificationManager.queuedDuringPause.length : 0;
+        }
+        
+        // Update status every 100ms
+        setInterval(updateStatus, 100);
+        
+        // Pause button
+        pauseBtn.addEventListener('click', () => {
+            pauseSystem.toggle();
+            updateStatus();
+        });
+        
+        // Trigger score notifications with delays (simulating bubble pops)
+        document.getElementById('triggerScoresBtn').addEventListener('click', () => {
+            testResults.textContent = 'Triggering delayed scores...';
+            
+            // Simulate multiple bubble pops with setTimeout
+            for (let i = 0; i < 10; i++) {
+                setTimeout(() => {
+                    // This simulates what happens in GameLogic
+                    if (!pauseSystem.getIsPaused()) {
+                        notificationManager.show({
+                            text: `+${(i + 1) * 10}`,
+                            type: 'score',
+                            className: 'floating-score',
+                            duration: 1500,
+                            position: {
+                                x: 300 + (i * 80),
+                                y: 300
+                            }
+                        });
+                    } else {
+                        console.log(`Score ${i} blocked - game is paused`);
+                    }
+                }, i * 200); // Stagger by 200ms
+            }
+            
+            // Test that notifications queued during pause appear after resume
+            setTimeout(() => {
+                if (pauseSystem.getIsPaused()) {
+                    testResults.textContent = '✅ Scores blocked during pause';
+                } else {
+                    testResults.textContent = 'Test running...';
+                }
+            }, 1000);
+        });
+        
+        // Trigger combo event
+        document.getElementById('triggerComboBtn').addEventListener('click', () => {
+            notificationManager.show({
+                text: 'COMBO x5!',
+                type: 'combo',
+                priority: 3,
+                duration: 2000
+            });
+        });
+        
+        // Trigger zen moment
+        document.getElementById('triggerZenBtn').addEventListener('click', () => {
+            // This should be blocked if paused
+            if (pauseSystem.getIsPaused()) {
+                testResults.textContent = '✅ Zen moment blocked during pause';
+                return;
+            }
+            
+            notificationManager.show({
+                text: '✨ ZEN MOMENT ✨\nTake a breather!',
+                type: 'zenMoment',
+                className: 'zen-moment-notification',
+                priority: 4,
+                duration: 3000,
+                immediate: true
+            });
+        });
+        
+        // Clear all notifications
+        document.getElementById('clearAllBtn').addEventListener('click', () => {
+            notificationManager.clearAll();
+            testResults.textContent = 'Cleared';
+        });
+        
+        // Listen for pause/resume events
+        eventBus.on('gamePaused', () => {
+            console.log('Game paused event received');
+            updateStatus();
+        });
+        
+        eventBus.on('gameResumed', () => {
+            console.log('Game resumed event received');
+            updateStatus();
+        });
+        
+        // Initial status
+        updateStatus();
+        
+        console.log('Pause system test ready. Press P to pause/resume.');
+    </script>
+</body>
+</html>

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Notification Fixes</title>
+    <link rel="stylesheet" href="css/notifications.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        
+        .test-controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 2000;
+        }
+        
+        button {
+            display: block;
+            margin: 10px 0;
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+        
+        h3 {
+            margin-top: 0;
+            color: #FFD700;
+        }
+        
+        .test-section {
+            margin: 20px 0;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="test-controls">
+        <h3>Notification Fix Tests</h3>
+        
+        <div class="test-section">
+            <h4>Test Overlap Issues</h4>
+            <button onclick="testSimultaneousNotifications()">Test Zen + Combo + Score</button>
+            <button onclick="testZenWithOthers()">Test Zen Moment with Others</button>
+            <button onclick="testAllZones()">Test All Zones at Once</button>
+        </div>
+        
+        <div class="test-section">
+            <h4>Test Edge Positioning</h4>
+            <button onclick="testLeftEdgeScore()">Test Left Edge Score</button>
+            <button onclick="testRightEdgeScore()">Test Right Edge Score</button>
+            <button onclick="testTopEdgeScore()">Test Top Edge Score</button>
+            <button onclick="testCornerScores()">Test All Corners</button>
+        </div>
+        
+        <div class="test-section">
+            <h4>Stress Tests</h4>
+            <button onclick="testRapidFire()">Rapid Fire (20 notifications)</button>
+            <button onclick="clearAll()">Clear All</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { NotificationManager } from './src/ui/NotificationManager.js';
+        
+        const notificationManager = new NotificationManager();
+        window.notificationManager = notificationManager;
+        
+        // Test simultaneous notifications that used to overlap
+        window.testSimultaneousNotifications = function() {
+            // Zen moment in center
+            notificationManager.show({
+                text: '✨ ZEN MOMENT ✨\nTake a breather!',
+                type: 'zenMoment',
+                className: 'zen-moment-notification',
+                priority: 4,
+                duration: 3000,
+                immediate: true
+            });
+            
+            // Combo in primary zone
+            notificationManager.show({
+                text: 'COMBO x5!',
+                type: 'combo',
+                className: 'combo-notification',
+                priority: 3,
+                duration: 2000
+            });
+            
+            // Score in score zone
+            notificationManager.show({
+                text: '+500',
+                type: 'score',
+                className: 'floating-score',
+                priority: 1,
+                duration: 1500
+            });
+        };
+        
+        // Test zen moment with other notifications
+        window.testZenWithOthers = function() {
+            // Zen moment
+            notificationManager.show({
+                text: '✨ ZEN MOMENT ✨',
+                type: 'zenMoment',
+                className: 'zen-moment-notification',
+                priority: 4,
+                duration: 3000,
+                immediate: true
+            });
+            
+            // Level up (should not overlap with zen)
+            setTimeout(() => {
+                notificationManager.show({
+                    text: 'LEVEL UP!',
+                    type: 'levelUp',
+                    className: 'level-up-notification',
+                    priority: 3,
+                    duration: 2500
+                });
+            }, 100);
+            
+            // Power-up
+            setTimeout(() => {
+                notificationManager.show({
+                    text: 'RAINBOW BUBBLE!',
+                    type: 'rainbow',
+                    className: 'powerup-notification',
+                    priority: 2,
+                    duration: 2000
+                });
+            }, 200);
+        };
+        
+        // Test all zones at once
+        window.testAllZones = function() {
+            const notifications = [
+                { text: 'PRIMARY ZONE', type: 'combo', zone: 'primary' },
+                { text: 'CENTER ZONE', type: 'zenMoment', zone: 'center' },
+                { text: 'POWERUP ZONE', type: 'powerup', zone: 'powerup' },
+                { text: 'SCORE ZONE', type: 'score', zone: 'score' }
+            ];
+            
+            notifications.forEach((notif, i) => {
+                setTimeout(() => {
+                    notificationManager.show({
+                        text: notif.text,
+                        type: notif.type,
+                        priority: 2,
+                        duration: 3000
+                    });
+                }, i * 100);
+            });
+        };
+        
+        // Test left edge positioning
+        window.testLeftEdgeScore = function() {
+            // Simulate score at left edge
+            notificationManager.show({
+                text: '+250 LEFT EDGE',
+                type: 'score',
+                className: 'floating-score',
+                priority: 1,
+                duration: 2000,
+                position: { x: 10, y: 300 } // Very close to left edge
+            });
+        };
+        
+        // Test right edge positioning
+        window.testRightEdgeScore = function() {
+            // Simulate score at right edge
+            notificationManager.show({
+                text: '+350 RIGHT EDGE',
+                type: 'score',
+                className: 'floating-score',
+                priority: 1,
+                duration: 2000,
+                position: { x: window.innerWidth - 10, y: 300 }
+            });
+        };
+        
+        // Test top edge positioning
+        window.testTopEdgeScore = function() {
+            // Simulate score at top edge
+            notificationManager.show({
+                text: '+150 TOP EDGE',
+                type: 'score',
+                className: 'floating-score',
+                priority: 1,
+                duration: 2000,
+                position: { x: window.innerWidth / 2, y: 10 }
+            });
+        };
+        
+        // Test all corners
+        window.testCornerScores = function() {
+            const corners = [
+                { x: 10, y: 10, text: 'TOP-LEFT' },
+                { x: window.innerWidth - 10, y: 10, text: 'TOP-RIGHT' },
+                { x: 10, y: window.innerHeight - 10, text: 'BOTTOM-LEFT' },
+                { x: window.innerWidth - 10, y: window.innerHeight - 10, text: 'BOTTOM-RIGHT' }
+            ];
+            
+            corners.forEach((corner, i) => {
+                setTimeout(() => {
+                    notificationManager.show({
+                        text: corner.text,
+                        type: 'score',
+                        className: 'floating-score',
+                        priority: 1,
+                        duration: 3000,
+                        position: { x: corner.x, y: corner.y }
+                    });
+                }, i * 200);
+            });
+        };
+        
+        // Rapid fire test
+        window.testRapidFire = function() {
+            const types = ['combo', 'score', 'powerup', 'zenMoment', 'levelUp'];
+            const texts = ['COMBO!', '+100', 'POWER-UP!', 'ZEN!', 'LEVEL UP!'];
+            
+            for (let i = 0; i < 20; i++) {
+                setTimeout(() => {
+                    const idx = i % types.length;
+                    notificationManager.show({
+                        text: texts[idx] + ' #' + (i + 1),
+                        type: types[idx],
+                        priority: Math.floor(Math.random() * 4) + 1,
+                        duration: 2000 + Math.random() * 2000
+                    });
+                }, i * 150);
+            }
+        };
+        
+        // Clear all notifications
+        window.clearAll = function() {
+            notificationManager.clearAll();
+        };
+        
+        console.log('Test page ready! Use the buttons to test notification fixes.');
+    </script>
+</body>
+</html>
