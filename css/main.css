@@ -14,6 +14,18 @@ body {
     user-select: none;
 }
 
+/* Hide game UI elements initially until game starts */
+body:not(.game-started) .next-bubble,
+body:not(.game-started) .powerup-collection-bar,
+body:not(.game-started) .settings-icon,
+body:not(.game-started) .ui-panel,
+body:not(.game-started) .power-meter,
+body:not(.game-started) .precision-indicator,
+body:not(.game-started) .powerup-indicator,
+body:not(.game-started) #developerPanel {
+    display: none !important;
+}
+
 #gameCanvas {
     display: block;
     cursor: crosshair;

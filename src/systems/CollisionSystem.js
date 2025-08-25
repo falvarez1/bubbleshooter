@@ -460,18 +460,18 @@ export class CollisionSystem {
         
         // Create attachment particles
         for (let i = 0; i < 15; i++) {
-            const particle = this.gameState.particlePool.spawn(
-                bubble.position.x,
-                bubble.position.y,
-                bubble.position.z,
-                0xffffff,
-                0.15,
-                new THREE.Vector3(
-                    (Math.random() - 0.5) * 5,
-                    (Math.random() - 0.5) * 5,
-                    (Math.random() - 0.5) * 3
-                )
-            );
+                const particle = this.gameState.particlePool.spawn(
+                    bubble.position.x,
+                    bubble.position.y,
+                    bubble.position.z,
+                    0xffffff,
+                    0.15,
+                    new THREE.Vector3(
+                        (Math.random() - 0.5) * 5,
+                        (Math.random() - 0.5) * 5,
+                        (Math.random() - 0.5) * 3
+                    )
+                );
         }
     }
     

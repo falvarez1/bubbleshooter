@@ -12,6 +12,7 @@ export class GameState {
     
     reset() {
         // Game status
+        this.gameStarted = false;  // Track whether game has started from splash screen
         this.score = 0;
         this.level = 1;
         this.combo = 0;
@@ -41,7 +42,10 @@ export class GameState {
         
         // Visual effects
         this.particles = [];
-        this.particlePool = null; // Will be initialized by game manager
+        // Preserve particlePool if it already exists, only initialize to null on first run
+        if (this.particlePool === undefined) {
+            this.particlePool = null; // Will be initialized by game manager
+        }
         this.animations = [];
         
         // Power-up states

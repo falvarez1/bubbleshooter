@@ -28,6 +28,7 @@ import {
     ColorSplashPowerUp
 } from './powerups/index.js';
 import { BloomDebugger } from './utils/BloomDebugger.js';
+import { SplashScreen, AssetLoader } from './ui/SplashScreen.js';
 
 // Import new progressive game systems
 import { ProgressiveTimerSystem } from './systems/ProgressiveTimerSystem.js';
@@ -38,10 +39,16 @@ import { SmartColorSelectionSystem } from './systems/SmartColorSelectionSystem.j
 
 // Main game class
 class BubbleShooterGame {
-    constructor() {
+    constructor(splashScreen = null) {
+        // Store splash screen reference
+        this.splashScreen = splashScreen;
+        
         // Core systems
         this.gameState = new GameState();
         this.gameManager = new GameManager();
+        
+        // Create asset loader for Three.js assets
+        this.assetLoader = new AssetLoader(this.gameManager.eventBus);
         this.sceneManager = new SceneManager(document.getElementById('gameCanvas'));
         this.audioSystem = new AudioSystem();
         this.uiManager = new UIManager();
@@ -98,6 +105,9 @@ class BubbleShooterGame {
         this.audioUpdateTimer = 0;
         this.uiUpdateTimer = 0;
         
+        // Splash screen will be handled externally
+        // The game will be started via handleGameStart and startGameLoop methods
+        
         // Initialize
         this.initialize();
         
@@ -112,12 +122,19 @@ class BubbleShooterGame {
     }
     
     async initialize() {
+        // Track initialization progress
+        this.gameManager.eventBus.emit('asset:register', { id: 'performance-init', type: 'system' });
+        
         // Initialize performance manager first
         await this.performanceManager.initialize();
         
+        this.gameManager.eventBus.emit('asset:loaded', { id: 'performance-init' });
+        
         // Initialize instanced bubble renderer
+        this.gameManager.eventBus.emit('asset:register', { id: 'bubble-instances', type: 'system' });
         this.bubbleInstances = new BubbleInstances(this.scene, 300);
         // Instanced bubble renderer initialized
+        this.gameManager.eventBus.emit('asset:loaded', { id: 'bubble-instances' });
         
         // Share references with game logic for bubble removal
         this.gameLogic.bubbleInstances = this.bubbleInstances;
@@ -134,6 +151,9 @@ class BubbleShooterGame {
         const USE_GPU_PARTICLES = true; // Temporarily disabled
         this.gpuParticles = USE_GPU_PARTICLES ? this.performanceManager.createOptimalParticleSystem(this.scene) : null;
         
+        console.log('GPU Particles available:', !!this.gpuParticles);
+        
+        // Initialize particle pool - use GPU if available, otherwise fall back to CPU
         if (this.gpuParticles) {
             // Using GPU particle system
             // Create a hybrid particle pool that uses GPU particles
@@ -163,7 +183,9 @@ class BubbleShooterGame {
                 }
             };
             this.gameState.particlePool.addToScene(this.scene);
+            console.log('Particle pool initialized with GPU particles');
         } else {
+            console.log('Falling back to CPU particle system');
             // Using CPU particle system
             // Fallback to CPU particle pool with power support
             const cpuPool = new ParticlePool(PARTICLE_CONFIG.poolSize, this.postProcessingManager);
@@ -189,7 +211,10 @@ class BubbleShooterGame {
                 }
             };
             this.gameState.particlePool.addToScene(this.scene);
+            console.log('Particle pool initialized with CPU particles');
         }
+        
+        // Particle pool should now always be initialized
         
         // Initialize audio
         await this.audioSystem.initialize();
@@ -211,10 +236,11 @@ class BubbleShooterGame {
         // Set up progressive game event handlers
         this.setupProgressiveGameEvents();
         
-        // Initialize game
+        // Initialize game board structure (but don't create bubbles yet)
         this.gameBoard.create();
-        this.createInitialBubbles();
-        this.createShootingBubble();
+        // Defer bubble creation until game actually starts from splash screen
+        // this.createInitialBubbles();  // Will be called in handleGameStart
+        // this.createShootingBubble();   // Will be called in handleGameStart
         
         // Initialize power-up collection UI
         this.uiManager.updateCollectedPowerUps([]);
@@ -279,14 +305,14 @@ class BubbleShooterGame {
             return stats;
         };
         
-        // Start game
-        this.gameManager.eventBus.emit('gameStart');
+        // Register remaining systems as loaded
+        this.gameManager.eventBus.emit('asset:register', { id: 'game-systems', type: 'system' });
+        setTimeout(() => {
+            this.gameManager.eventBus.emit('asset:loaded', { id: 'game-systems' });
+        }, 100);
         
-        // Start performance monitoring
-        this.performanceManager.startPerformanceMonitoring();
-        
-        // Start animation loop
-        this.animate(0);
+        // Game will be started by splash screen callbacks
+        // Do not auto-start here
     }
     
     setupProgressiveGameEvents() {
@@ -924,6 +950,8 @@ class BubbleShooterGame {
     }
     
     createWallImpactParticles(bubble) {
+        // Particle pool is guaranteed to be initialized
+        
         for (let i = 0; i < 10; i++) {
             this.gameState.particlePool.spawn(
                 bubble.position.x,
@@ -1014,6 +1042,8 @@ class BubbleShooterGame {
     }
     
     createShootingEffect(position, power = 0) {
+        // Particle pool is guaranteed to be initialized
+        
         // Calculate the shooting direction from current bubble to mouse position
         const shootingDirection = new THREE.Vector3(
             this.gameState.mousePosition.x - this.gameState.currentBubble.position.x,
@@ -1254,6 +1284,8 @@ class BubbleShooterGame {
     }
     
     handleMouseMove(event) {
+        // Don't process input if game hasn't started from splash screen
+        if (!this.gameState.gameStarted) return;
         if (this.gameState.isPaused) return;
         
         // Check if in design mode - hide trajectory
@@ -1322,6 +1354,14 @@ class BubbleShooterGame {
     }
     
     updateTrajectoryAndIndicator() {
+        // Don't try to calculate trajectory if game hasn't started or no current bubble
+        if (!this.gameState.gameStarted || !this.gameState.currentBubble) {
+            if (this.trajectorySystem) {
+                this.trajectorySystem.hideTrajectory();
+            }
+            return;
+        }
+        
         // Calculate trajectory
         this.trajectorySystem.calculateTrajectory(
             this.gameState.currentBubble,
@@ -1339,6 +1379,8 @@ class BubbleShooterGame {
     }
     
     handleMouseDown(event) {
+        // Don't process input if game hasn't started from splash screen
+        if (!this.gameState.gameStarted) return;
         // Check if in design mode
         if (this.designModeActive) return;
         
@@ -1372,6 +1414,8 @@ class BubbleShooterGame {
     }
     
     handleMouseUp(event) {
+        // Don't process input if game hasn't started from splash screen
+        if (!this.gameState.gameStarted) return;
         // Check if in design mode
         if (this.designModeActive) return;
         
@@ -1874,10 +1918,129 @@ class BubbleShooterGame {
             this.sceneManager.render(renderDeltaTime);
         }
     }
+    
+    /**
+     * Handle game start from splash screen
+     */
+    handleGameStart(data) {
+        // Show game UI elements
+        document.body.classList.add('game-started');
+        
+        if (data.newGame) {
+            // Reset game state for new game
+            this.gameState.reset();
+            this.gameState.level = 1;
+            this.levelProgressionSystem.initializeLevel(1);
+        } else {
+            // Load saved game
+            this.loadSavedGame();
+        }
+        
+        // CRITICAL: Set gameStarted flag so the game actually works
+        this.gameState.gameStarted = true;
+        
+        // Initialize the game bubbles now that we're ready to start
+        this.createInitialBubbles();
+        this.createShootingBubble();
+        
+        // Force collision cache update for initial bubbles
+        this.collisionSystem.lastCacheUpdate = 0;
+        this.collisionSystem.updateGridBubbleCache();
+        
+        // Start game
+        this.gameManager.eventBus.emit('gameStart');
+        
+        // Start performance monitoring
+        this.performanceManager.startPerformanceMonitoring();
+    }
+    
+    /**
+     * Start the game animation loop
+     */
+    startGameLoop() {
+        // Start animation loop
+        this.animate(0);
+    }
+    
+    /**
+     * Load saved game from localStorage
+     */
+    loadSavedGame() {
+        try {
+            const savedGame = localStorage.getItem('bubbleShooterSave');
+            if (savedGame) {
+                const gameData = JSON.parse(savedGame);
+                
+                // Restore game state
+                this.gameState.level = gameData.level || 1;
+                this.gameState.score = gameData.score || 0;
+                this.gameState.highScore = gameData.highScore || 0;
+                
+                // Load the saved level
+                this.levelProgressionSystem.loadLevel(this.gameState.level);
+                
+                // Update UI
+                this.uiManager.updateScore(this.gameState.score);
+                this.uiManager.updateLevel(this.gameState.level);
+                
+                console.log(`Loaded saved game at level ${this.gameState.level}`);
+            }
+        } catch (e) {
+            console.error('Failed to load saved game:', e);
+            // Fall back to new game
+            this.gameState.reset();
+            this.levelProgressionSystem.loadLevel(1);
+        }
+    }
+    
+    /**
+     * Save game state to localStorage
+     */
+    saveGame() {
+        try {
+            const gameData = {
+                level: this.gameState.level,
+                score: this.gameState.score,
+                highScore: this.gameState.highScore,
+                timestamp: Date.now()
+            };
+            
+            localStorage.setItem('bubbleShooterSave', JSON.stringify(gameData));
+            console.log(`Game saved at level ${this.gameState.level}`);
+        } catch (e) {
+            console.error('Failed to save game:', e);
+        }
+    }
 }
 
-// Initialize and start the game
-const game = new BubbleShooterGame();
+// Initialize splash screen and asset loader
+const splashScreen = new SplashScreen();
+const assetLoader = new AssetLoader(splashScreen);
+
+// Set up callbacks for menu actions
+splashScreen.onStart(() => {
+    // Start new game
+    game.handleGameStart({ newGame: true });
+    game.startGameLoop();
+});
+
+splashScreen.onContinue(() => {
+    // Continue saved game
+    game.handleGameStart({ newGame: false });
+    game.startGameLoop();
+});
+
+// Initialize the game (but don't start the loop yet)
+const game = new BubbleShooterGame(splashScreen);
+
+// Simulate asset loading
+// In a real implementation, you would track actual Three.js asset loading
+assetLoader.loadAll(THREE, () => {
+    console.log('All assets loaded');
+});
+
+// Make game globally accessible for debugging
+window.game = game;
 
 // Make restart functions globally available
 window.restartGame = function() {

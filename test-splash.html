@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Splash Screen Test</title>
+    <link rel="stylesheet" href="css/splash-screen.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body>
+    <!-- Test game UI elements - should be hidden until game starts -->
+    <div class="next-bubble" style="position: fixed; top: 10px; right: 10px; width: 80px; height: 80px; background: #ff0000; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+        NEXT
+    </div>
+    <div class="powerup-collection-bar" style="position: fixed; bottom: 10px; left: 10px; background: #00ff00; padding: 10px;">
+        POWERUPS
+    </div>
+    <div class="settings-icon" style="position: fixed; top: 10px; left: 10px; width: 40px; height: 40px; background: #0000ff;">
+        ⚙️
+    </div>
+    
+    <!-- Static HTML splash screen - shows immediately -->
+    <div class="splash-screen" id="splashScreen">
+        <div class="splash-logo">
+            BUBBLE SHOOTER
+            <div class="splash-subtitle">Premium 3D Edition</div>
+        </div>
+        
+        <div class="bubble-galaxy">
+            <div class="galaxy-container">
+                <div class="loading-bubble bubble-1"></div>
+                <div class="loading-bubble bubble-2"></div>
+                <div class="loading-bubble bubble-3"></div>
+                <div class="loading-bubble bubble-4"></div>
+                <div class="loading-bubble bubble-5"></div>
+                <div class="loading-bubble bubble-6"></div>
+                <div class="loading-bubble bubble-7"></div>
+                <div class="loading-bubble bubble-8"></div>
+            </div>
+        </div>
+        
+        <div class="loading-progress-container">
+            <div class="loading-progress-bar">
+                <div class="loading-progress-fill"></div>
+            </div>
+            <div class="loading-message">Initializing...</div>
+        </div>
+        
+        <div class="main-menu">
+            <button class="menu-button" id="startNewGame">
+                Start New Game
+            </button>
+            <button class="menu-button disabled" id="continueGame">
+                Continue
+                <div class="menu-button-subtitle">No saved game</div>
+            </button>
+            <button class="menu-button" id="highScores">
+                High Scores
+            </button>
+            <div class="menu-small-buttons">
+                <button class="menu-small-button" id="settingsBtn">Settings</button>
+                <button class="menu-small-button" id="creditsBtn">Credits</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import map for ES modules -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.module.js"
+        }
+    }
+    </script>
+
+    <script type="module">
+        // Import the SplashScreen controller to enhance the existing HTML
+        import { SplashScreen, AssetLoader } from './src/ui/SplashScreen.js';
+        
+        // Create controller for existing HTML splash screen
+        const splashScreen = new SplashScreen(true); // Pass true to use existing HTML
+        
+        // Set up callbacks
+        splashScreen.onStart(() => {
+            document.body.classList.add('game-started');
+            alert('Starting new game!');
+            splashScreen.hide();
+        });
+        
+        splashScreen.onContinue(() => {
+            document.body.classList.add('game-started');
+            alert('Continuing saved game!');
+            splashScreen.hide();
+        });
+        
+        // Load Three.js and other assets asynchronously
+        import('three').then((THREE) => {
+            const assetLoader = new AssetLoader(splashScreen);
+            assetLoader.loadAll(THREE, () => {
+                console.log('Loading complete!');
+            });
+        });
+        
+        // Add test save data
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 's') {
+                // Save test game state
+                const testSave = {
+                    currentLevel: 15,
+                    score: 12500,
+                    highScore: 25000
+                };
+                localStorage.setItem('bubbleShooterGameState', JSON.stringify(testSave));
+                alert('Test save created! Refresh to see Continue option.');
+            }
+            if (e.key === 'c') {
+                // Clear save
+                localStorage.removeItem('bubbleShooterGameState');
+                alert('Save cleared! Refresh to see disabled Continue.');
+            }
+        });
+        
+        console.log('Press S to create test save, C to clear save');
+    </script>
+</body>
+</html>
