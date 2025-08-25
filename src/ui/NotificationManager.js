@@ -583,14 +583,26 @@ export class NotificationManager {
                     element.style.animationPlayState = 'paused';
                     element.dataset.wasPausedLate = 'true';
                     
-                    // Mark for cleanup - these are likely orphaned notifications
-                    element.dataset.orphaned = 'true';
+                    // Check if this element is tracked in activeNotifications
+                    let isTracked = false;
+                    this.activeNotifications.forEach(notification => {
+                        if (notification.element === element) {
+                            isTracked = true;
+                        }
+                    });
                     
-                    // Store for later cleanup
-                    if (!this.orphanedElements) {
-                        this.orphanedElements = new Set();
+                    // If not tracked, it's an orphaned element that should be removed
+                    if (!isTracked) {
+                        // Mark for cleanup - these are orphaned notifications
+                        element.dataset.orphaned = 'true';
+                        
+                        // Store for later cleanup
+                        if (!this.orphanedElements) {
+                            this.orphanedElements = new Set();
+                        }
+                        this.orphanedElements.add(element);
+                        console.log('Found orphaned floating score element during pause');
                     }
-                    this.orphanedElements.add(element);
                 }
             });
         });
