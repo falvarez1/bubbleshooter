@@ -556,8 +556,13 @@ export class NotificationManager {
                     clearTimeout(notification.timeoutId);
                     const elapsed = Date.now() - notification.startTime;
                     const remaining = notification.duration - elapsed;
+                    
+                    // Ensure minimum remaining time to prevent stuck notifications
+                    // If less than 100ms remaining, set to 100ms to ensure removal
+                    const safeRemaining = Math.max(100, remaining);
+                    
                     this.pausedTimeouts.set(id, {
-                        remaining: Math.max(0, remaining),
+                        remaining: safeRemaining,
                         notification: notification,
                         startTime: notification.startTime
                     });
@@ -570,11 +575,22 @@ export class NotificationManager {
         // Also pause any floating scores that might be in CSS animation
         // This catches any elements that were created just before pause
         requestAnimationFrame(() => {
-            const floatingScores = document.querySelectorAll('.floating-score');
+            if (!this.isPaused) return; // Skip if already resumed
+            
+            const floatingScores = document.querySelectorAll('.floating-score, .game-notification');
             floatingScores.forEach(element => {
                 if (element.style.animationPlayState !== 'paused') {
                     element.style.animationPlayState = 'paused';
                     element.dataset.wasPausedLate = 'true';
+                    
+                    // Mark for cleanup - these are likely orphaned notifications
+                    element.dataset.orphaned = 'true';
+                    
+                    // Store for later cleanup
+                    if (!this.orphanedElements) {
+                        this.orphanedElements = new Set();
+                    }
+                    this.orphanedElements.add(element);
                 }
             });
         });
@@ -616,15 +632,24 @@ export class NotificationManager {
         // Restart removal timeouts with remaining time
         this.pausedTimeouts.forEach((pausedData, id) => {
             const notification = this.activeNotifications.get(id);
-            if (notification) {
+            if (notification && notification.element) {
                 // Update start time and duration for accurate tracking
                 notification.startTime = Date.now();
                 notification.duration = pausedData.remaining;
                 
+                // Ensure we have a valid positive duration
+                const timeoutDuration = Math.max(100, pausedData.remaining);
+                
                 // Create new timeout with remaining duration
                 notification.timeoutId = setTimeout(() => {
-                    this.removeNotification(id);
-                }, pausedData.remaining);
+                    // Double-check the notification still exists before removing
+                    if (this.activeNotifications.has(id)) {
+                        this.removeNotification(id);
+                    }
+                }, timeoutDuration);
+            } else {
+                // If notification was somehow lost, clean up
+                this.activeNotifications.delete(id);
             }
         });
         this.pausedTimeouts.clear();
@@ -645,5 +670,20 @@ export class NotificationManager {
             this.processingPaused = false;
             this.processQueue();
         }
+        
+        // Failsafe: Clean up any notifications that should have been removed
+        // This handles edge cases where notifications get stuck
+        setTimeout(() => {
+            this.activeNotifications.forEach((notification, id) => {
+                if (notification.startTime && notification.duration) {
+                    const elapsed = Date.now() - notification.startTime;
+                    // If the notification has exceeded its duration by more than 500ms, remove it
+                    if (elapsed > notification.duration + 500) {
+                        console.log('Cleaning up stuck notification:', notification.type);
+                        this.removeNotification(id);
+                    }
+                }
+            });
+        }, 500); // Check after a short delay
     }
 }
