@@ -510,6 +510,11 @@ export class CollisionSystem {
         
         // Apply forces to all neighbors at once with minimal delay
         setTimeout(() => {
+            // Skip if game is paused
+            if (this.gameLogic && this.gameLogic.pauseSystem && this.gameLogic.pauseSystem.getIsPaused()) {
+                return;
+            }
+            
             impactedNeighbors.forEach(({ bubble, direction, force }) => {
                 // Add impact velocity to neighbor
                 bubble.impactVelocity.add(direction.multiplyScalar(force * CONFIG.IMPACT_PHYSICS.NEIGHBOR_FORCE));

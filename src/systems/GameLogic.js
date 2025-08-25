@@ -245,8 +245,9 @@ export class GameLogic {
             // Remove bubbles with animation and individual point displays
             matches.forEach((matchedBubble, index) => {
                 setTimeout(() => {
-                    // Skip if already destroyed
+                    // Skip if already destroyed or game is paused
                     if (matchedBubble.isDestroyed) return;
+                    if (this.pauseSystem && this.pauseSystem.getIsPaused()) return;
                     
                     // Show individual points for this bubble
                     if (this.gameManager && this.gameManager.showFloatingScore) {
@@ -261,6 +262,8 @@ export class GameLogic {
             
             // Check for floating bubbles
             setTimeout(() => {
+                // Skip if game is paused
+                if (this.pauseSystem && this.pauseSystem.getIsPaused()) return;
                 this.removeFloatingBubbles();
                 
                 // Check victory condition
@@ -357,6 +360,8 @@ export class GameLogic {
             
             // Check for floating bubbles
             setTimeout(() => {
+                // Skip if game is paused
+                if (this.pauseSystem && this.pauseSystem.getIsPaused()) return;
                 this.removeFloatingBubbles();
             }, destroyed.length * 20 + 100);
         }
