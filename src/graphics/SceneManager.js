@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PostProcessingManager } from './PostProcessingManager.js';
 
 /**
  * Scene Manager
@@ -11,6 +12,11 @@ export class SceneManager {
         this.camera = null;
         this.renderer = null;
         this.lights = {};
+        this.temporaryTimeouts = [];
+        this.environmentMap = null;
+        this.cubeTextures = [];
+        this.postProcessing = null;
+        this.postProcessingEnabled = true;
         
         this.initialize();
     }
@@ -31,6 +37,20 @@ export class SceneManager {
         
         // Setup environment map for refractive effects
         this.setupEnvironmentMap();
+        
+        // Setup post-processing
+        this.setupPostProcessing();
+    }
+    
+    setupPostProcessing() {
+        try {
+            this.postProcessing = new PostProcessingManager(this.renderer, this.scene, this.camera);
+            this.postProcessing.configureForTrajectory();
+            console.log('Post-processing initialized successfully');
+        } catch (error) {
+            console.warn('Post-processing initialization failed, falling back to standard rendering:', error);
+            this.postProcessingEnabled = false;
+        }
     }
     
     setupCamera() {
@@ -97,6 +117,11 @@ export class SceneManager {
         this.camera.aspect = window.innerWidth / window.innerHeight;
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
+        
+        // Update post-processing composer size
+        if (this.postProcessing && this.postProcessingEnabled) {
+            this.postProcessing.handleResize();
+        }
     }
     
     /**
@@ -110,9 +135,22 @@ export class SceneManager {
     
     /**
      * Render the scene
+     * @param {number} deltaTime - Time since last frame
      */
-    render() {
-        this.renderer.render(this.scene, this.camera);
+    render(deltaTime = 0) {
+        if (this.postProcessing && this.postProcessingEnabled) {
+            this.postProcessing.render(deltaTime);
+        } else {
+            this.renderer.render(this.scene, this.camera);
+        }
+    }
+    
+    /**
+     * Get post-processing manager
+     * @returns {PostProcessingManager} The post-processing manager
+     */
+    getPostProcessing() {
+        return this.postProcessing;
     }
     
     /**
@@ -173,9 +211,18 @@ export class SceneManager {
             light.intensity -= fadeStep;
             if (light.intensity <= 0) {
                 this.scene.remove(light);
+                light.dispose?.();
                 clearInterval(fadeInterval);
+                // Remove from temporaryTimeouts array
+                const index = this.temporaryTimeouts.indexOf(fadeInterval);
+                if (index > -1) {
+                    this.temporaryTimeouts.splice(index, 1);
+                }
             }
         }, 16);
+        
+        // Store interval for cleanup
+        this.temporaryTimeouts.push(fadeInterval);
     }
     
     /**
@@ -190,7 +237,7 @@ export class SceneManager {
         const canvas = document.createElement('canvas');
         canvas.width = size;
         canvas.height = size;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         
         const faces = [];
         const colors = [
@@ -232,6 +279,7 @@ export class SceneManager {
                 THREE.RGBAFormat
             );
             texture.needsUpdate = true;
+            this.cubeTextures.push(texture); // Track for disposal
             faces.push(texture);
         }
         
@@ -239,10 +287,76 @@ export class SceneManager {
         cubeTexture.needsUpdate = true;
         
         // Set as scene environment
+        this.environmentMap = cubeTexture;
         this.scene.environment = cubeTexture;
         this.scene.background = null; // Keep transparent background
         
         // Store reference for particle materials
         this.environmentMap = cubeTexture;
+    }
+    
+    /**
+     * Dispose of all resources to prevent memory leaks
+     */
+    dispose() {
+        // Clear all temporary timeouts
+        this.temporaryTimeouts.forEach(timeout => clearInterval(timeout));
+        this.temporaryTimeouts = [];
+        
+        // Dispose post-processing
+        if (this.postProcessing) {
+            this.postProcessing.dispose();
+            this.postProcessing = null;
+        }
+        
+        // Dispose cube textures
+        this.cubeTextures.forEach(texture => {
+            if (texture && texture.dispose) {
+                texture.dispose();
+            }
+        });
+        this.cubeTextures = [];
+        
+        // Dispose environment map
+        if (this.environmentMap) {
+            this.environmentMap.dispose();
+            this.environmentMap = null;
+        }
+        
+        // Dispose lights
+        Object.values(this.lights).forEach(light => {
+            if (light.parent) {
+                light.parent.remove(light);
+            }
+            light.dispose?.();
+        });
+        this.lights = {};
+        
+        // Dispose renderer
+        if (this.renderer) {
+            this.renderer.dispose();
+            this.renderer = null;
+        }
+        
+        // Clear scene
+        if (this.scene) {
+            while(this.scene.children.length > 0) {
+                const child = this.scene.children[0];
+                this.scene.remove(child);
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(mat => mat.dispose());
+                    } else {
+                        child.material.dispose();
+                    }
+                }
+            }
+            this.scene = null;
+        }
+        
+        // Clear references
+        this.camera = null;
+        this.canvas = null;
     }
 }

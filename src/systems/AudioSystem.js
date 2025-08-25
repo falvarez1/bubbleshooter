@@ -1,3 +1,5 @@
+import { CONFIG } from '../core/Config.js';
+
 /**
  * Audio System for managing game sounds
  * Handles background music and sound effects
@@ -21,8 +23,8 @@ export class AudioSystem {
             'music/music_zapsplat_lets_rock.mp3'
         ];
         this.currentTrackIndex = -1;
-        this.musicEnabled = true;
-        this.musicVolume = 0.3;
+        this.musicEnabled = CONFIG.MUSIC_ENABLED !== undefined ? CONFIG.MUSIC_ENABLED : false;
+        this.musicVolume = CONFIG.MUSIC_VOLUME !== undefined ? CONFIG.MUSIC_VOLUME : 0.3;
     }
     
     async initialize() {

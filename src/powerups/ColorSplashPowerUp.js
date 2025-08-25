@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CONFIG, PARTICLE_CONFIG } from '../core/Config.js';
 import { PowerUp } from './PowerUp.js';
-import { ParticleFactory } from '../entities/Particle.js';
+import { ParticleFactory, ParticlePool } from '../entities/Particle.js';
 
 /**
  * Color Splash Power-Up
@@ -17,15 +17,29 @@ export class ColorSplashPowerUp extends PowerUp {
             glowColor: 0xff66ff
         });
         this.clusterSize = 2; // Radius of 2 for cluster detection
+        // Create a dedicated CPU particle pool for color effects
+        // GPU particles don't support individual colors properly
+        this.colorParticlePool = null;
     }
     
-    activate(targetBubble, gameState, gameManager) {
+    initColorParticlePool(scene) {
+        if (!this.colorParticlePool) {
+            this.colorParticlePool = new ParticlePool(200); // Dedicated pool for color effects
+            this.colorParticlePool.addToScene(scene);
+        }
+    }
+    
+    activate(powerUpBubble, gameState, gameManager) {
+        // Initialize color particle pool if needed
+        this.initColorParticlePool(gameManager.scene);
+        
         // Find all bubbles on the board
         const allBubbles = [];
         for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
             for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
                 const bubble = gameState.getBubbleAt(x, y);
-                if (bubble && !bubble.isPowerUp) {
+                // Exclude power-ups, destroyed bubbles, and the power-up bubble itself
+                if (bubble && !bubble.isPowerUp && !bubble.isDestroyed && bubble !== powerUpBubble) {
                     allBubbles.push(bubble);
                 }
             }
@@ -44,7 +58,9 @@ export class ColorSplashPowerUp extends PowerUp {
         for (let y = 0; y < CONFIG.GRID_HEIGHT && cluster.length < maxClusterSize; y++) {
             for (let x = 0; x < CONFIG.GRID_WIDTH && cluster.length < maxClusterSize; x++) {
                 const bubble = gameState.getBubbleAt(x, y);
-                if (bubble && bubble !== centerBubble && !bubble.isPowerUp) {
+                // Exclude power-up bubble and already destroyed bubbles
+                if (bubble && bubble !== centerBubble && !bubble.isPowerUp && 
+                    !bubble.isDestroyed && bubble !== powerUpBubble) {
                     const distance = centerBubble.position.distanceTo(bubble.position);
                     if (distance <= maxDistance) {
                         cluster.push(bubble);
@@ -81,40 +97,54 @@ export class ColorSplashPowerUp extends PowerUp {
                 }, i * 100); // Delay between batches
             }
             
-            // Check for matches after all transformations
+            // Check for matches after all transformations (if enabled)
             const totalTransformTime = Math.ceil(cluster.length / batchSize) * 100 + batchSize * PARTICLE_CONFIG.colorSplash.transformDelay;
-            setTimeout(() => {
-                // Find all matches in the transformed cluster
-                const allMatches = new Set();
-                cluster.forEach(bubble => {
-                    if (!allMatches.has(bubble)) {
-                        const matches = this.findConnectedBubbles(bubble, gameState);
-                        if (matches.length >= 3) {
-                            matches.forEach(m => allMatches.add(m));
+            
+            if (PARTICLE_CONFIG.colorSplash.checkForMatches) {
+                setTimeout(() => {
+                    // Find all matches in the transformed cluster
+                    const allMatches = new Set();
+                    cluster.forEach(bubble => {
+                        if (!allMatches.has(bubble)) {
+                            const matches = this.findConnectedBubbles(bubble, gameState);
+                            if (matches.length >= 3) {
+                                matches.forEach(m => allMatches.add(m));
+                            }
                         }
-                    }
-                });
-                
-                if (allMatches.size > 0) {
-                    // Emit event to handle matched bubbles
-                    gameManager.eventBus.emit('colorSplashDestroy', {
-                        bubbles: Array.from(allMatches),
-                        points: allMatches.size * 20
                     });
-                } else {
-                    // No matches, just check for floating bubbles
-                    setTimeout(() => {
-                        gameManager.eventBus.emit('checkFloatingBubbles');
-                    }, 500);
-                }
-            }, totalTransformTime + 200);
+                    
+                    if (allMatches.size > 0) {
+                        // Emit event to handle matched bubbles
+                        gameManager.eventBus.emit('colorSplashDestroy', {
+                            bubbles: Array.from(allMatches),
+                            points: allMatches.size * 20
+                        });
+                    } else {
+                        // No matches, just check for floating bubbles
+                        setTimeout(() => {
+                            gameManager.eventBus.emit('checkFloatingBubbles');
+                        }, 500);
+                    }
+                }, totalTransformTime + 200);
+            } else {
+                // When match checking is disabled, just check for floating bubbles after transformation
+                setTimeout(() => {
+                    gameManager.eventBus.emit('checkFloatingBubbles');
+                }, totalTransformTime + 700);
+            }
         }, 800);
         
         // Remove the power-up bubble itself
         setTimeout(() => {
-            if (targetBubble && typeof targetBubble.gridX !== 'undefined' && typeof targetBubble.gridY !== 'undefined') {
-                gameState.removeBubbleAt(targetBubble.gridX, targetBubble.gridY);
-                targetBubble.destroy();
+            if (powerUpBubble && !powerUpBubble.isDestroyed) {
+                // Use GameLogic's unified destruction method
+                if (gameManager.gameLogic) {
+                    gameManager.gameLogic.destroyBubbleImmediately(powerUpBubble);
+                } else {
+                    // Fallback
+                    gameState.removeBubbleAt(powerUpBubble.gridX, powerUpBubble.gridY);
+                    powerUpBubble.destroy();
+                }
             }
         }, 100);
         
@@ -176,48 +206,104 @@ export class ColorSplashPowerUp extends PowerUp {
     }
     
     createSplashEffect(centerBubble, cluster, targetColor, gameState, gameManager) {
-        // Create expanding ring effect from center
-        const ringGeometry = new THREE.TorusGeometry(0.1, 0.05, 8, 32);
-        const ringMaterial = new THREE.MeshStandardMaterial({
-            color: targetColor,
-            transparent: true,
-            opacity: 1,
-            emissive: targetColor,
-            emissiveIntensity: 2
-        });
-        
-        const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-        ring.position.copy(centerBubble.position);
-        ring.position.z = 1;
-        if (gameManager.scene) gameManager.scene.add(ring);
-        
-        // Animate expanding ring - OPTIMIZED
-        const ringAnimation = {
-            scale: 1,
-            opacity: 1,
-            update: function(deltaTime) {
-                this.scale += 30 * deltaTime; // 30 units per second
-                this.opacity -= 1.2 * deltaTime; // Fade in ~0.8 seconds
-                ring.scale.set(this.scale, this.scale, 1);
-                ringMaterial.opacity = Math.max(0, this.opacity);
+        // Create multiple expanding rings for a more magical effect
+        const numRings = 3;
+        for (let i = 0; i < numRings; i++) {
+            setTimeout(() => {
+                // Use a flat ring geometry for better transparency
+                const innerRadius = 0.3 + i * 0.1;
+                const outerRadius = innerRadius + 0.4;
+                const ringGeometry = new THREE.RingGeometry(innerRadius, outerRadius, 64, 1);
                 
-                if (this.opacity <= 0) {
-                    if (gameManager.scene) gameManager.scene.remove(ring);
-                    ringGeometry.dispose();
-                    ringMaterial.dispose();
-                    return false; // Remove from animations
-                }
-                return true; // Keep animating
-            }
-        };
-        gameState.addAnimation(ringAnimation);
+                // Use MeshBasicMaterial with additive blending for magical glow effect
+                const ringMaterial = new THREE.MeshBasicMaterial({
+                    color: targetColor,
+                    transparent: true,
+                    opacity: 0.6,
+                    side: THREE.DoubleSide,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false // Prevent z-fighting and ensure transparency
+                });
+                
+                const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+                ring.position.copy(centerBubble.position);
+                ring.position.z = 1 + i * 0.1; // Slight z-offset for each ring
+                
+                // Add slight random rotation for variety
+                ring.rotation.z = Math.random() * Math.PI;
+                
+                if (gameManager.scene) gameManager.scene.add(ring);
+                
+                // Create inner glow ring for enhanced effect
+                const glowGeometry = new THREE.RingGeometry(innerRadius * 0.8, outerRadius * 1.2, 64, 1);
+                const glowMaterial = new THREE.MeshBasicMaterial({
+                    color: targetColor,
+                    transparent: true,
+                    opacity: 0.3,
+                    side: THREE.DoubleSide,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+                
+                const glowRing = new THREE.Mesh(glowGeometry, glowMaterial);
+                glowRing.position.copy(ring.position);
+                glowRing.position.z -= 0.05;
+                if (gameManager.scene) gameManager.scene.add(glowRing);
+                
+                // Animate expanding rings with shimmer effect
+                const ringAnimation = {
+                    scale: 1,
+                    opacity: 0.6,
+                    rotation: 0,
+                    time: 0,
+                    update: function(deltaTime) {
+                        this.time += deltaTime;
+                        this.scale += 25 * deltaTime; // Expand at 25 units per second
+                        this.opacity -= 0.8 * deltaTime; // Fade out over ~0.75 seconds
+                        this.rotation += deltaTime * 0.5; // Gentle rotation
+                        
+                        // Apply transformations
+                        ring.scale.set(this.scale, this.scale, 1);
+                        glowRing.scale.set(this.scale * 1.1, this.scale * 1.1, 1);
+                        ring.rotation.z += deltaTime * 0.3;
+                        glowRing.rotation.z -= deltaTime * 0.2;
+                        
+                        // Shimmer effect - oscillate opacity slightly
+                        const shimmer = Math.sin(this.time * 10) * 0.1;
+                        ringMaterial.opacity = Math.max(0, this.opacity + shimmer);
+                        glowMaterial.opacity = Math.max(0, this.opacity * 0.5);
+                        
+                        // Pulse the color intensity
+                        const pulse = 0.5 + Math.sin(this.time * 8) * 0.5;
+                        const r = ((targetColor >> 16) & 255) / 255;
+                        const g = ((targetColor >> 8) & 255) / 255;
+                        const b = (targetColor & 255) / 255;
+                        ringMaterial.color.setRGB(r * (1 + pulse * 0.3), g * (1 + pulse * 0.3), b * (1 + pulse * 0.3));
+                        
+                        if (this.opacity <= 0) {
+                            if (gameManager.scene) {
+                                gameManager.scene.remove(ring);
+                                gameManager.scene.remove(glowRing);
+                            }
+                            ringGeometry.dispose();
+                            ringMaterial.dispose();
+                            glowGeometry.dispose();
+                            glowMaterial.dispose();
+                            return false; // Remove from animations
+                        }
+                        return true; // Keep animating
+                    }
+                };
+                gameState.addAnimation(ringAnimation);
+            }, i * 150); // Stagger each ring by 150ms
+        }
         
-        // Create color wave particles - OPTIMIZED
+        // Create color wave particles - Use dedicated color pool
         ParticleFactory.createColorWave(
             centerBubble.position,
             targetColor,
             PARTICLE_CONFIG.colorSplash.waveParticles,
-            gameState.particlePool
+            this.colorParticlePool  // Use dedicated pool for proper color support
         );
         
         // Add screen flash effect
@@ -258,34 +344,52 @@ export class ColorSplashPowerUp extends PowerUp {
     }
     
     createSpiralEffect(bubble, targetColor, gameState) {
-        // Create spiral particles around bubble - OPTIMIZED
+        // Create spiral particles around bubble - Use dedicated color pool
         ParticleFactory.createColorSpiral(
             bubble.position,
             targetColor,
             PARTICLE_CONFIG.colorSplash.spiralParticles,
-            gameState.particlePool
+            this.colorParticlePool  // Use dedicated pool for proper color support
         );
     }
     
     transformBubbleColor(bubble, newColor, gameState, gameManager) {
+        // Skip if bubble is destroyed
+        if (!bubble || bubble.isDestroyed) return;
+        
         // Store old color for transition effect
         const oldColor = bubble.color;
         
-        // Create transformation particles - OPTIMIZED
+        // Create transformation particles - Use dedicated color pool
         ParticleFactory.createColorTransform(
             bubble.position,
             oldColor,
             newColor,
             PARTICLE_CONFIG.colorSplash.transformParticles,
-            gameState.particlePool
+            this.colorParticlePool  // Use dedicated pool for proper color support
         );
         
-        // Update bubble color
+        // Update bubble color property
         bubble.color = newColor;
-        bubble.material.color.set(newColor);
-        bubble.material.emissive.set(newColor);
-        if (bubble.glowMesh) {
-            bubble.glowMesh.material.color.set(newColor);
+        
+        // Update visual representation based on rendering type
+        if (bubble.useInstancedRendering) {
+            // For instanced bubbles, update through the instance manager
+            if (gameManager.bubbleInstances) {
+                const success = gameManager.bubbleInstances.updateBubbleColor(bubble, newColor);
+                if (!success) {
+                    console.warn('Failed to update bubble color for instanced bubble:', bubble.id);
+                }
+            }
+        } else {
+            // For regular bubbles, update material directly
+            if (bubble.material) {
+                bubble.material.color.set(newColor);
+                bubble.material.emissive.set(newColor);
+            }
+            if (bubble.glowMesh && bubble.glowMesh.material) {
+                bubble.glowMesh.material.color.set(newColor);
+            }
         }
         
         // Add transformation pulse
@@ -298,7 +402,15 @@ export class ColorSplashPowerUp extends PowerUp {
         
         setTimeout(() => {
             if (gameManager.scene) gameManager.scene.remove(flash);
+            flash.dispose();
         }, 200);
+    }
+    
+    update(deltaTime) {
+        // Update the dedicated color particle pool
+        if (this.colorParticlePool) {
+            this.colorParticlePool.update(deltaTime);
+        }
     }
     
     createVisualEffect(bubble) {

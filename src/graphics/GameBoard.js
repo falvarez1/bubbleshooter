@@ -54,7 +54,7 @@ export class GameBoard {
         const canvas = document.createElement('canvas');
         canvas.width = 512;
         canvas.height = 512;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         
         // Create multiple gradients for nebula effect
         const gradient1 = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
@@ -153,19 +153,24 @@ export class GameBoard {
             side: THREE.DoubleSide
         });
         
+        // Use CONFIG.WALL_LIMIT for consistent wall positioning
+        const wallPosition = CONFIG.WALL_LIMIT + 0.25; // Add wall thickness
+        
         const leftWall = new THREE.Mesh(wallGeometry, wallMaterial);
-        leftWall.position.set(-6, 0, -1);
+        leftWall.position.set(-wallPosition, 0, -1);
         leftWall.rotation.y = Math.PI / 2;
         this.scene.add(leftWall);
         
         const rightWall = new THREE.Mesh(wallGeometry, wallMaterial);
-        rightWall.position.set(6, 0, -1);
+        rightWall.position.set(wallPosition, 0, -1);
         rightWall.rotation.y = Math.PI / 2;
         this.scene.add(rightWall);
     }
     
     createCeiling() {
-        const ceilingGeometry = new THREE.PlaneGeometry(12, 0.5);
+        // Ceiling width should match the wall separation
+        const ceilingWidth = (CONFIG.WALL_LIMIT + 0.25) * 2;
+        const ceilingGeometry = new THREE.PlaneGeometry(ceilingWidth, 0.5);
         const ceilingMaterial = new THREE.MeshPhysicalMaterial({
             color: 0x001133,
             metalness: 0.8,
@@ -368,7 +373,7 @@ class StarfieldLayer {
         const canvas = document.createElement('canvas');
         canvas.width = 32;
         canvas.height = 32;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         
         // Create gradient
         const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);

@@ -60,47 +60,6 @@ body {
     font-size: clamp(18px, 3vw, 24px);
 }
 
-.ui-container {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    right: 20px;
-    pointer-events: none;
-    z-index: 100;
-}
-
-.ui-panel {
-    background: rgba(0, 20, 40, 0.7);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(0, 255, 255, 0.3);
-    border-radius: 20px;
-    padding: 20px;
-    box-shadow: 0 8px 32px rgba(0, 255, 255, 0.2),
-                inset 0 1px 0 rgba(255, 255, 255, 0.1);
-    pointer-events: auto;
-}
-
-.score-display {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-}
-
-.score-label {
-    font-size: 14px;
-    color: #00ffff;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
-}
-
-.score-value {
-    font-size: 28px;
-    font-weight: 900;
-    color: #fff;
-    text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
-}
 
 .combo-display {
     position: absolute;

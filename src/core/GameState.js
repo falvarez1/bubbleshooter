@@ -20,6 +20,14 @@ export class GameState {
         this.isGameOver = false;
         this.isPaused = false;
         
+        // Progressive game mechanics
+        this.dangerZone = {
+            active: false,
+            level: 0,
+            timeSlowFactor: 1.0,
+            warningAnimationTime: 0
+        };
+        
         // Bubble management
         this.currentBubble = null;
         this.nextBubbleColor = null;
@@ -91,6 +99,10 @@ export class GameState {
         
         this.comboTimer = setTimeout(() => {
             this.combo = 0;
+            // Emit combo end event for progressive timer system
+            if (window.game && window.game.gameManager) {
+                window.game.gameManager.eventBus.emit('comboEnd');
+            }
         }, CONFIG.COMBO_TIMEOUT);
         
         return this.combo + 1; // Return display combo (1-based)
@@ -107,10 +119,8 @@ export class GameState {
     // Grid management
     getBubbleAt(x, y) {
         if (y >= 0 && y < CONFIG.GRID_HEIGHT) {
-            const isOddRow = y % 2 === 1;
-            const maxX = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
-            
-            if (x >= 0 && x < maxX) {
+            // All rows now have the same width
+            if (x >= 0 && x < CONFIG.GRID_WIDTH) {
                 return this.bubbleGrid[y][x];
             }
         }
@@ -119,10 +129,8 @@ export class GameState {
     
     setBubbleAt(x, y, bubble) {
         if (y >= 0 && y < CONFIG.GRID_HEIGHT) {
-            const isOddRow = y % 2 === 1;
-            const maxX = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
-            
-            if (x >= 0 && x < maxX) {
+            // All rows now have the same width
+            if (x >= 0 && x < CONFIG.GRID_WIDTH) {
                 this.bubbleGrid[y][x] = bubble;
                 if (bubble) {
                     bubble.gridX = x;
@@ -147,12 +155,11 @@ export class GameState {
     getAllBubbles() {
         const bubbles = [];
         for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
-            const isOddRow = y % 2 === 1;
-            const bubblesInRow = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
-            
-            for (let x = 0; x < bubblesInRow; x++) {
+            // All rows now have the same width
+            for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
                 const bubble = this.bubbleGrid[y][x];
-                if (bubble) {
+                // Only include non-destroyed bubbles
+                if (bubble && !bubble.isDestroyed) {
                     bubbles.push(bubble);
                 }
             }
@@ -164,12 +171,11 @@ export class GameState {
     countBubbles(filterFn = null) {
         let count = 0;
         for (let y = 0; y < CONFIG.GRID_HEIGHT; y++) {
-            const isOddRow = y % 2 === 1;
-            const bubblesInRow = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
-            
-            for (let x = 0; x < bubblesInRow; x++) {
+            // All rows now have the same width
+            for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
                 const bubble = this.bubbleGrid[y][x];
-                if (bubble && (!filterFn || filterFn(bubble))) {
+                // Only count non-destroyed bubbles
+                if (bubble && !bubble.isDestroyed && (!filterFn || filterFn(bubble))) {
                     count++;
                 }
             }
@@ -180,29 +186,35 @@ export class GameState {
     // Check if position is valid grid position
     isValidGridPosition(x, y) {
         if (y < 0 || y >= CONFIG.GRID_HEIGHT) return false;
-        
-        const isOddRow = y % 2 === 1;
-        const maxX = isOddRow ? CONFIG.GRID_WIDTH - 1 : CONFIG.GRID_WIDTH;
-        
-        return x >= 0 && x < maxX;
+        // All rows now have the same width
+        return x >= 0 && x < CONFIG.GRID_WIDTH;
     }
     
     // Shift all rows down (for adding new rows)
     shiftRowsDown() {
-        // Start from bottom and move up
-        for (let y = CONFIG.GRID_HEIGHT - 1; y > 0; y--) {
+        // Much simpler now that all rows have the same width!
+        // Create a new grid to avoid reference issues
+        const newGrid = Array(CONFIG.GRID_HEIGHT).fill(null).map(() => Array(CONFIG.GRID_WIDTH).fill(null));
+        
+        // Copy bubbles to their new positions (one row down)
+        for (let y = 0; y < CONFIG.GRID_HEIGHT - 1; y++) {
             for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
-                this.bubbleGrid[y][x] = this.bubbleGrid[y - 1][x];
-                if (this.bubbleGrid[y][x]) {
-                    this.bubbleGrid[y][x].gridY = y;
+                const bubble = this.bubbleGrid[y][x];
+                if (bubble) {
+                    // Place bubble in new position (one row down)
+                    newGrid[y + 1][x] = bubble;
+                    // Update bubble's grid coordinates
+                    bubble.gridX = x;
+                    bubble.gridY = y + 1;
                 }
             }
         }
         
-        // Clear top row
-        for (let x = 0; x < CONFIG.GRID_WIDTH; x++) {
-            this.bubbleGrid[0][x] = null;
-        }
+        // Top row stays empty (will be filled with new bubbles)
+        // Already null from initialization
+        
+        // Replace the old grid with the new one
+        this.bubbleGrid = newGrid;
     }
     
     // Animation management
@@ -211,6 +223,9 @@ export class GameState {
     }
     
     updateAnimations(deltaTime) {
+        // Skip if no animations
+        if (this.animations.length === 0) return;
+        
         this.animations = this.animations.filter(animation => {
             return animation.update(deltaTime);
         });
@@ -227,10 +242,12 @@ export class GameState {
             this.particlePool.update(deltaTime);
         }
         
-        // Update legacy particles
-        this.particles = this.particles.filter(particle => {
-            return particle.update(deltaTime);
-        });
+        // Update legacy particles only if there are any
+        if (this.particles.length > 0) {
+            this.particles = this.particles.filter(particle => {
+                return particle.update(deltaTime);
+            });
+        }
     }
     
     // Power-up state management

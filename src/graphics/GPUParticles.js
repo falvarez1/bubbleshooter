@@ -229,7 +229,7 @@ export class GPUParticleSystem {
         });
         
         this.particlesMesh = new THREE.Points(geometry, material);
-        this.scene.add(this.particlesMesh);
+        // Don't add to scene here - will be added via addToScene() method
     }
     
     createDataTexture(width, height) {
@@ -290,7 +290,7 @@ export class GPUParticleSystem {
         const canvas = document.createElement('canvas');
         canvas.width = size;
         canvas.height = size;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         
         // Create sparkle pattern
         const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
@@ -532,12 +532,14 @@ export class GPUParticleSystem {
     
     // Add scene management methods for compatibility
     addToScene(scene) {
-        if (!this.particlesMesh.parent) {
+        if (this.particlesMesh && !this.particlesMesh.parent) {
             scene.add(this.particlesMesh);
         }
     }
     
     removeFromScene(scene) {
-        scene.remove(this.particlesMesh);
+        if (this.particlesMesh && this.particlesMesh.parent) {
+            scene.remove(this.particlesMesh);
+        }
     }
 }

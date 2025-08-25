@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pause System Test</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #1a1a2e;
+            color: white;
+            padding: 20px;
+        }
+        
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #00ffcc;
+        }
+        
+        .instructions {
+            background: rgba(0,0,0,0.5);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .key {
+            display: inline-block;
+            background: #00ffcc;
+            color: black;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            margin: 0 5px;
+        }
+        
+        .test-animation {
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(45deg, #ff00ff, #00ffff);
+            margin: 20px 0;
+            animation: rotate 2s linear infinite;
+            border-radius: 10px;
+        }
+        
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .test-transition {
+            width: 200px;
+            height: 50px;
+            background: #00ff88;
+            margin: 20px 0;
+            transition: transform 0.3s ease;
+            border-radius: 5px;
+            text-align: center;
+            line-height: 50px;
+            cursor: pointer;
+        }
+        
+        .test-transition:hover {
+            transform: translateX(50px);
+        }
+        
+        .timer {
+            font-size: 24px;
+            margin: 20px 0;
+        }
+        
+        .status {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Pause System Test</h1>
+        
+        <div class="instructions">
+            <h2>Instructions:</h2>
+            <p>Press <span class="key">P</span> to pause/resume the game</p>
+            <p>When paused:</p>
+            <ul>
+                <li>All animations should freeze</li>
+                <li>Timer should stop counting</li>
+                <li>"PAUSED" indicator should appear in top-left</li>
+                <li>Scene should remain visible for debugging</li>
+                <li>Browser DevTools inspection should work</li>
+            </ul>
+        </div>
+        
+        <div class="status">
+            <h3>Test Elements:</h3>
+            
+            <div class="test-animation"></div>
+            <p>↑ This box should stop rotating when paused</p>
+            
+            <div class="test-transition">Hover Me</div>
+            <p>↑ This transition should freeze mid-animation if paused while hovering</p>
+            
+            <div class="timer">Timer: <span id="timer-value">0</span> seconds</div>
+            <p>↑ This timer should stop counting when paused</p>
+        </div>
+        
+        <div class="status">
+            <h3>Status:</h3>
+            <p>Pause State: <span id="pause-state">Not Initialized</span></p>
+            <p>Total Pause Time: <span id="pause-time">0</span> seconds</p>
+        </div>
+    </div>
+    
+    <script type="module">
+        // Simple event bus for testing
+        class TestEventBus {
+            constructor() {
+                this.events = {};
+            }
+            
+            on(event, callback) {
+                if (!this.events[event]) {
+                    this.events[event] = [];
+                }
+                this.events[event].push(callback);
+            }
+            
+            emit(event, data) {
+                if (this.events[event]) {
+                    this.events[event].forEach(callback => callback(data));
+                }
+            }
+        }
+        
+        // Import and test the pause system
+        import { PauseSystem } from './src/systems/PauseSystem.js';
+        
+        const eventBus = new TestEventBus();
+        const pauseSystem = new PauseSystem(eventBus);
+        
+        // Timer for testing
+        let timerValue = 0;
+        let totalPauseTime = 0;
+        
+        setInterval(() => {
+            if (!pauseSystem.isPausedState()) {
+                timerValue += 0.1;
+                document.getElementById('timer-value').textContent = timerValue.toFixed(1);
+            }
+        }, 100);
+        
+        // Update status display
+        eventBus.on('gamePaused', (data) => {
+            document.getElementById('pause-state').textContent = 'PAUSED';
+            document.getElementById('pause-state').style.color = '#ff0000';
+        });
+        
+        eventBus.on('gameResumed', (data) => {
+            document.getElementById('pause-state').textContent = 'RUNNING';
+            document.getElementById('pause-state').style.color = '#00ff00';
+            totalPauseTime += data.pauseDuration / 1000;
+            document.getElementById('pause-time').textContent = totalPauseTime.toFixed(1);
+        });
+        
+        // Initial state
+        document.getElementById('pause-state').textContent = 'RUNNING';
+        document.getElementById('pause-state').style.color = '#00ff00';
+        
+        console.log('Pause System Test Initialized');
+        console.log('Press P to toggle pause');
+    </script>
+</body>
+</html>

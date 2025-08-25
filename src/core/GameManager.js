@@ -2,6 +2,7 @@ import { EventBus } from './EventBus.js';
 import { SoundManager } from '../systems/SoundManager.js';
 import { PowerUpSystem } from '../powerups/PowerUpSystem.js';
 import { VisualTextDisplay } from '../ui/VisualTextDisplay.js';
+import { SimpleShockwaveEffect } from '../graphics/SimpleShockwave.js';
 
 /**
  * Game Manager
@@ -14,6 +15,7 @@ export class GameManager {
         this.powerUpSystem = null; // Initialized after sound manager
         this.visualTextDisplay = null; // Initialized with camera
         this.screenShake = { intensity: 0, duration: 0 };
+        this.shockwaveEffect = null; // Initialized with scene
         
         // Initialize sound manager
         this.soundManager.init();
@@ -23,16 +25,26 @@ export class GameManager {
      * Initialize with dependencies
      * @param {THREE.Camera} camera - Three.js camera for visual text display
      * @param {THREE.Scene} scene - Three.js scene for power-up effects
+     * @param {BubbleEffectsSystem} effectsSystem - Independent effects system
+     * @param {THREE.WebGLRenderer} renderer - Three.js renderer for blast wave effects
+     * @param {BubbleInstances} bubbleInstances - Instanced bubble renderer (optional)
      */
-    initialize(camera, scene) {
-        // Store scene reference for power-ups
+    initialize(camera, scene, effectsSystem, renderer, bubbleInstances = null) {
+        // Store references for power-ups and effects
         this.scene = scene;
+        this.effectsSystem = effectsSystem;
+        this.camera = camera;
+        this.renderer = renderer;
+        this.bubbleInstances = bubbleInstances;
         
-        // Initialize visual text display
-        this.visualTextDisplay = new VisualTextDisplay(camera);
+        // Initialize visual text display with eventBus for notification management
+        this.visualTextDisplay = new VisualTextDisplay(camera, this.eventBus);
         
         // Initialize power-up system
         this.powerUpSystem = new PowerUpSystem(this.eventBus, this.soundManager);
+        
+        // Initialize enhanced shockwave effect
+        this.shockwaveEffect = new SimpleShockwaveEffect(scene, renderer, camera);
         
         // Set up event listeners
         this.setupEventListeners();
@@ -41,26 +53,34 @@ export class GameManager {
     setupEventListeners() {
         // Rainbow activation handler
         this.eventBus.on('rainbowActivated', (data) => {
-            console.log('Rainbow power-up activated at', data.position);
+            // Rainbow power-up activated
             this.visualTextDisplay.showPowerUpText('rainbow', data.position);
             this.soundManager.play('rainbowActivate');
         });
         
         // Bomb explosion handler
         this.eventBus.on('bombExploded', (data) => {
-            console.log('Bomb exploded at', data.position, 'with radius', data.radius);
+            // Bomb exploded
             this.visualTextDisplay.showPowerUpText('bomb', data.position);
             this.soundManager.play('bombExplode');
+            
+            // Trigger enhanced shockwave effect
+            if (this.shockwaveEffect) {
+                this.shockwaveEffect.trigger(data.position, {
+                    duration: 1.0,   // 2 second expansion for more dramatic effect
+                    maxRadius: 12.0  // Very large blast radius
+                });
+            }
         });
         
         // Score update handler
         this.eventBus.on('scoreUpdated', (data) => {
-            console.log('Score updated:', data.score);
+            // Score updated
         });
         
         // Combo handler
         this.eventBus.on('comboAchieved', (data) => {
-            console.log('Combo achieved:', data.comboSize);
+            // Combo achieved
             this.soundManager.playCombo(data.comboSize);
             if (data.comboSize >= 3) {
                 this.visualTextDisplay.showEffectText('combo', data.comboSize);
@@ -69,14 +89,14 @@ export class GameManager {
         
         // Chain Lightning activation handler
         this.eventBus.on('chainLightningActivated', (data) => {
-            console.log('Chain Lightning power-up activated at', data.position);
+            // Chain Lightning power-up activated
             this.visualTextDisplay.showPowerUpText('chainLightning', data.position);
             this.soundManager.play('lightningStrike');
         });
         
         // Precision aim activation handler
         this.eventBus.on('precisionAimActivated', (data) => {
-            console.log('Precision aim activated for', data.duration, 'seconds');
+            // Precision aim activated
             this.visualTextDisplay.showPowerUpText('precision');
             this.soundManager.play('precisionActivate');
             this.activatePrecisionAim(data.duration);
@@ -84,7 +104,7 @@ export class GameManager {
         
         // Color Splash activation handler
         this.eventBus.on('colorSplashActivated', (data) => {
-            console.log('Color Splash power-up activated at', data.position);
+            // Color Splash power-up activated
             this.visualTextDisplay.showPowerUpText('colorSplash', data.position);
             this.soundManager.play('colorSplash');
         });
@@ -100,7 +120,11 @@ export class GameManager {
         // Level complete
         this.eventBus.on('levelComplete', () => {
             this.visualTextDisplay.showEffectText('victory');
-            this.soundManager.play('levelComplete');
+            // Play with celebratory pitch variation
+            this.soundManager.play('levelComplete', {
+                volume: 1.0,
+                rate: 0.95 + Math.random() * 0.1 // Slight pitch variation for variety
+            });
         });
         
         // Game over
@@ -112,6 +136,13 @@ export class GameManager {
         this.eventBus.on('gameStart', () => {
             this.soundManager.play('gameStart');
         });
+        
+        // Handle generic notification requests
+        this.eventBus.on('showNotification', (options) => {
+            if (this.visualTextDisplay && this.visualTextDisplay.notificationManager) {
+                this.visualTextDisplay.notificationManager.show(options);
+            }
+        });
     }
     
     activatePrecisionAim(duration) {
@@ -120,8 +151,19 @@ export class GameManager {
     }
     
     addScreenShake(duration, intensity) {
+        // Check if we're starting a new shake or extending existing one
+        const wasShaking = this.screenShake.duration > 0;
+        
         this.screenShake.duration = Math.max(this.screenShake.duration, duration);
         this.screenShake.intensity = Math.max(this.screenShake.intensity, intensity);
+        
+        // Start playing the screen shake sound if not already shaking
+        if (!wasShaking && this.soundManager) {
+            // Store the audio instance so we can stop it later
+            this.screenShakeAudio = this.soundManager.play('screenShake', {
+                volume: Math.min(1.0, 0.5 + intensity * 0.03) // Scale volume with intensity
+            });
+        }
     }
     
     updateScreenShake(deltaTime, camera) {
@@ -138,6 +180,13 @@ export class GameManager {
                 camera.position.x = 0;
                 camera.position.y = 0;
                 this.screenShake.intensity = 0;
+                
+                // Stop the screen shake sound when shaking ends
+                if (this.screenShakeAudio) {
+                    this.screenShakeAudio.pause();
+                    this.screenShakeAudio.currentTime = 0;
+                    this.screenShakeAudio = null;
+                }
             }
         }
     }
@@ -145,6 +194,16 @@ export class GameManager {
     update(deltaTime, camera) {
         this.powerUpSystem.update(deltaTime);
         this.updateScreenShake(deltaTime, camera);
+        
+        // Update enhanced shockwave effect
+        if (this.shockwaveEffect) {
+            this.shockwaveEffect.update(deltaTime);
+        }
+    }
+    
+    render() {
+        // Simple shockwave doesn't need special rendering - it's just a mesh in the scene
+        return false;
     }
     
     // Helper methods for game logic to use

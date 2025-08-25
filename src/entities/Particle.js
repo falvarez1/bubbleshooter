@@ -6,11 +6,12 @@ import { PARTICLE_CONFIG } from '../core/Config.js';
  * Pre-creates and reuses particle objects to avoid garbage collection
  */
 export class ParticlePool {
-    constructor(size = 200) {
+    constructor(size = 200, postProcessing = null) {
         this.pool = [];
         this.activeParticles = [];
         this.geometryCache = new Map();
         this.materialCache = new Map();
+        this.postProcessing = postProcessing;
         
         // Pre-create particles
         for (let i = 0; i < size; i++) {
@@ -73,7 +74,7 @@ export class ParticlePool {
         };
     }
     
-    spawn(x, y, z, color, size, velocity = null) {
+    spawn(x, y, z, color, size, velocity = null, category = 'collisionParticles') {
         let particle = this.pool.pop();
         
         if (!particle) {
@@ -127,12 +128,27 @@ export class ParticlePool {
         particle.mesh.visible = true;
         particle.active = true;
         
+        // Only register with bloom if not already registered
+        if (particle.category !== category) {
+            // Remove from old category if exists
+            if (particle.category && this.postProcessing && particle.mesh) {
+                this.postProcessing.removeBloomObject(particle.mesh, particle.category);
+            }
+            
+            particle.category = category;
+            
+            // Register with bloom system if available
+            if (this.postProcessing && particle.mesh) {
+                this.postProcessing.addBloomObject(particle.mesh, category);
+            }
+        }
+        
         this.activeParticles.push(particle);
         return particle;
     }
     
     // Power-based spawning method for enhanced effects
-    spawnPower(x, y, z, color, size, velocity = null, power = 0) {
+    spawnPower(x, y, z, color, size, velocity = null, power = 0, category = 'collisionParticles') {
         let particle = this.pool.pop();
         
         if (!particle) {
@@ -207,6 +223,21 @@ export class ParticlePool {
         particle.mesh.visible = true;
         particle.active = true;
         
+        // Only register with bloom if not already registered
+        if (particle.category !== category) {
+            // Remove from old category if exists
+            if (particle.category && this.postProcessing && particle.mesh) {
+                this.postProcessing.removeBloomObject(particle.mesh, particle.category);
+            }
+            
+            particle.category = category;
+            
+            // Register with bloom system if available
+            if (this.postProcessing && particle.mesh) {
+                this.postProcessing.addBloomObject(particle.mesh, category);
+            }
+        }
+        
         this.activeParticles.push(particle);
         return particle;
     }
@@ -260,6 +291,18 @@ export class ParticlePool {
         particle.mesh.visible = false;
         particle.active = false;
         particle.life = 0;
+        
+        // Remove from bloom system if it was registered
+        if (this.postProcessing && particle.mesh && particle.category) {
+            try {
+                this.postProcessing.removeBloomObject(particle.mesh, particle.category);
+            } catch (e) {
+                console.warn('Error removing particle from bloom:', e);
+            }
+        }
+        
+        // Clear the category to prevent double-removal
+        particle.category = null;
     }
     
     clear() {
@@ -340,7 +383,8 @@ export class ParticleFactory {
                 position.z,
                 color,
                 0.2,
-                velocity
+                velocity,
+                'explosionParticles'
             );
             
             if (particle) {
@@ -386,7 +430,9 @@ export class ParticleFactory {
                 position.y,
                 position.z,
                 color,
-                0.15
+                0.15,
+                null,
+                'collisionParticles'
             );
             
             if (particle) {
@@ -414,7 +460,8 @@ export class ParticleFactory {
                 position.z + 0.5,
                 color,
                 0.2,
-                velocity
+                velocity,
+                'powerUpEffects'
             );
             
             if (particle) {
@@ -443,7 +490,8 @@ export class ParticleFactory {
                 position.z,
                 particleColor,
                 0.15,
-                velocity
+                velocity,
+                'powerUpEffects'
             );
             
             if (particle) {
@@ -471,7 +519,8 @@ export class ParticleFactory {
                 position.z + 0.5,
                 color,
                 0.2,
-                velocity
+                velocity,
+                'powerUpEffects'
             );
             
             if (particle) {
@@ -499,7 +548,8 @@ export class ParticleFactory {
                 position.z,
                 color,
                 0.1,
-                velocity
+                velocity,
+                'powerUpEffects'
             );
             
             if (particle) {
@@ -528,7 +578,8 @@ export class ParticleFactory {
                 position.z,
                 particleColor,
                 0.15,
-                velocity
+                velocity,
+                'powerUpEffects'
             );
             
             if (particle) {

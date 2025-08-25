@@ -7,10 +7,39 @@ export const CONFIG = {
     // Bubble settings
     BUBBLE_RADIUS: 0.5,
     GRID_WIDTH: 11,
-    GRID_HEIGHT: 14,
+    GRID_HEIGHT: 18,
     HEX_WIDTH: 1.0, // Bubble diameter
     HEX_HEIGHT: 0.866, // sqrt(3)/2 * diameter for hexagonal packing
     
+    // Sound
+    SOUND_ENABLED: true,
+    SOUND_VOLUME: 0.5,
+    SOUND_MUTE: false,
+
+    // Music
+    MUSIC_VOLUME: 0.5,
+    MUSIC_ENABLED: false,
+
+    // Bloom Post-Processing
+    BLOOM: {
+        ENABLED: true,
+        STRENGTH: 1.0,  // Reduced for more controlled bloom
+        RADIUS: 1.0,    // Increased for smoother falloff
+        THRESHOLD: 0.15, // Lower threshold for better blue response
+        // Selective bloom categories - more specific
+        CATEGORIES: {
+            trajectoryLine: true,        // The main trajectory line
+            trajectoryGlow: true,        // Extra glow layer on trajectory
+            impactIndicator: true,       // Target indicator at trajectory end
+            impactRing: true,           // Ring at impact point
+            collisionParticles: false,  // Particles from bubble collisions
+            explosionParticles: true,   // Particles from explosions
+            powerUpEffects: true,       // Power-up visual effects
+            wallImpact: false,          // Wall bounce particles
+            shootingParticles: false    // Shooting effect particles
+        }
+    },
+
     // Physics
     SHOOTING_SPEED: 30,        // Increased from 20 to 30
     MAX_SHOOTING_SPEED: 75,    // Increased from 30 to 45
@@ -19,7 +48,7 @@ export const CONFIG = {
     // Colors
     BUBBLE_COLORS: [
         0xFF0000, // Pure Red - vibrant and distinct
-        0x0080FF, // Sky Blue - clear contrast from red
+        0x0000ff, // Deep Blue - clear contrast from red
         0xFFD700, // Gold/Yellow - bright and distinguishable
         0x00FF00, // Bright Green - pure green, very distinct
         0xFF1493, // Deep Pink - different from red
@@ -35,8 +64,12 @@ export const CONFIG = {
     
     // Position Configuration
     SHOOTER_Y: -8,    // Y position of shooting bubble (was -6)
-    GRID_TOP_Y: 6,    // Top position of bubble grid
-    CEILING_Y: 7,     // Ceiling position for collision
+    GRID_TOP_Y: 7.732,    // Top position of bubble grid (moved up by 2 * HEX_HEIGHT = 1.732)
+    CEILING_Y: 8.732,     // Ceiling position for collision
+    
+    // Wall boundaries - calculated from grid width
+    // Wall position = (GRID_WIDTH * HEX_WIDTH) / 2 + small margin
+    WALL_LIMIT: 6.0,  // Was 5.5, now 6.0 for 11 bubbles
     
     // Impact Physics Configuration
     IMPACT_PHYSICS: {
@@ -56,7 +89,7 @@ export const CONFIG = {
         PROPAGATION_MULTIPLIER: 0.6, // Force reduction for propagation
         
         // Propagation settings
-        MAX_DEPTH: 2,                // Maximum propagation depth (1-4)
+        MAX_DEPTH: 3,                // Maximum propagation depth (1-4)
         MIN_FORCE: 0.02,             // Minimum force to continue propagation
         PROPAGATION_DELAY: 20,       // Delay between propagation levels (ms)
         ANGLE_FACTOR: 0.3,           // Minimum angle factor (0-1)
@@ -69,7 +102,7 @@ export const CONFIG = {
     // Trajectory Visual Configuration
     TRAJECTORY: {
         // Style selection
-        USE_ANIMATED_STYLE: false,     // true = flowing laser, false = static dots
+        USE_ANIMATED_STYLE: true,     // true = flowing laser, false = static dots
         
         // Dot count
         NORMAL_DOT_COUNT: 10,         // Number of dots in normal mode
@@ -113,7 +146,49 @@ export const CONFIG = {
             BEAM_RADIUS: 0.12,        // Beam thickness (0.02-0.15)
             GLOW_RADIUS: 0.22,        // Glow thickness (0.05-0.25)
             OPACITY: 1.0,             // Overall opacity (0.1-1.0)
-            INTENSITY: 3.5            // Overall brightness (0.5-3.0)
+            INTENSITY: 3.5,           // Overall brightness (0.5-3.0)
+            
+            // Power-responsive settings
+            POWER_SCALING: {
+                THICKNESS_MULTIPLIER: 1.6,    // Max thickness multiplier at full power
+                INTENSITY_MULTIPLIER: 2.0,    // Max intensity multiplier at full power
+                FLOW_SPEED_MULTIPLIER: 3.0,   // Max flow speed multiplier at full power
+                PARALLEL_BEAMS_THRESHOLD: 0.8, // Power level to show multiple beams
+                MAX_PARALLEL_BEAMS: 3,        // Maximum number of parallel beams
+                POWER_SURGE_THRESHOLD: 0.9,   // Power level to trigger surge effects
+                SURGE_INTENSITY: 5.0,         // Intensity multiplier for power surge
+                CRACKLING_FREQUENCY: 15.0,    // Frequency of crackling effects
+                CRACKLING_AMPLITUDE: 1.5      // Amplitude of crackling effects
+            },
+            
+            // Bounce effects
+            BOUNCE_EFFECTS: {
+                FLASH_INTENSITY: 8.0,         // Brightness of bounce flash
+                FLASH_DURATION: 0.3,          // Duration of bounce flash (seconds)
+                FLASH_RADIUS: 0.4,            // Size of bounce flash effect
+                DISPERSION_PARTICLES: 12,     // Number of dispersion particles
+                REFRACTION_ANGLE: 0.2,        // Visual refraction angle at bounce
+                CONFIDENCE_FADE: 0.7          // Opacity reduction after each bounce
+            },
+            
+            // Color coding
+            COLOR_CODING: {
+                OPTIMAL_SHOT_HUE: 120,        // Green hue for optimal shots (0-360)
+                RISKY_SHOT_HUE: 0,            // Red hue for risky shots (0-360)
+                RISK_THRESHOLD: 0.3,          // Risk assessment threshold
+                COLOR_TRANSITION_SPEED: 2.0,  // Speed of color transitions
+                SATURATION_BOOST: 0.3,        // Saturation increase for color coding
+                RAINBOW_CYCLE_SPEED: 2.0      // Speed of rainbow cycling for rainbow bubbles
+            },
+            
+            // Collision prediction
+            PREDICTION: {
+                ATTACHMENT_GLOW_SIZE: 0.3,    // Size of attachment point glow
+                ATTACHMENT_GLOW_INTENSITY: 4.0, // Intensity of attachment glow
+                MATCH_GROUP_HIGHLIGHT: 0.5,   // Opacity of match group highlighting
+                CASCADE_TRAIL_OPACITY: 0.4,   // Opacity of cascade prediction trails
+                PREDICTION_CONFIDENCE: 0.8    // Confidence threshold for predictions
+            }
         },
         
         // Static style settings
@@ -142,7 +217,8 @@ export const PARTICLE_CONFIG = {
         maxClusterSize: 15,     // Max bubbles affected
         spiralEveryNth: 2,      // Create spiral every N bubbles
         transformDelay: 80,     // Delay between transforms
-        batchSize: 5            // Transform batch size
+        batchSize: 5,           // Transform batch size
+        checkForMatches: false  // Enable/disable automatic match checking after transformation
     },
     
     // Regular bubble pop
@@ -220,9 +296,9 @@ export const PARTICLE_CONFIG = {
         },
         
         // Material properties
-        opacity: 0.9,               // Base spark opacity
+        opacity: 0.5,               // Base spark opacity
         blending: 'additive',       // Blending mode for bright sparks
-        depthWrite: false,          // Allow overlapping sparks
+        depthWrite: true,          // Allow overlapping sparks
         
         // Animation properties
         decay: 0.04,                // How fast sparks fade

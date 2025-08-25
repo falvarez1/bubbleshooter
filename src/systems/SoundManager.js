@@ -1,3 +1,5 @@
+import { CONFIG } from '../core/Config.js';
+
 /**
  * Sound Manager
  * Advanced sound system for managing all game sound effects
@@ -5,11 +7,19 @@
 export class SoundManager {
     constructor() {
         this.sounds = new Map();
-        this.enabled = true;
-        this.volume = 0.7;
+        
+        // Separate enable/disable for music and effects
+        this.musicEnabled = CONFIG.MUSIC_ENABLED !== undefined ? CONFIG.MUSIC_ENABLED : true;
+        this.effectsEnabled = CONFIG.SOUND_ENABLED !== undefined ? CONFIG.SOUND_ENABLED : true;
+        
+        // Master volumes for music and effects
+        this.musicVolume = CONFIG.MUSIC_VOLUME !== undefined ? CONFIG.MUSIC_VOLUME : 0.5;
+        this.effectsVolume = CONFIG.SOUND_VOLUME !== undefined ? CONFIG.SOUND_VOLUME : 0.5;
+        
+        // Category volume multipliers (relative to master volumes)
         this.soundCategories = {
             effects: 1.0,
-            music: 0.8,
+            music: 1.0,
             ui: 0.9
         };
         
@@ -25,8 +35,9 @@ export class SoundManager {
             
             // Power-Up Sounds
             rainbowActivate: { category: 'effects', volume: 1.0, file: 'sounds/rainbow-activate.wav' },
-            bombExplode: { category: 'effects', volume: 1.0, file: 'sounds/bomb-explode.mp3' },
+            bombExplode: { category: 'effects', volume: 0.3, file: 'sounds/bomb-explode.mp3' },
             lightningStrike: { category: 'effects', volume: 1.0, file: 'sounds/lightning-strike.wav' },
+            chainLightningThrow: { category: 'effects', volume: 0.9, file: 'sounds/chain-lightning-throw.m4a' },
             precisionActivate: { category: 'effects', volume: 0.8, file: 'sounds/precision-activate.wav' },
             precisionTick: { category: 'effects', volume: 0.5, file: 'sounds/precision-tick.wav' },
             colorSplash: { category: 'effects', volume: 0.9, file: 'sounds/color-splash.wav' },
@@ -52,6 +63,7 @@ export class SoundManager {
             levelComplete: { category: 'ui', volume: 1.0, file: 'sounds/level-complete.wav' },
             gameOver: { category: 'ui', volume: 0.9, file: 'sounds/game-over.wav' },
             warning: { category: 'ui', volume: 0.8, file: 'sounds/warning.wav' },
+            rowsDescending: { category: 'effects', volume: 0.7, file: 'sounds/rows-descending.m4a' },
             pause: { category: 'ui', volume: 0.6, file: 'sounds/pause.wav' },
             resume: { category: 'ui', volume: 0.6, file: 'sounds/resume.wav' },
             
@@ -88,6 +100,7 @@ export class SoundManager {
     }
     
     async loadSound(soundName) {
+
         // Skip if already loading, loaded, or failed
         if (this.loadingSounds.has(soundName) || this.loadedSounds.has(soundName) || this.failedSounds.has(soundName)) {
             return;
@@ -105,7 +118,8 @@ export class SoundManager {
         
         try {
             const audio = new Audio(soundDef.file);
-            audio.volume = soundDef.volume * this.soundCategories[soundDef.category] * this.volume;
+            const masterVolume = soundDef.category === 'music' ? this.musicVolume : this.effectsVolume;
+            audio.volume = soundDef.volume * this.soundCategories[soundDef.category] * masterVolume;
             
             await new Promise((resolve, reject) => {
                 const timeout = setTimeout(() => {
@@ -142,19 +156,24 @@ export class SoundManager {
     }
     
     play(soundName, options = {}) {
-        if (!this.enabled) return;
+        const soundData = this.sounds.get(soundName);
         
-        // Skip if this sound previously failed to load
-        if (this.failedSounds.has(soundName)) {
+        // Check if sound exists and is enabled based on category
+        if (!soundData) {
+            // Try to load it if not yet loaded (and not failed)
+            if (!this.failedSounds.has(soundName) && !this.loadingSounds.has(soundName)) {
+                this.loadSound(soundName);
+            }
             return;
         }
         
-        const soundData = this.sounds.get(soundName);
-        if (!soundData) {
-            // Try to load it if not yet loaded (and not failed)
-            if (!this.loadingSounds.has(soundName)) {
-                this.loadSound(soundName);
-            }
+        // Check if this category is enabled
+        const category = soundData.definition.category;
+        if (category === 'music' && !this.musicEnabled) return;
+        if ((category === 'effects' || category === 'ui') && !this.effectsEnabled) return;
+        
+        // Skip if this sound previously failed to load
+        if (this.failedSounds.has(soundName)) {
             return;
         }
         
@@ -173,9 +192,10 @@ export class SoundManager {
             soundData.pool.push(audio);
         }
         
-        // Apply volume settings
-        const categoryVolume = this.soundCategories[soundData.definition.category];
-        const finalVolume = (options.volume || soundData.definition.volume) * categoryVolume * this.volume;
+        // Apply volume settings based on category
+        const categoryMultiplier = this.soundCategories[category];
+        const masterVolume = category === 'music' ? this.musicVolume : this.effectsVolume;
+        const finalVolume = (options.volume || soundData.definition.volume) * categoryMultiplier * masterVolume;
         audio.volume = Math.max(0, Math.min(1, finalVolume));
         
         // Apply playback rate if specified
@@ -218,20 +238,51 @@ export class SoundManager {
         }
     }
     
-    setEnabled(enabled) {
-        this.enabled = enabled;
+    setMusicEnabled(enabled) {
+        this.musicEnabled = enabled;
         if (!enabled) {
-            this.stopAll();
+            this.stopCategory('music');
         }
     }
     
-    setVolume(volume) {
-        this.volume = Math.max(0, Math.min(1, volume));
-        // Update all loaded sounds
+    setEffectsEnabled(enabled) {
+        this.effectsEnabled = enabled;
+        if (!enabled) {
+            this.stopCategory('effects');
+            this.stopCategory('ui');
+        }
+    }
+    
+    setMusicVolume(volume) {
+        this.musicVolume = Math.max(0, Math.min(1, volume));
+        this.updateCategoryVolumes('music');
+    }
+    
+    setEffectsVolume(volume) {
+        this.effectsVolume = Math.max(0, Math.min(1, volume));
+        this.updateCategoryVolumes('effects');
+        this.updateCategoryVolumes('ui');
+    }
+    
+    updateCategoryVolumes(category) {
+        const masterVolume = category === 'music' ? this.musicVolume : this.effectsVolume;
         for (const [soundName, soundData] of this.sounds) {
-            const categoryVolume = this.soundCategories[soundData.definition.category];
-            for (const audio of soundData.pool) {
-                audio.volume = soundData.definition.volume * categoryVolume * this.volume;
+            if (soundData.definition.category === category) {
+                const categoryMultiplier = this.soundCategories[category];
+                for (const audio of soundData.pool) {
+                    audio.volume = soundData.definition.volume * categoryMultiplier * masterVolume;
+                }
+            }
+        }
+    }
+    
+    stopCategory(category) {
+        for (const [soundName, soundData] of this.sounds) {
+            if (soundData.definition.category === category) {
+                for (const audio of soundData.pool) {
+                    audio.pause();
+                    audio.currentTime = 0;
+                }
             }
         }
     }
@@ -239,13 +290,31 @@ export class SoundManager {
     setCategoryVolume(category, volume) {
         this.soundCategories[category] = Math.max(0, Math.min(1, volume));
         // Update affected sounds
+        const masterVolume = category === 'music' ? this.musicVolume : this.effectsVolume;
         for (const [soundName, soundData] of this.sounds) {
             if (soundData.definition.category === category) {
                 for (const audio of soundData.pool) {
-                    audio.volume = soundData.definition.volume * this.soundCategories[category] * this.volume;
+                    audio.volume = soundData.definition.volume * this.soundCategories[category] * masterVolume;
                 }
             }
         }
+    }
+    
+    // Getter methods for UI
+    getMusicEnabled() {
+        return this.musicEnabled;
+    }
+    
+    getEffectsEnabled() {
+        return this.effectsEnabled;
+    }
+    
+    getMusicVolume() {
+        return this.musicVolume;
+    }
+    
+    getEffectsVolume() {
+        return this.effectsVolume;
     }
     
     /**

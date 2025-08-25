@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Progressive Game Mechanics Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Orbitron', monospace;
+            background: #111;
+            color: #fff;
+        }
+        .test-controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 10000;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            border: 2px solid #00ffcc;
+            border-radius: 10px;
+        }
+        button {
+            display: block;
+            margin: 10px 0;
+            padding: 10px 20px;
+            background: #00ffcc;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #00ff88;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #555;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-controls">
+        <h2>Progressive Mechanics Test</h2>
+        
+        <div class="status" id="status">
+            <div>Timer: <span id="timerStatus">Not initialized</span></div>
+            <div>Danger Level: <span id="dangerStatus">0</span></div>
+            <div>Level: <span id="levelStatus">1</span></div>
+            <div>Clustering: <span id="clusterStatus">70%</span></div>
+        </div>
+        
+        <button onclick="testRowPush()">Test Row Push</button>
+        <button onclick="testDangerZone()">Test Danger Zone</button>
+        <button onclick="testLevelUp()">Test Level Up</button>
+        <button onclick="testBigClear()">Test Big Clear (7+ bubbles)</button>
+        <button onclick="testCombo()">Test Combo Pause</button>
+        <button onclick="testMiss()">Test Miss (Speed Up)</button>
+        <button onclick="resetGame()">Reset Game</button>
+    </div>
+    
+    <iframe id="gameFrame" src="index.html" style="width: 100%; height: 600px; border: none;"></iframe>
+    
+    <script>
+        let gameWindow;
+        
+        window.onload = () => {
+            gameWindow = document.getElementById('gameFrame').contentWindow;
+            
+            // Poll for game status
+            setInterval(updateStatus, 100);
+        };
+        
+        function updateStatus() {
+            if (!gameWindow || !gameWindow.game) return;
+            
+            const game = gameWindow.game;
+            
+            // Update timer status
+            if (game.progressiveTimerSystem) {
+                const timer = game.progressiveTimerSystem.config;
+                document.getElementById('timerStatus').textContent = 
+                    `${(timer.timeRemaining / 1000).toFixed(1)}s / ${(timer.currentTime / 1000).toFixed(1)}s` +
+                    (timer.isPaused ? ' (PAUSED)' : '');
+            }
+            
+            // Update danger status
+            if (game.gameState && game.gameState.dangerZone) {
+                const danger = game.gameState.dangerZone;
+                document.getElementById('dangerStatus').textContent = 
+                    `${danger.level} (${danger.level === 0 ? 'Safe' : danger.level === 1 ? 'Warning' : 'DANGER'})`;
+            }
+            
+            // Update level status
+            if (game.gameState) {
+                document.getElementById('levelStatus').textContent = game.gameState.level;
+            }
+            
+            // Update clustering status
+            if (game.colorClusteringSystem) {
+                const cluster = game.colorClusteringSystem.config;
+                document.getElementById('clusterStatus').textContent = 
+                    `${(cluster.currentClusterChance * 100).toFixed(0)}%`;
+            }
+        }
+        
+        function testRowPush() {
+            if (!gameWindow || !gameWindow.game) return;
+            console.log('Testing row push...');
+            gameWindow.game.progressiveTimerSystem.triggerRowPush();
+        }
+        
+        function testDangerZone() {
+            if (!gameWindow || !gameWindow.game) return;
+            console.log('Testing danger zone...');
+            // Add rows to trigger danger
+            for (let i = 0; i < 5; i++) {
+                setTimeout(() => {
+                    gameWindow.game.progressiveTimerSystem.triggerRowPush();
+                }, i * 500);
+            }
+        }
+        
+        function testLevelUp() {
+            if (!gameWindow || !gameWindow.game) return;
+            console.log('Testing level up...');
+            gameWindow.game.gameState.addScore(1000);
+            gameWindow.game.levelProgressionSystem.checkLevelProgression(gameWindow.game.gameState.score);
+        }
+        
+        function testBigClear() {
+            if (!gameWindow || !gameWindow.game) return;
+            console.log('Testing big clear timer reset...');
+            gameWindow.game.gameManager.eventBus.emit('bubblesDestroyed', { count: 7, combo: 1 });
+        }
+        
+        function testCombo() {
+            if (!gameWindow || !gameWindow.game) return;
+            console.log('Testing combo pause...');
+            gameWindow.game.gameManager.eventBus.emit('comboStart');
+            setTimeout(() => {
+                gameWindow.game.gameManager.eventBus.emit('comboEnd');
+                console.log('Combo ended - timer should resume');
+            }, 3000);
+        }
+        
+        function testMiss() {
+            if (!gameWindow || !gameWindow.game) return;
+            console.log('Testing miss speed up...');
+            gameWindow.game.gameManager.eventBus.emit('bubbleMiss');
+        }
+        
+        function resetGame() {
+            if (!gameWindow || !gameWindow.game) return;
+            console.log('Resetting game...');
+            gameWindow.location.reload();
+        }
+    </script>
+</body>
+</html>

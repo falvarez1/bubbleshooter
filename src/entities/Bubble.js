@@ -1,26 +1,14 @@
 import * as THREE from 'three';
 import { CONFIG } from '../core/Config.js';
+import { Vector3Pool } from '../utils/Vector3Pool.js';
 
-/**
- * Bubble Entity Class
- * Represents a single bubble in the game with physics, rendering, and animations
- */
-export class Bubble {
-    constructor(x, y, color, radius = CONFIG.BUBBLE_RADIUS) {
-        this.gridX = -1;
-        this.gridY = -1;
-        this.position = new THREE.Vector3(x, y, 0);
-        this.velocity = new THREE.Vector3(0, 0, 0);
-        this.color = color;
-        this.radius = radius;
-        this.isMoving = false;
-        this.rotationSpeed = (Math.random() - 0.5) * 0.02;
-        
-        // Create geometry with high detail
-        const geometry = new THREE.IcosahedronGeometry(radius, 2);
-        
-        // Premium glass-like material with enhanced rim lighting
-        this.material = new THREE.MeshPhysicalMaterial({
+// Material pool for reusing materials
+const materialPool = new Map();
+
+function getPooledMaterial(color) {
+    const colorKey = color.toString();
+    if (!materialPool.has(colorKey)) {
+        const material = new THREE.MeshPhysicalMaterial({
             color: color,
             metalness: 0.1,
             roughness: 0.1,
@@ -37,26 +25,71 @@ export class Bubble {
             sheenRoughness: 0.3,
             sheenColor: new THREE.Color(color).multiplyScalar(1.5)
         });
+        materialPool.set(colorKey, material);
+    }
+    return materialPool.get(colorKey);
+}
+
+// Geometry pool for reusing geometries
+let sharedGeometry = null;
+let sharedGlowGeometry = null;
+
+/**
+ * Bubble Entity Class
+ * Represents a single bubble in the game with physics, rendering, and animations
+ */
+export class Bubble {
+    constructor(x, y, color, radius = CONFIG.BUBBLE_RADIUS) {
+        // Generate unique ID for instanced rendering tracking
+        this.id = `bubble_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         
-        this.mesh = new THREE.Mesh(geometry, this.material);
+        this.gridX = -1;
+        this.gridY = -1;
+        this.position = new THREE.Vector3(x, y, 0);
+        this.velocity = new THREE.Vector3(0, 0, 0);
+        this.color = color;
+        this.radius = radius;
+        this.isMoving = false;
+        this.rotationSpeed = (Math.random() - 0.5) * 0.02;
+        
+        // Use instanced rendering flag
+        this.useInstancedRendering = false; // Will be set to true by main game
+        
+        // Create shared geometry once
+        if (!sharedGeometry) {
+            sharedGeometry = new THREE.IcosahedronGeometry(CONFIG.BUBBLE_RADIUS, 2);
+            sharedGlowGeometry = new THREE.IcosahedronGeometry(CONFIG.BUBBLE_RADIUS * 1.1, 2);
+        }
+        
+        // Get pooled material
+        this.material = getPooledMaterial(color);
+        
+        // Create mesh with shared geometry and pooled material
+        this.mesh = new THREE.Mesh(sharedGeometry, this.material);
         this.mesh.position.set(x, y, 0);
         this.mesh.castShadow = true;
         this.mesh.receiveShadow = true;
         
-        // Add rim light glow
-        const glowGeometry = new THREE.IcosahedronGeometry(radius * 1.1, 2);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-            color: color,
-            transparent: true,
-            opacity: 0.15,
-            side: THREE.BackSide
-        });
-        this.glowMesh = new THREE.Mesh(glowGeometry, glowMaterial);
-        this.mesh.add(this.glowMesh);
+        // Don't create glow mesh if using instanced rendering (handled by shader)
+        this.glowMesh = null;
+        if (!this.useInstancedRendering) {
+            // Add rim light glow for individual meshes only
+            const glowMaterial = new THREE.MeshBasicMaterial({
+                color: color,
+                transparent: true,
+                opacity: 0.15,
+                side: THREE.BackSide
+            });
+            this.glowMesh = new THREE.Mesh(sharedGlowGeometry, glowMaterial);
+            this.mesh.add(this.glowMesh);
+        }
         
         // Connection animation properties
         this.connectionScale = 1.0;
         this.connectionAnimating = false;
+        
+        // Impact scale for spring physics
+        this.impactScale = 1.0;
         
         // Impact physics properties
         this.impactVelocity = new THREE.Vector3(0, 0, 0);
@@ -72,34 +105,88 @@ export class Bubble {
         this.isPowerUp = false;
         this.powerUpType = null;
         this.powerUpAnimation = null;
+        
+        // Destruction state - used to prevent collision with bubbles being destroyed
+        this.isDestroyed = false;
+        
+        // Attachment state - used when bubble hits ceiling
+        this.needsAttachment = false;
+        
+        // Movement timeout - prevent bubbles from being stuck in moving state
+        this.movementStartTime = 0;
+    }
+    
+    startMoving() {
+        this.isMoving = true;
+        this.movementStartTime = Date.now();
+    }
+    
+    stopMoving() {
+        this.isMoving = false;
+        this.movementStartTime = 0;
     }
     
     update(deltaTime) {
         if (this.isMoving) {
-            // Update position
-            this.position.add(this.velocity.clone().multiplyScalar(deltaTime));
+            // Track movement time to prevent infinite movement
+            if (this.movementStartTime === 0) {
+                this.movementStartTime = Date.now();
+            } else if (Date.now() - this.movementStartTime > 10000) { // 10 second timeout
+                // Bubble movement timeout, forcing attachment
+                this.position.y = CONFIG.CEILING_Y - 0.5 - this.radius;
+                this.velocity.set(0, 0, 0);
+                this.isMoving = false;
+                this.needsAttachment = true;
+                return;
+            }
+            
+            // Update position with frame-rate independence
+            // Cap deltaTime to prevent physics explosions during frame drops
+            const safeDelta = Math.min(deltaTime, 0.033); // Cap at 30fps minimum
+            
+            // Use Vector3Pool to avoid allocation
+            const movement = Vector3Pool.get();
+            movement.copy(this.velocity).multiplyScalar(safeDelta);
+            this.position.add(movement);
+            Vector3Pool.release(movement);
+            
             this.mesh.position.copy(this.position);
             
             // Check wall collisions
-            const wallLimit = 5.5;
+            const wallLimit = CONFIG.WALL_LIMIT;
             if (Math.abs(this.position.x) > wallLimit - this.radius) {
                 this.position.x = Math.sign(this.position.x) * (wallLimit - this.radius);
                 this.velocity.x *= -CONFIG.WALL_BOUNCE_DAMPING;
                 this.onWallBounce();
             }
             
-            // Check ceiling
+            // Check ceiling - use same threshold as CollisionSystem
             if (this.position.y > CONFIG.CEILING_Y - this.radius) {
                 this.position.y = CONFIG.CEILING_Y - this.radius;
-                this.velocity.y = 0;
+                this.velocity.set(0, 0, 0);
                 this.isMoving = false;
+                this.movementStartTime = 0; // Reset movement timer
+                // Mark as needing attachment - will be handled by CollisionSystem
+                this.needsAttachment = true;
+            }
+            
+            // Safety check: if bubble goes way out of bounds, force attachment
+            if (this.position.y > CONFIG.CEILING_Y + 2) {
+                // Bubble went out of bounds, forcing attachment
+                this.position.y = CONFIG.CEILING_Y - this.radius;
+                this.velocity.set(0, 0, 0);
+                this.isMoving = false;
+                this.movementStartTime = 0; // Reset movement timer
+                this.needsAttachment = true;
             }
         }
         
         // Floating animation
         if (!this.isMoving) {
             const floatY = Math.sin(Date.now() * 0.001 * this.floatSpeed + this.floatOffset) * 0.05;
+            this.mesh.position.x = this.position.x;
             this.mesh.position.y = this.position.y + floatY;
+            this.mesh.position.z = this.position.z;
         }
         
         // Rotation
@@ -128,13 +215,21 @@ export class Bubble {
             this.impactVelocity.add(springForce);
             this.impactVelocity.multiplyScalar(this.impactDamping);
             
-            // Update position based on impact velocity
-            this.position.add(this.impactVelocity.clone().multiplyScalar(deltaTime * CONFIG.IMPACT_PHYSICS.POSITION_MULTIPLIER));
+            // Update position based on impact velocity with frame-rate independence
+            const safeDelta = Math.min(deltaTime, 0.033); // Cap at 30fps minimum
+            const impactMovement = Vector3Pool.get();
+            impactMovement.copy(this.impactVelocity).multiplyScalar(safeDelta * CONFIG.IMPACT_PHYSICS.POSITION_MULTIPLIER);
+            this.position.add(impactMovement);
+            Vector3Pool.release(impactMovement);
+            
             this.mesh.position.copy(this.position);
             
             // Add subtle scale pulse
             const impactScale = 1.0 + this.impactVelocity.length() * CONFIG.IMPACT_PHYSICS.SCALE_RESPONSE;
             this.mesh.scale.setScalar(impactScale);
+            
+            // Store the impact scale for instanced rendering
+            this.impactScale = impactScale;
             
             // Reset if velocity is very small
             if (this.impactVelocity.length() < 0.001) {
@@ -142,6 +237,7 @@ export class Bubble {
                 this.position.copy(this.basePosition);
                 this.mesh.position.copy(this.position);
                 this.mesh.scale.setScalar(1.0);
+                this.impactScale = 1.0; // Reset impact scale
             }
         }
         
@@ -166,8 +262,16 @@ export class Bubble {
     }
     
     destroy() {
+        // Prevent double destruction
+        if (this.isDestroyed) {
+            return;
+        }
+        
+        // Mark as destroyed to prevent collision detection
+        this.isDestroyed = true;
+        
         // First, properly dispose of all children of the mesh
-        if (this.mesh.children.length > 0) {
+        if (this.mesh && this.mesh.children && this.mesh.children.length > 0) {
             // Create a copy of the children array since we'll be modifying it
             const children = [...this.mesh.children];
             children.forEach(child => {
@@ -183,14 +287,23 @@ export class Bubble {
             });
         }
         
-        if (this.mesh.parent) {
+        // Remove mesh from scene if it's there (shouldn't be for instanced bubbles)
+        if (this.mesh && this.mesh.parent) {
             this.mesh.parent.remove(this.mesh);
         }
-        this.material.dispose();
-        this.mesh.geometry.dispose();
+        
+        // For instanced bubbles, ensure they're fully hidden
+        if (this.useInstancedRendering) {
+            // The instanced renderer should have already removed this
+            // but set mesh to null to ensure no references remain
+            this.mesh = null;
+        }
+        // Don't dispose pooled materials and shared geometries
+        // They will be reused by other bubbles
+        // Only dispose if it's a special non-pooled material
         if (this.glowMesh) {
-            this.glowMesh.material.dispose();
-            this.glowMesh.geometry.dispose();
+            this.glowMesh.material.dispose(); // Glow materials are not pooled
+            // Don't dispose shared geometry
             this.glowMesh = null; // Nullify the reference
         }
         
@@ -261,12 +374,17 @@ export class Bubble {
         
         // Calculate world position
         const isOddRow = y % 2 === 1;
-        const xPos = (x - CONFIG.GRID_WIDTH / 2 + 0.5) * CONFIG.HEX_WIDTH + (isOddRow ? CONFIG.HEX_WIDTH / 2 : 0);
+        // Center the grid properly - shift left by quarter bubble to account for odd row offset
+        const xPos = (x - (CONFIG.GRID_WIDTH - 1) / 2) * CONFIG.HEX_WIDTH + (isOddRow ? CONFIG.HEX_WIDTH / 2 : 0) - CONFIG.HEX_WIDTH / 4;
         const yPos = CONFIG.GRID_TOP_Y - y * CONFIG.HEX_HEIGHT;
         
         this.position.set(xPos, yPos, 0);
         this.basePosition.copy(this.position);
-        this.mesh.position.copy(this.position);
+        
+        // Only update mesh position if not using instanced rendering
+        if (!this.useInstancedRendering) {
+            this.mesh.position.copy(this.position);
+        }
     }
     
     // Apply impact force
