@@ -4,5 +4,6 @@ export { PowerUpSystem } from './PowerUpSystem.js';
 export { RainbowPowerUp } from './RainbowPowerUp.js';
 export { BombPowerUp } from './BombPowerUp.js';
 export { PrecisionAimPowerUp } from './PrecisionAimPowerUp.js';
-export { ChainLightningPowerUp } from './ChainLightningPowerUp.js';
+// Use optimized version of ChainLightningPowerUp
+export { OptimizedChainLightningPowerUp as ChainLightningPowerUp } from './OptimizedChainLightningPowerUp.js';
 export { ColorSplashPowerUp } from './ColorSplashPowerUp.js';

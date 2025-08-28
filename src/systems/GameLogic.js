@@ -57,7 +57,7 @@ export class GameLogic {
         // Handle individual bubble destruction (e.g., from Chain Lightning)
         this.gameManager.eventBus.on('destroyBubble', (data) => {
             if (data.bubble && !data.bubble.isDestroyed) {
-                this.destroyBubbleImmediately(data.bubble, data.skipAnimation);
+                this.destroyBubbleImmediately(data.bubble, data.skipAnimation, data.skipSound);
             }
         });
     }
@@ -133,7 +133,7 @@ export class GameLogic {
                     this.gameManager.showFloatingScore(bubble.position, pointsPerBubble);
                 }
                 
-                this.createExplosionEffect(bubble, true);
+                this.createExplosionEffect(bubble, true, true); // Skip sound for chain lightning
                 this.removeBubble(bubble);
             }, index * 30);
         });
@@ -589,8 +589,9 @@ export class GameLogic {
      * Uses BubbleLifecycleManager for atomic operations
      * @param {Bubble} bubble - Bubble to destroy
      * @param {boolean} skipAnimation - Skip the removal animation (kept for compatibility)
+     * @param {boolean} skipSound - Skip playing the pop sound
      */
-    destroyBubbleImmediately(bubble, skipAnimation = false) {
+    destroyBubbleImmediately(bubble, skipAnimation = false, skipSound = false) {
         if (!bubble) return;
         
         // Use BubbleLifecycleManager for atomic destruction
@@ -680,17 +681,20 @@ export class GameLogic {
      * Create explosion effect
      * @param {Bubble} bubble - Bubble to explode
      * @param {boolean} enhanced - Whether to use enhanced effect
+     * @param {boolean} skipSound - Skip playing the pop sound
      */
-    createExplosionEffect(bubble, enhanced = false) {
+    createExplosionEffect(bubble, enhanced = false, skipSound = false) {
         const particleCount = enhanced ? CONFIG.PARTICLE_COUNT * 2 : CONFIG.PARTICLE_COUNT;
         const particleSize = enhanced ? 0.3 : 0.2;
         const color = enhanced ? 0xff0000 : bubble.color;
         
-        // Play sound
-        if (enhanced) {
-            this.gameManager.playSound('bubblePopMultiple');
-        } else {
-            this.gameManager.playSound('bubblePopSingle');
+        // Play sound (unless skipped for batch operations like chain lightning)
+        if (!skipSound) {
+            if (enhanced) {
+                this.gameManager.playSound('bubblePopMultiple');
+            } else {
+                this.gameManager.playSound('bubblePopSingle');
+            }
         }
         
         // Create particles
