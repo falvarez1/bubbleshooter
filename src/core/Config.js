@@ -99,6 +99,77 @@ export const CONFIG = {
         NEW_ROW_DROP_FORCE: 2.0      // Drop force for new row bubbles
     },
     
+    // Chain Lightning Performance Settings
+    CHAIN_LIGHTNING: {
+        // Performance modes: 'high', 'medium', 'low', 'auto'
+        PERFORMANCE_MODE: 'auto',
+        
+        // High quality settings
+        HIGH_QUALITY: {
+            MAX_PARTICLES: 50,
+            PRIMARY_ARCS: 3,
+            SECONDARY_ARCS: 2,
+            BOLT_SEGMENTS: 7,
+            SPARK_COUNT: 15,
+            CONCURRENT_EFFECTS: 5,
+            ENABLE_GLOW: true,
+            ENABLE_FIELD_EFFECTS: true,
+            PARTICLE_DETAIL: 'high'
+        },
+        
+        // Medium quality settings
+        MEDIUM_QUALITY: {
+            MAX_PARTICLES: 25,
+            PRIMARY_ARCS: 2,
+            SECONDARY_ARCS: 1,
+            BOLT_SEGMENTS: 5,
+            SPARK_COUNT: 8,
+            CONCURRENT_EFFECTS: 3,
+            ENABLE_GLOW: true,
+            ENABLE_FIELD_EFFECTS: false,
+            PARTICLE_DETAIL: 'medium'
+        },
+        
+        // Low quality settings
+        LOW_QUALITY: {
+            MAX_PARTICLES: 10,
+            PRIMARY_ARCS: 2,
+            SECONDARY_ARCS: 1,
+            BOLT_SEGMENTS: 3,
+            SPARK_COUNT: 4,
+            CONCURRENT_EFFECTS: 2,
+            ENABLE_GLOW: false,
+            ENABLE_FIELD_EFFECTS: false,
+            PARTICLE_DETAIL: 'low'
+        },
+        
+        // Timing settings (all modes)
+        TIMING: {
+            INITIAL_DELAY: 0,
+            PRIMARY_STAGGER: 30,    // ms between primary bolts
+            SECONDARY_STAGGER: 20,  // ms between secondary bolts
+            DESTRUCTION_DELAY: 50,  // ms between destruction batches
+            EFFECT_DURATION: 400,   // ms for arc effects
+            CLEANUP_DELAY: 600     // ms before final cleanup
+        },
+        
+        // Resource pooling
+        POOL_SIZES: {
+            BOLT_GEOMETRIES: 10,
+            LIGHTS: 3,
+            MATERIALS: 5,
+            PATTERNS: 10
+        },
+        
+        // Auto-adjust thresholds
+        AUTO_ADJUST: {
+            HIGH_TO_MEDIUM_MS: 20,    // Switch to medium if frame > 20ms
+            MEDIUM_TO_LOW_MS: 30,     // Switch to low if frame > 30ms
+            LOW_TO_MEDIUM_MS: 10,     // Switch back to medium if frame < 10ms
+            MEDIUM_TO_HIGH_MS: 5      // Switch back to high if frame < 5ms
+        }
+    },
+    
     // Trajectory Visual Configuration
     TRAJECTORY: {
         // Style selection

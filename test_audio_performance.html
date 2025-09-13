@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Performance Test - Chain Lightning</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a2e;
+            color: #00ff00;
+            padding: 20px;
+            margin: 0;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #ffff00;
+            text-shadow: 0 0 10px #ffff00;
+        }
+        
+        .stats-panel {
+            background: #0f0f1e;
+            border: 2px solid #00ff00;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+        
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #00ff0033;
+        }
+        
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            color: #00ffff;
+        }
+        
+        .stat-value {
+            color: #ffffff;
+            font-weight: bold;
+        }
+        
+        .stat-value.warning {
+            color: #ffff00;
+        }
+        
+        .stat-value.error {
+            color: #ff0000;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px 5px;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .test-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        
+        .performance-graph {
+            background: #0f0f1e;
+            border: 1px solid #00ff00;
+            height: 200px;
+            margin: 20px 0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .graph-bar {
+            position: absolute;
+            bottom: 0;
+            width: 2px;
+            background: #00ff00;
+            transition: height 0.2s;
+        }
+        
+        .log-panel {
+            background: #000;
+            border: 1px solid #00ff00;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+        
+        .log-entry {
+            margin: 2px 0;
+            opacity: 0.8;
+        }
+        
+        .log-entry.info { color: #00ffff; }
+        .log-entry.warning { color: #ffff00; }
+        .log-entry.error { color: #ff0000; }
+        .log-entry.success { color: #00ff00; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ Chain Lightning Audio Performance Test</h1>
+        
+        <div class="test-controls">
+            <button id="simulateChainLightning">Simulate Chain Lightning (30 bubbles)</button>
+            <button id="simulateLargeChain">Large Chain (50 bubbles)</button>
+            <button id="simulateRapidChains">Rapid Chains (5x10 bubbles)</button>
+            <button id="resetStats">Reset Stats</button>
+            <button id="toggleOptimization">Toggle Optimization: <span id="optimizationStatus">ON</span></button>
+        </div>
+        
+        <div class="stats-panel">
+            <h2>Audio Performance Stats</h2>
+            <div class="stat-row">
+                <span class="stat-label">Total Sounds Played:</span>
+                <span class="stat-value" id="totalPlayed">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Sounds Throttled:</span>
+                <span class="stat-value" id="throttledSounds">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Skipped (Limit):</span>
+                <span class="stat-value" id="skippedLimit">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Skipped (Pool Full):</span>
+                <span class="stat-value" id="skippedPool">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Active Sounds:</span>
+                <span class="stat-value" id="activeSounds">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Sounds/Second:</span>
+                <span class="stat-value" id="soundsPerSecond">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Throttle Rate:</span>
+                <span class="stat-value" id="throttleRate">0%</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Frame Rate:</span>
+                <span class="stat-value" id="frameRate">60 FPS</span>
+            </div>
+        </div>
+        
+        <div class="performance-graph" id="performanceGraph">
+            <!-- Dynamic graph bars will be added here -->
+        </div>
+        
+        <div class="log-panel" id="logPanel">
+            <div class="log-entry info">Audio Performance Test Ready</div>
+        </div>
+    </div>
+    
+    <script type="module">
+        // Simple mock sound manager for testing
+        class MockSoundManager {
+            constructor() {
+                this.optimizationEnabled = true;
+                this.stats = {
+                    totalPlayed: 0,
+                    throttledSounds: 0,
+                    skippedDueToLimit: 0,
+                    skippedDueToPoolFull: 0,
+                    activeSounds: 0
+                };
+                this.lastPlayTime = new Map();
+                this.minInterval = 30; // ms
+                this.maxConcurrent = 10;
+                this.activeCount = 0;
+            }
+            
+            playBubblePop() {
+                const now = Date.now();
+                
+                if (this.optimizationEnabled) {
+                    // Check throttling
+                    const lastTime = this.lastPlayTime.get('pop') || 0;
+                    if (now - lastTime < this.minInterval) {
+                        this.stats.throttledSounds++;
+                        return;
+                    }
+                    
+                    // Check concurrent limit
+                    if (this.activeCount >= this.maxConcurrent) {
+                        this.stats.skippedDueToLimit++;
+                        return;
+                    }
+                    
+                    this.lastPlayTime.set('pop', now);
+                }
+                
+                // "Play" the sound
+                this.stats.totalPlayed++;
+                this.activeCount++;
+                this.stats.activeSounds = this.activeCount;
+                
+                // Simulate sound ending
+                setTimeout(() => {
+                    this.activeCount--;
+                    this.stats.activeSounds = this.activeCount;
+                }, 200);
+            }
+            
+            playChainLightningBatch(count) {
+                // Single optimized sound for all bubbles
+                this.stats.totalPlayed++;
+                log(`Playing batched chain lightning sound for ${count} bubbles`, 'success');
+            }
+            
+            resetStats() {
+                this.stats = {
+                    totalPlayed: 0,
+                    throttledSounds: 0,
+                    skippedDueToLimit: 0,
+                    skippedDueToPoolFull: 0,
+                    activeSounds: 0
+                };
+                this.lastPlayTime.clear();
+                this.activeCount = 0;
+            }
+        }
+        
+        const soundManager = new MockSoundManager();
+        let frameCount = 0;
+        let lastFrameTime = performance.now();
+        let fps = 60;
+        
+        // Logging
+        function log(message, type = 'info') {
+            const logPanel = document.getElementById('logPanel');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logPanel.appendChild(entry);
+            logPanel.scrollTop = logPanel.scrollHeight;
+            
+            // Limit log entries
+            while (logPanel.children.length > 100) {
+                logPanel.removeChild(logPanel.firstChild);
+            }
+        }
+        
+        // Update stats display
+        function updateStats() {
+            const stats = soundManager.stats;
+            
+            document.getElementById('totalPlayed').textContent = stats.totalPlayed;
+            document.getElementById('throttledSounds').textContent = stats.throttledSounds;
+            document.getElementById('skippedLimit').textContent = stats.skippedDueToLimit;
+            document.getElementById('skippedPool').textContent = stats.skippedDueToPoolFull;
+            document.getElementById('activeSounds').textContent = stats.activeSounds;
+            
+            const soundsPerSec = stats.totalPlayed > 0 ? (stats.totalPlayed / 10).toFixed(1) : 0;
+            document.getElementById('soundsPerSecond').textContent = soundsPerSec;
+            
+            const throttleRate = stats.totalPlayed > 0 
+                ? ((stats.throttledSounds / stats.totalPlayed) * 100).toFixed(1)
+                : 0;
+            document.getElementById('throttleRate').textContent = throttleRate + '%';
+            
+            // Color code based on performance
+            const throttleElement = document.getElementById('throttleRate');
+            throttleElement.className = 'stat-value';
+            if (throttleRate > 50) throttleElement.classList.add('error');
+            else if (throttleRate > 20) throttleElement.classList.add('warning');
+            
+            const activeElement = document.getElementById('activeSounds');
+            activeElement.className = 'stat-value';
+            if (stats.activeSounds > 8) activeElement.classList.add('error');
+            else if (stats.activeSounds > 5) activeElement.classList.add('warning');
+        }
+        
+        // FPS monitoring
+        function updateFPS() {
+            frameCount++;
+            const now = performance.now();
+            const delta = now - lastFrameTime;
+            
+            if (delta >= 1000) {
+                fps = Math.round((frameCount * 1000) / delta);
+                frameCount = 0;
+                lastFrameTime = now;
+                
+                const fpsElement = document.getElementById('frameRate');
+                fpsElement.textContent = fps + ' FPS';
+                fpsElement.className = 'stat-value';
+                if (fps < 30) fpsElement.classList.add('error');
+                else if (fps < 50) fpsElement.classList.add('warning');
+            }
+            
+            requestAnimationFrame(updateFPS);
+        }
+        
+        // Simulate chain lightning
+        function simulateChainLightning(bubbleCount) {
+            log(`Starting chain lightning simulation with ${bubbleCount} bubbles`, 'info');
+            
+            const startTime = performance.now();
+            
+            if (soundManager.optimizationEnabled) {
+                // Optimized: Play single batched sound
+                soundManager.playChainLightningBatch(bubbleCount);
+            } else {
+                // Unoptimized: Play individual sounds
+                for (let i = 0; i < bubbleCount; i++) {
+                    setTimeout(() => {
+                        soundManager.playBubblePop();
+                    }, i * 10); // Stagger by 10ms
+                }
+            }
+            
+            // Simulate particle effects and visual processing
+            setTimeout(() => {
+                const elapsed = performance.now() - startTime;
+                log(`Chain lightning completed in ${elapsed.toFixed(1)}ms`, 'success');
+                
+                if (elapsed > 100) {
+                    log(`Performance warning: Chain took ${elapsed.toFixed(1)}ms`, 'warning');
+                }
+            }, bubbleCount * 10 + 100);
+        }
+        
+        // Event handlers
+        document.getElementById('simulateChainLightning').addEventListener('click', () => {
+            simulateChainLightning(30);
+        });
+        
+        document.getElementById('simulateLargeChain').addEventListener('click', () => {
+            simulateChainLightning(50);
+        });
+        
+        document.getElementById('simulateRapidChains').addEventListener('click', () => {
+            log('Starting rapid chain test (5 chains)', 'info');
+            for (let i = 0; i < 5; i++) {
+                setTimeout(() => {
+                    simulateChainLightning(10);
+                }, i * 200);
+            }
+        });
+        
+        document.getElementById('resetStats').addEventListener('click', () => {
+            soundManager.resetStats();
+            updateStats();
+            log('Stats reset', 'info');
+        });
+        
+        document.getElementById('toggleOptimization').addEventListener('click', (e) => {
+            soundManager.optimizationEnabled = !soundManager.optimizationEnabled;
+            document.getElementById('optimizationStatus').textContent = 
+                soundManager.optimizationEnabled ? 'ON' : 'OFF';
+            log(`Optimization ${soundManager.optimizationEnabled ? 'enabled' : 'disabled'}`, 'warning');
+        });
+        
+        // Start monitoring
+        updateFPS();
+        setInterval(updateStats, 100);
+        
+        log('Test environment ready. Click buttons to simulate chain lightning.', 'success');
+    </script>
+</body>
+</html>

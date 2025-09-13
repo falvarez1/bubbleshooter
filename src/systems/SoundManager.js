@@ -16,6 +16,21 @@ export class SoundManager {
         this.musicVolume = CONFIG.MUSIC_VOLUME !== undefined ? CONFIG.MUSIC_VOLUME : 0.5;
         this.effectsVolume = CONFIG.SOUND_VOLUME !== undefined ? CONFIG.SOUND_VOLUME : 0.5;
         
+        // Audio throttling for performance
+        this.lastPlayTimes = new Map();
+        this.minPlayInterval = 30; // Minimum ms between same sound
+        this.maxConcurrentSounds = 10; // Limit concurrent sounds
+        this.activeSounds = new Set();
+        
+        // Performance monitoring
+        this.performanceStats = {
+            throttledSounds: 0,
+            skippedDueToLimit: 0,
+            skippedDueToPoolFull: 0,
+            totalPlayed: 0,
+            lastReset: Date.now()
+        };
+        
         // Category volume multipliers (relative to master volumes)
         this.soundCategories = {
             effects: 1.0,
@@ -177,6 +192,23 @@ export class SoundManager {
             return;
         }
         
+        // Throttle check - prevent same sound playing too frequently
+        const now = Date.now();
+        const lastPlayTime = this.lastPlayTimes.get(soundName) || 0;
+        if (now - lastPlayTime < this.minPlayInterval && !options.force) {
+            this.performanceStats.throttledSounds++;
+            return; // Skip this sound
+        }
+        
+        // Check concurrent sound limit
+        if (this.activeSounds.size >= this.maxConcurrentSounds) {
+            // Skip non-priority sounds when at limit
+            if (!options.priority) {
+                this.performanceStats.skippedDueToLimit++;
+                return;
+            }
+        }
+        
         // Get audio from pool or clone if all are playing
         let audio = null;
         for (const pooledAudio of soundData.pool) {
@@ -187,9 +219,18 @@ export class SoundManager {
         }
         
         if (!audio) {
-            // All pool instances are playing, create a new one
-            audio = soundData.audio.cloneNode();
-            soundData.pool.push(audio);
+            // Check pool size limit (prevent unbounded growth)
+            const maxPoolSize = 3; // Maximum instances per sound
+            if (soundData.pool.length < maxPoolSize) {
+                // Create a new instance if under limit
+                audio = soundData.audio.cloneNode();
+                soundData.pool.push(audio);
+            } else {
+                // Pool is full, skip this sound to prevent performance issues
+                this.performanceStats.skippedDueToPoolFull++;
+                console.debug(`Sound pool full for ${soundName}, skipping`);
+                return;
+            }
         }
         
         // Apply volume settings based on category
@@ -205,18 +246,49 @@ export class SoundManager {
         
         // Reset and play
         audio.currentTime = 0;
+        
+        // Track this sound as active
+        this.lastPlayTimes.set(soundName, Date.now());
+        this.activeSounds.add(audio);
+        this.performanceStats.totalPlayed++;
+        
+        // Remove from active sounds when finished
+        audio.onended = () => {
+            this.activeSounds.delete(audio);
+        };
+        
         audio.play().catch(err => {
             console.warn(`Failed to play sound: ${soundName}`, err);
+            this.activeSounds.delete(audio);
         });
         
         return audio;
     }
     
     playWithVariation(soundName, options = {}) {
+        // Skip variation for performance during batch operations
+        if (options.skipVariation || this.activeSounds.size > 5) {
+            return this.play(soundName, options);
+        }
         // Add slight pitch variation for repeated sounds
         const variation = 0.1;
         const rate = 1 + (Math.random() - 0.5) * variation;
         return this.play(soundName, { ...options, rate });
+    }
+    
+    /**
+     * Play a batched sound for chain lightning or similar effects
+     * @param {number} count - Number of bubbles being destroyed
+     */
+    playChainLightningBatch(count) {
+        // Play a single sound for all bubbles instead of individual pops
+        // Use the multiple pop sound with adjusted volume based on count
+        this.play('bubblePopMultiple', {
+            force: true, // Force play even if throttled
+            priority: true, // High priority
+            volume: Math.min(1.0, 0.6 + count * 0.01),
+            rate: 0.9 // Slightly lower pitch for impact
+        });
     }
     
     playCombo(comboLevel) {
@@ -230,12 +302,39 @@ export class SoundManager {
     }
     
     stopAll() {
+        // Stop all sounds in pools
         for (const [soundName, soundData] of this.sounds) {
             for (const audio of soundData.pool) {
                 audio.pause();
                 audio.currentTime = 0;
             }
         }
+        
+        // Clear active sounds tracking
+        this.activeSounds.clear();
+        this.lastPlayTimes.clear();
+    }
+    
+    /**
+     * Clean up stuck active sounds (sounds that should have ended)
+     * Call this periodically or when performance issues are detected
+     */
+    cleanupActiveSounds() {
+        const stuckSounds = [];
+        for (const audio of this.activeSounds) {
+            // Check if sound should have ended (duration > 10 seconds is likely stuck)
+            if (audio.currentTime > 0 && audio.duration && audio.currentTime >= audio.duration - 0.1) {
+                stuckSounds.push(audio);
+            }
+        }
+        
+        // Remove stuck sounds
+        stuckSounds.forEach(audio => {
+            this.activeSounds.delete(audio);
+            console.debug('Cleaned up stuck sound');
+        });
+        
+        return stuckSounds.length;
     }
     
     setMusicEnabled(enabled) {
@@ -336,6 +435,38 @@ export class SoundManager {
             pending,
             failedSounds: Array.from(this.failedSounds),
             loadedSounds: Array.from(this.loadedSounds)
+        };
+    }
+    
+    /**
+     * Get performance statistics
+     * @returns {Object} Performance stats including throttled and skipped sounds
+     */
+    getPerformanceStats() {
+        const now = Date.now();
+        const duration = (now - this.performanceStats.lastReset) / 1000; // in seconds
+        
+        return {
+            ...this.performanceStats,
+            duration: duration,
+            activeSounds: this.activeSounds.size,
+            soundsPerSecond: duration > 0 ? this.performanceStats.totalPlayed / duration : 0,
+            throttleRate: this.performanceStats.totalPlayed > 0 
+                ? (this.performanceStats.throttledSounds / this.performanceStats.totalPlayed) * 100 
+                : 0
+        };
+    }
+    
+    /**
+     * Reset performance statistics
+     */
+    resetPerformanceStats() {
+        this.performanceStats = {
+            throttledSounds: 0,
+            skippedDueToLimit: 0,
+            skippedDueToPoolFull: 0,
+            totalPlayed: 0,
+            lastReset: Date.now()
         };
     }
     
