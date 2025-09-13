@@ -64,6 +64,7 @@ export class PauseSystem {
                 Press [P] or [ESC] to resume
             </div>
             <div style="font-size: 12px; opacity: 0.7; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255, 215, 0, 0.3);">
+                <div>Version: <span style="color: #00ff00;">1.2.0-perf-fix-lightning</span></div>
                 <div>Frame: <span id="pauseFrameCount" style="color: #00ff00;">0</span></div>
                 <div>Game Time: <span id="pauseGameTime" style="color: #00ff00;">00:00</span></div>
                 <div style="margin-top: 5px; opacity: 0.6;">DevTools Ready - Elements Frozen</div>
