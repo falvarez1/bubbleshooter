@@ -1,6 +1,22 @@
 import * as THREE from 'three';
 import { PARTICLE_CONFIG } from '../core/Config.js';
 
+const DEFAULT_ROCKET_EXHAUST_CONFIG = {
+    sparkBaseSize: 0.05,
+    sparkTaper: { base: 0.3, tip: 0.1 },
+    sparkLength: 4.0,
+    sparkSegments: 4,
+    opacity: 0.9,
+    blending: 'additive',
+    depthWrite: false,
+    decay: 0.04,
+    shrinkRate: 0.97,
+    orientToVelocity: true,
+    minVelocityForOrientation: 0.1
+};
+
+const getRocketExhaustConfig = () => PARTICLE_CONFIG?.rocketExhaust || DEFAULT_ROCKET_EXHAUST_CONFIG;
+
 /**
  * Particle Pool for performance
  * Pre-creates and reuses particle objects to avoid garbage collection
@@ -25,20 +41,7 @@ export class ParticlePool {
     
     createParticle() {
         // Use shared geometry - create spark-like elongated shape
-        const config = PARTICLE_CONFIG?.rocketExhaust || {
-            // Fallback configuration
-            sparkBaseSize: 0.05,
-            sparkTaper: { base: 0.3, tip: 0.1 },
-            sparkLength: 4.0,
-            sparkSegments: 4,
-            opacity: 0.9,
-            blending: 'additive',
-            depthWrite: false,
-            decay: 0.04,
-            shrinkRate: 0.97,
-            orientToVelocity: true,
-            minVelocityForOrientation: 0.1
-        };
+        const config = getRocketExhaustConfig();
         const size = config.sparkBaseSize;
         let geometry = this.geometryCache.get(size);
         if (!geometry) {
@@ -103,13 +106,7 @@ export class ParticlePool {
             );
         }
         
-        const config = PARTICLE_CONFIG?.rocketExhaust || {
-            decay: 0.04,
-            opacity: 0.9,
-            orientToVelocity: true,
-            minVelocityForOrientation: 0.1,
-            sparkBaseSize: 0.05
-        };
+        const config = getRocketExhaustConfig();
         const minVelocitySq = config.minVelocityForOrientation * config.minVelocityForOrientation;
         
         particle.life = 1.0;
@@ -202,7 +199,7 @@ export class ParticlePool {
             particle.material.color.set(color);
         }
         
-        const config = PARTICLE_CONFIG?.rocketExhaust || { sparkBaseSize: 0.05, minVelocityForOrientation: 0.1 };
+        const config = getRocketExhaustConfig();
         const minVelocitySq = config.minVelocityForOrientation * config.minVelocityForOrientation;
         
         // Power-based spark intensity
@@ -213,7 +210,7 @@ export class ParticlePool {
         if (velocity) {
             const speedSq = velocity.lengthSq();
             if (speedSq > minVelocitySq) {
-                this._tempDirection.copy(velocity).multiplyScalar(1 / Math.sqrt(speedSq));
+                this._tempDirection.copy(velocity).normalize();
                 this._tempLookTarget.copy(particle.position).add(this._tempDirection);
                 particle.mesh.lookAt(this._tempLookTarget);
             }
@@ -245,12 +242,7 @@ export class ParticlePool {
     }
     
     update(deltaTime) {
-        const config = PARTICLE_CONFIG?.rocketExhaust || {
-            opacity: 0.9,
-            orientToVelocity: true,
-            minVelocityForOrientation: 0.1,
-            shrinkRate: 0.97
-        };
+        const config = getRocketExhaustConfig();
         const minVelocitySq = config.minVelocityForOrientation * config.minVelocityForOrientation;
         for (let i = this.activeParticles.length - 1; i >= 0; i--) {
             const particle = this.activeParticles[i];
@@ -272,7 +264,7 @@ export class ParticlePool {
             if (config.orientToVelocity && particle.velocity) {
                 const speedSq = particle.velocity.lengthSq();
                 if (speedSq > minVelocitySq) {
-                    this._tempDirection.copy(particle.velocity).multiplyScalar(1 / Math.sqrt(speedSq));
+                    this._tempDirection.copy(particle.velocity).normalize();
                     this._tempLookTarget.copy(particle.position).add(this._tempDirection);
                     particle.mesh.lookAt(this._tempLookTarget);
                 }
