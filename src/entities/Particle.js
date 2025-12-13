@@ -46,8 +46,8 @@ export class ParticlePool {
         const config = getRocketExhaustConfig();
         const minVelocity = config.minVelocityForOrientation ?? 0;
         
-        if (config !== this._cachedConfig || minVelocity !== this._cachedMinVelocity) {
-            this._cachedConfig = config;
+        this._cachedConfig = config;
+        if (minVelocity !== this._cachedMinVelocity) {
             this._cachedMinVelocity = minVelocity;
             this._cachedMinVelocitySq = minVelocity * minVelocity;
         }
