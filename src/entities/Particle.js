@@ -30,6 +30,9 @@ export class ParticlePool {
         this.postProcessing = postProcessing;
         this._tempDirection = new THREE.Vector3();
         this._tempLookTarget = new THREE.Vector3();
+        this._cachedConfig = null;
+        this._cachedMinVelocity = 0;
+        this._cachedMinVelocitySq = 0;
         
         // Pre-create particles
         for (let i = 0; i < size; i++) {
@@ -39,9 +42,22 @@ export class ParticlePool {
         }
     }
     
+    _getConfigWithCache() {
+        const config = getRocketExhaustConfig();
+        const minVelocity = config.minVelocityForOrientation ?? 0;
+        
+        if (config !== this._cachedConfig || minVelocity !== this._cachedMinVelocity) {
+            this._cachedConfig = config;
+            this._cachedMinVelocity = minVelocity;
+            this._cachedMinVelocitySq = minVelocity * minVelocity;
+        }
+        
+        return this._cachedConfig;
+    }
+    
     createParticle() {
         // Use shared geometry - create spark-like elongated shape
-        const config = getRocketExhaustConfig();
+        const config = this._getConfigWithCache();
         const size = config.sparkBaseSize;
         let geometry = this.geometryCache.get(size);
         if (!geometry) {
@@ -106,8 +122,8 @@ export class ParticlePool {
             );
         }
         
-        const config = getRocketExhaustConfig();
-        const minVelocitySq = config.minVelocityForOrientation * config.minVelocityForOrientation;
+        const config = this._getConfigWithCache();
+        const minVelocitySq = this._cachedMinVelocitySq;
         
         particle.life = 1.0;
         particle.decay = config.decay;
@@ -199,8 +215,8 @@ export class ParticlePool {
             particle.material.color.set(color);
         }
         
-        const config = getRocketExhaustConfig();
-        const minVelocitySq = config.minVelocityForOrientation * config.minVelocityForOrientation;
+        const config = this._getConfigWithCache();
+        const minVelocitySq = this._cachedMinVelocitySq;
         
         // Power-based spark intensity
         const sparkIntensity = 0.7 + power * 0.3; // Brighter sparks for more power
@@ -242,8 +258,8 @@ export class ParticlePool {
     }
     
     update(deltaTime) {
-        const config = getRocketExhaustConfig();
-        const minVelocitySq = config.minVelocityForOrientation * config.minVelocityForOrientation;
+        const config = this._getConfigWithCache();
+        const minVelocitySq = this._cachedMinVelocitySq;
         for (let i = this.activeParticles.length - 1; i >= 0; i--) {
             const particle = this.activeParticles[i];
             
