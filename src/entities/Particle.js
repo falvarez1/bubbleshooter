@@ -53,11 +53,11 @@ export class ParticlePool {
     
     _getConfigWithCache() {
         const configRef = PARTICLE_CONFIG?.rocketExhaust || DEFAULT_ROCKET_EXHAUST_CONFIG;
+        const minVelocity = configRef.minVelocityForOrientation ?? MIN_VELOCITY_FALLBACK;
         const signatureParts = CONFIG_SIGNATURE_KEYS.map(key => key === 'minVelocityForOrientation' 
-            ? (configRef.minVelocityForOrientation ?? MIN_VELOCITY_FALLBACK)
+            ? minVelocity
             : configRef[key]
         );
-        const minVelocity = signatureParts[0];
         const signature = signatureParts.join('|');
         
         if (signature !== this._cachedConfigSignature) {
@@ -238,7 +238,7 @@ export class ParticlePool {
         particle.material.opacity = sparkIntensity;
         
         // Orient spark along velocity direction for realistic exhaust
-        if (velocity) {
+        if (config.orientToVelocity && velocity) {
             const speedSq = velocity.lengthSq();
             if (speedSq > minVelocitySq) {
                 this._tempDirection.copy(velocity).normalize();
