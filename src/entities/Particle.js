@@ -31,6 +31,7 @@ export class ParticlePool {
         this._cachedConfig = null;
         this._cachedMinVelocity = 0;
         this._cachedMinVelocitySq = 0;
+        this._cachedConfigSignature = '';
         
         // Pre-create particles
         for (let i = 0; i < size; i++) {
@@ -42,10 +43,12 @@ export class ParticlePool {
     
     _getConfigWithCache() {
         const configRef = PARTICLE_CONFIG?.rocketExhaust || DEFAULT_ROCKET_EXHAUST_CONFIG;
+        const signature = `${configRef.minVelocityForOrientation ?? 0.001}|${configRef.sparkBaseSize}|${configRef.opacity}|${configRef.shrinkRate}|${configRef.decay}`;
         
-        if (configRef !== this._cachedConfig) {
+        if (configRef !== this._cachedConfig || signature !== this._cachedConfigSignature) {
             this._cachedConfig = configRef;
-            this._cachedMinVelocity = configRef.minVelocityForOrientation ?? 0;
+            this._cachedConfigSignature = signature;
+            this._cachedMinVelocity = configRef.minVelocityForOrientation ?? 0.001;
             this._cachedMinVelocitySq = this._cachedMinVelocity * this._cachedMinVelocity;
         }
         
