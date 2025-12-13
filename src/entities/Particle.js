@@ -21,8 +21,7 @@ const CONFIG_SIGNATURE_KEYS = [
     'sparkBaseSize',
     'opacity',
     'shrinkRate',
-    'decay',
-    'orientToVelocity'
+    'decay'
 ];
 
 /**
@@ -58,9 +57,9 @@ export class ParticlePool {
             ? minVelocity
             : configRef[key]
         );
-        const signature = signatureParts.join('|');
+        const signature = JSON.stringify(signatureParts);
         
-        if (signature !== this._cachedConfigSignature) {
+        if (signature !== this._cachedConfigSignature || configRef !== this._cachedConfig) {
             this._cachedConfig = configRef;
             this._cachedConfigSignature = signature;
             this._cachedMinVelocity = minVelocity;
@@ -238,13 +237,10 @@ export class ParticlePool {
         particle.material.opacity = sparkIntensity;
         
         // Orient spark along velocity direction for realistic exhaust
-        if (config.orientToVelocity && velocity) {
-            const speedSq = velocity.lengthSq();
-            if (speedSq > minVelocitySq) {
-                this._tempDirection.copy(velocity).normalize();
-                this._tempLookTarget.copy(particle.position).add(this._tempDirection);
-                particle.mesh.lookAt(this._tempLookTarget);
-            }
+        if (config.orientToVelocity && velocity && velocity.lengthSq() > minVelocitySq) {
+            this._tempDirection.copy(velocity).normalize();
+            this._tempLookTarget.copy(particle.position).add(this._tempDirection);
+            particle.mesh.lookAt(this._tempLookTarget);
         }
         
         // Power affects size - sparks get longer and brighter with more power
