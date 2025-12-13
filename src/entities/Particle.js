@@ -15,8 +15,6 @@ const DEFAULT_ROCKET_EXHAUST_CONFIG = {
     minVelocityForOrientation: 0.1
 };
 
-const getRocketExhaustConfig = () => PARTICLE_CONFIG?.rocketExhaust || DEFAULT_ROCKET_EXHAUST_CONFIG;
-
 /**
  * Particle Pool for performance
  * Pre-creates and reuses particle objects to avoid garbage collection
@@ -43,11 +41,12 @@ export class ParticlePool {
     }
     
     _getConfigWithCache() {
-        const config = getRocketExhaustConfig();
+        const configRef = PARTICLE_CONFIG?.rocketExhaust;
+        const config = configRef || DEFAULT_ROCKET_EXHAUST_CONFIG;
         const minVelocity = config.minVelocityForOrientation ?? 0;
         
-        this._cachedConfig = config;
-        if (minVelocity !== this._cachedMinVelocity) {
+        if (config !== this._cachedConfig || minVelocity !== this._cachedMinVelocity) {
+            this._cachedConfig = config;
             this._cachedMinVelocity = minVelocity;
             this._cachedMinVelocitySq = minVelocity * minVelocity;
         }
