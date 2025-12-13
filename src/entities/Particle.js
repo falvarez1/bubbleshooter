@@ -12,6 +12,8 @@ export class ParticlePool {
         this.geometryCache = new Map();
         this.materialCache = new Map();
         this.postProcessing = postProcessing;
+        this._tempDirection = new THREE.Vector3();
+        this._tempLookTarget = new THREE.Vector3();
         
         // Pre-create particles
         for (let i = 0; i < size; i++) {
@@ -108,6 +110,7 @@ export class ParticlePool {
             minVelocityForOrientation: 0.1,
             sparkBaseSize: 0.05
         };
+        const minVelocitySq = config.minVelocityForOrientation * config.minVelocityForOrientation;
         
         particle.life = 1.0;
         particle.decay = config.decay;
@@ -115,13 +118,10 @@ export class ParticlePool {
         particle.material.opacity = config.opacity;
         
         // Orient spark along velocity direction for realistic exhaust
-        if (config.orientToVelocity && velocity && velocity.length() > config.minVelocityForOrientation) {
-            const direction = velocity.clone().normalize();
-            particle.mesh.lookAt(
-                particle.position.x + direction.x,
-                particle.position.y + direction.y,
-                particle.position.z + direction.z
-            );
+        if (config.orientToVelocity && velocity && velocity.lengthSq() > minVelocitySq) {
+            this._tempDirection.copy(velocity).normalize();
+            this._tempLookTarget.copy(particle.position).add(this._tempDirection);
+            particle.mesh.lookAt(this._tempLookTarget);
         }
         
         particle.mesh.scale.setScalar(size / config.sparkBaseSize);
@@ -202,22 +202,24 @@ export class ParticlePool {
             particle.material.color.set(color);
         }
         
+        const config = PARTICLE_CONFIG?.rocketExhaust || { sparkBaseSize: 0.05, minVelocityForOrientation: 0.1 };
+        const minVelocitySq = config.minVelocityForOrientation * config.minVelocityForOrientation;
+        
         // Power-based spark intensity
         const sparkIntensity = 0.7 + power * 0.3; // Brighter sparks for more power
         particle.material.opacity = sparkIntensity;
         
         // Orient spark along velocity direction for realistic exhaust
-        if (velocity && velocity.length() > 0) {
-            const direction = velocity.clone().normalize();
-            particle.mesh.lookAt(
-                particle.position.x + direction.x,
-                particle.position.y + direction.y,
-                particle.position.z + direction.z
-            );
+        if (velocity) {
+            const speedSq = velocity.lengthSq();
+            if (speedSq > minVelocitySq) {
+                this._tempDirection.copy(velocity).multiplyScalar(1 / Math.sqrt(speedSq));
+                this._tempLookTarget.copy(particle.position).add(this._tempDirection);
+                particle.mesh.lookAt(this._tempLookTarget);
+            }
         }
         
         // Power affects size - sparks get longer and brighter with more power
-        const config = PARTICLE_CONFIG?.rocketExhaust || { sparkBaseSize: 0.05 };
         const powerSizeMultiplier = 1 + power * 0.8; // Up to 1.8x size for dramatic effect
         particle.mesh.scale.setScalar((size / config.sparkBaseSize) * powerSizeMultiplier);
         particle.mesh.visible = true;
@@ -243,6 +245,13 @@ export class ParticlePool {
     }
     
     update(deltaTime) {
+        const config = PARTICLE_CONFIG?.rocketExhaust || {
+            opacity: 0.9,
+            orientToVelocity: true,
+            minVelocityForOrientation: 0.1,
+            shrinkRate: 0.97
+        };
+        const minVelocitySq = config.minVelocityForOrientation * config.minVelocityForOrientation;
         for (let i = this.activeParticles.length - 1; i >= 0; i--) {
             const particle = this.activeParticles[i];
             
@@ -257,22 +266,16 @@ export class ParticlePool {
             particle.life -= particle.decay;
             
             // Spark-like fading with intensity
-            const config = PARTICLE_CONFIG?.rocketExhaust || {
-                opacity: 0.9,
-                orientToVelocity: true,
-                minVelocityForOrientation: 0.1,
-                shrinkRate: 0.97
-            };
             particle.material.opacity = config.opacity * particle.life;
             
             // Maintain spark orientation along velocity
-            if (config.orientToVelocity && particle.velocity && particle.velocity.length() > config.minVelocityForOrientation) {
-                const direction = particle.velocity.clone().normalize();
-                particle.mesh.lookAt(
-                    particle.position.x + direction.x,
-                    particle.position.y + direction.y,
-                    particle.position.z + direction.z
-                );
+            if (config.orientToVelocity && particle.velocity) {
+                const speedSq = particle.velocity.lengthSq();
+                if (speedSq > minVelocitySq) {
+                    this._tempDirection.copy(particle.velocity).multiplyScalar(1 / Math.sqrt(speedSq));
+                    this._tempLookTarget.copy(particle.position).add(this._tempDirection);
+                    particle.mesh.lookAt(this._tempLookTarget);
+                }
             }
             
             // Sparks shrink as they fade
