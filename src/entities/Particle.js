@@ -15,6 +15,9 @@ const DEFAULT_ROCKET_EXHAUST_CONFIG = {
     minVelocityForOrientation: 0.1
 };
 
+const MIN_VELOCITY_FALLBACK = 0.001;
+const CONFIG_SIGNATURE_KEYS = ['sparkBaseSize', 'opacity', 'shrinkRate', 'decay'];
+
 /**
  * Particle Pool for performance
  * Pre-creates and reuses particle objects to avoid garbage collection
@@ -43,13 +46,16 @@ export class ParticlePool {
     
     _getConfigWithCache() {
         const configRef = PARTICLE_CONFIG?.rocketExhaust || DEFAULT_ROCKET_EXHAUST_CONFIG;
-        const signature = `${configRef.minVelocityForOrientation ?? 0.001}|${configRef.sparkBaseSize}|${configRef.opacity}|${configRef.shrinkRate}|${configRef.decay}`;
+        const signatureParts = CONFIG_SIGNATURE_KEYS.map(key => configRef[key]);
+        const minVelocity = configRef.minVelocityForOrientation ?? MIN_VELOCITY_FALLBACK;
+        signatureParts.unshift(minVelocity);
+        const signature = signatureParts.join('|');
         
-        if (configRef !== this._cachedConfig || signature !== this._cachedConfigSignature) {
+        if (signature !== this._cachedConfigSignature) {
             this._cachedConfig = configRef;
             this._cachedConfigSignature = signature;
-            this._cachedMinVelocity = configRef.minVelocityForOrientation ?? 0.001;
-            this._cachedMinVelocitySq = this._cachedMinVelocity * this._cachedMinVelocity;
+            this._cachedMinVelocity = minVelocity;
+            this._cachedMinVelocitySq = minVelocity * minVelocity;
         }
         
         return this._cachedConfig;
